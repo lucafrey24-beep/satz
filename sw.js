@@ -1,7 +1,7 @@
 // Offline-Betrieb. Strategie: zuerst Netzwerk (immer die neueste Version), bei fehlendem Netz der Zwischenspeicher.
 // Bei jeder Veröffentlichung CACHE erhöhen, damit installierte Apps die alten Dateien verwerfen.
-const CACHE = "satz-v0.2.1";
-const FILES = ["./", "index.html", "css/app.css", "js/app.js", "js/store.js", "js/data.js", "manifest.webmanifest",
+const CACHE = "satz-v0.3.0";
+const FILES = ["./", "index.html", "css/app.css", "js/app.js", "js/store.js", "js/data.js", "js/nutrition.js", "manifest.webmanifest",
   "fonts/archivo.woff2", "icons/icon-192.png", "icons/icon-180.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, {cache: "reload"})))));

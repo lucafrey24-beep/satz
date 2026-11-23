@@ -19,9 +19,20 @@ function fresh() {
 export function load() {
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
   if (!valid(S)) S = fresh();
+  migrate();
+}
+// Ergänzt fehlende Felder (auch nach dem Laden einer älteren Sicherung)
+function migrate() {
   // neue Bibliotheksübungen nachrüsten, ohne eigene Umbenennungen zu überschreiben
   EXERCISES.forEach(e => { if (!S.exercises[e.id]) S.exercises[e.id] = {...e}; });
+  // Ergänzungen ab Version 0.3 (Ernährung, Profil), rückwärtskompatibel
+  S.profile = Object.assign({birth: "", sex: "", height: 0, pal: 1.55, goal: "maintain", manual: false, kcal: 0, p: 0, c: 0, f: 0}, S.profile || {});
+  S.weights = S.weights || [];
+  S.foods = S.foods || {};
+  S.food = S.food || [];
+  S.settings.accent = S.settings.accent || "graphit";
 }
+export const currentWeight = () => S.weights.length ? S.weights[S.weights.length - 1].kg : 0;
 
 export function valid(d) {
   return d && d.version === VERSION && d.exercises && Array.isArray(d.plans) && Array.isArray(d.sessions) && d.settings;
@@ -31,9 +42,9 @@ export function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; }
 }
 
-export function replaceAll(data) { S = data; save(); }
+export function replaceAll(data) { S = data; migrate(); save(); }
 export function snapshot() { return JSON.stringify(S); }
-export function restore(snap) { S = JSON.parse(snap); save(); }
+export function restore(snap) { S = JSON.parse(snap); migrate(); save(); }
 
 /* ---------- Pläne ---------- */
 export function instantiate(t) {

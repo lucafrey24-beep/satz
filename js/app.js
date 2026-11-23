@@ -1,5 +1,6 @@
 import * as St from "./store.js";
 import {MUSCLES, MUSCLE_NAME, TEMPLATES} from "./data.js";
+import * as N from "./nutrition.js";
 
 /* ============ Hilfen ============ */
 const $ = s => document.querySelector(s);
@@ -48,13 +49,14 @@ function applySettings() {
   r.style.setProperty("--scale", s.scale);
   if (s.scale && s.scale !== 1) r.dataset.scale = ""; else delete r.dataset.scale;
   if (s.theme === "auto") delete r.dataset.theme; else r.dataset.theme = s.theme;
+  r.dataset.accent = s.accent || "graphit";
   if (s.contrast) r.dataset.contrast = "high"; else delete r.dataset.contrast;
   const dark = s.theme === "dark" || (s.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.querySelector('meta[name="theme-color"]').content = dark ? "#000000" : "#F2F2F7";
 }
 
 /* ============ Router ============ */
-const ROUTES = {heute: viewToday, plaene: viewPlans, vorlage: viewTemplate, plan: viewEditor, uebungen: viewExercises, verlauf: viewHistory, mehr: viewMore, training: viewTraining};
+const ROUTES = {heute: viewToday, plaene: viewPlans, vorlage: viewTemplate, plan: viewEditor, uebungen: viewExercises, verlauf: viewHistory, ernaehrung: viewNutrition, mehr: viewMore, training: viewTraining};
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   let name = parts[0] || "heute";
@@ -65,6 +67,7 @@ function route() {
   tabs.hidden = training;
   view.classList.toggle("modal", training);
   tabs.querySelectorAll("a").forEach(a => a.dataset.tab === tabFor(name) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  placePill(tabFor(name));
   renderBar(training);
   if (dlg.open) dlg.close();
   ROUTES[name](parts[1]);
@@ -499,8 +502,10 @@ function viewMore() {
   const s = D().settings;
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, l, aria]) => `<button type="button" data-act="set" data-k="${key}" data-v="${v}" aria-pressed="${String(s[key]) === String(v)}" ${aria ? `aria-label="${aria}"` : ""}>${l}</button>`).join("")}</div>`;
   view.innerHTML = `<h1 class="big">Mehr</h1>
-    <h2 class="sec" style="margin-top:4px">Anzeige</h2>
+    ${profileSection()}
+    <h2 class="sec">Anzeige</h2>
     <div class="group">
+      ${accentRow()}
       <div class="row stack"><span id="l-scale">Textgröße</span>${seg("scale", [[1, "iPhone", "Wie in den iPhone-Einstellungen"], [1.15, "A+", "Groß"], [1.3, "A++", "Sehr groß"], [1.5, "A+++", "Riesig"]]).replace('role="group"', 'role="group" aria-labelledby="l-scale"')}</div>
       <div class="row stack"><span id="l-theme">Erscheinungsbild</span>${seg("theme", [["auto", "Automatisch"], ["light", "Hell"], ["dark", "Dunkel"]]).replace('role="group"', 'role="group" aria-labelledby="l-theme"')}</div>
       <label class="row" for="s-contrast"><span>Kontrast erhöhen</span><input id="s-contrast" class="switch" type="checkbox" role="switch" data-on="contrast" ${s.contrast ? "checked" : ""}></label>
@@ -521,8 +526,9 @@ function viewMore() {
     <p class="err" id="importErr" role="alert" hidden></p>
     <button class="btn destructive" data-act="reset">Alle Daten löschen</button>
     <h2 class="sec">Über SATZ</h2>
+    <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen von 90–120 s (Singer et al. 2024), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
-    <p class="meta">Version 0.2 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+    <p class="meta">Version 0.3 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
 /* ============ Aktionen ============ */
@@ -685,9 +691,401 @@ document.addEventListener("change", ev => {
 });
 // Enter in Dialog-Feldern speichert
 dlg.addEventListener("keydown", ev => {
+  if (ev.key === "Enter" && ev.target.id === "fq") { ev.preventDefault(); const b = dlg.querySelector('[data-act="offsearch"]'); if (b) b.click(); return; }
   if (ev.key !== "Enter" || ev.target.tagName !== "INPUT" || ev.target.type === "search" || ev.target.type === "checkbox") return;
-  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"]'); if (b) b.click();
+  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"]'); if (b) b.click();
 });
+
+/* ============ Tab-Bar: Pille ziehen ============ */
+const TAB_ORDER = ["heute", "plaene", "verlauf", "ernaehrung", "mehr"];
+function placePill(name) {
+  const i = TAB_ORDER.indexOf(name);
+  tabs.classList.toggle("nopill", i < 0);
+  if (i >= 0) tabs.querySelector(".pill").style.transform = `translateX(${i * 100}%)`;
+}
+(() => {
+  const pill = tabs.querySelector(".pill"), links = [...tabs.querySelectorAll("a")];
+  let startX = 0, id = null, dragging = false, swallow = false;
+  const geo = () => { const r = tabs.getBoundingClientRect(), w = (r.width - 8) / links.length; return {r, w}; };
+  const idxAt = x => { const {r, w} = geo(); return Math.max(0, Math.min(links.length - 1, Math.floor((x - r.left - 4) / w))); };
+  tabs.addEventListener("pointerdown", ev => { if (ev.button) return; id = ev.pointerId; startX = ev.clientX; dragging = false; });
+  tabs.addEventListener("pointermove", ev => {
+    if (ev.pointerId !== id) return;
+    if (!dragging && Math.abs(ev.clientX - startX) < 8) return;
+    if (!dragging) { dragging = true; tabs.classList.add("dragging"); tabs.classList.remove("nopill"); try { tabs.setPointerCapture(id); } catch (e) {} }
+    const {r, w} = geo(), x = Math.max(0, Math.min(w * (links.length - 1), ev.clientX - r.left - 4 - w / 2));
+    pill.style.transform = `translateX(${x}px)`;
+    const i = idxAt(ev.clientX); links.forEach((a, k) => a.classList.toggle("over", k === i));
+  });
+  const end = ev => {
+    if (ev.pointerId !== id) return;
+    id = null;
+    if (!dragging) return;
+    dragging = false; swallow = true; setTimeout(() => swallow = false, 400);
+    tabs.classList.remove("dragging");
+    links.forEach(a => a.classList.remove("over"));
+    const a = links[idxAt(ev.clientX)];
+    placePill(a.dataset.tab);
+    if (ev.type === "pointerup") go(a.getAttribute("href")); else route();
+  };
+  tabs.addEventListener("pointerup", end);
+  tabs.addEventListener("pointercancel", end);
+  tabs.addEventListener("click", ev => { if (swallow) { ev.preventDefault(); swallow = false; } }, true);
+  tabs.addEventListener("dragstart", ev => ev.preventDefault());
+})();
+
+/* ============ Ernährung: Hilfen ============ */
+const num = v => { const n = parseFloat(String(v ?? "").replace(",", ".")); return isFinite(n) ? n : 0; };
+const r0 = n => Math.round(n).toLocaleString("de-DE");
+const r1 = n => (Math.round(n * 10) / 10).toLocaleString("de-DE");
+const dkey = (d = new Date()) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
+const shiftDay = (k, n) => { const d = new Date(k + "T12:00:00"); d.setDate(d.getDate() + n); return dkey(d); };
+function dayLabel(k) {
+  const t = dkey();
+  if (k === t) return "Heute";
+  if (k === shiftDay(t, -1)) return "Gestern";
+  return new Date(k + "T12:00:00").toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "long"});
+}
+const ACCENTS = [["graphit", "Graphit", "#1C1C1E", "#F2F2F7"], ["gruen", "Grün", "#0B6B46", "#3DDC97"], ["kobalt", "Kobalt", "#1D4ED8", "#7AA2FF"], ["signal", "Signal", "#C8102E", "#FF8585"]];
+const isDark = () => { const s = D().settings; return s.theme === "dark" || (s.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches); };
+const targets = () => N.activeTargets(D().profile, St.currentWeight());
+const foodLine = f => [f.brand, `${r0(f.per100.kcal)} kcal / 100 g`].filter(Boolean).join(" · ");
+
+/* ============ Ernährung: Ansicht ============ */
+function viewNutrition() {
+  if (!ui.fday) ui.fday = dkey();
+  const k = ui.fday, today = dkey(), t = targets();
+  const entries = D().food.filter(e => e.date === k), sum = N.sumEntries(entries);
+  const bar = (v, max) => { const pct = max ? Math.min(100, v / max * 100) : 0; return `<div class="bar ${max && v > max * 1.05 ? "over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></div>`; };
+  const mac = (name, v, max) => `<div><span class="n">${name}</span><div class="g">${r0(v)}${max ? ` / ${r0(max)}` : ""} g</div>${bar(v, max)}</div>`;
+  const left = t ? t.kcal - sum.kcal : 0;
+  view.innerHTML = `<h1 class="big">Ernährung</h1>
+    <div class="daynav"><button type="button" data-act="fday" data-d="-1" aria-label="Vorheriger Tag">‹</button>
+      <span class="t" aria-live="polite">${esc(dayLabel(k))}</span>
+      <button type="button" data-act="fday" data-d="1" aria-label="Nächster Tag" ${k >= today ? "disabled" : ""}>›</button></div>
+    <section class="card" aria-labelledby="sum-h">
+      <h2 id="sum-h" class="sr">Tagesbilanz</h2>
+      <div class="kcal"><span class="v">${r0(sum.kcal)}<span class="meta" style="font-size:1rem;font-weight:500"> kcal</span></span>
+        <span class="r">${t ? (left >= 0 ? `noch ${r0(left)} von ${r0(t.kcal)}` : `${r0(-left)} über ${r0(t.kcal)}`) : "kein Ziel gesetzt"}</span></div>
+      ${t ? bar(sum.kcal, t.kcal) : ""}
+      <div class="macros">${mac("Protein", sum.p, t && t.p)}${mac("Kohlenhydrate", sum.c, t && t.c)}${mac("Fett", sum.f, t && t.f)}</div>
+      <div class="row-btns"><button class="btn small" data-act="goals" aria-haspopup="dialog">${t ? (t.manual ? "Ziel: manuell" : "Ziel: berechnet") + " · Quellen" : "Ziel festlegen"}</button></div>
+    </section>
+    ${t ? "" : `<p class="hint">Trag unter <a href="#/mehr">Mehr → Persönliche Daten</a> Geburtsdatum, Geschlecht, Größe und Gewicht ein. Dann berechnet SATZ deinen Bedarf nach anerkannten Formeln. Oder leg die Werte selbst fest.</p>`}
+    ${N.MEALS.map(([id, name]) => { const es = entries.filter(e => e.meal === id), ms = N.sumEntries(es); return `
+      <div class="mealh"><h2 class="sec" id="m-${id}">${name}</h2>${es.length ? `<span>${r0(ms.kcal)} kcal</span>` : ""}</div>
+      <ul class="group" aria-labelledby="m-${id}">
+        ${es.map(e => { const m = N.macrosFor(e.per100, e.grams); return `<li><button class="fbtn" data-act="fedit" data-id="${e.id}" aria-haspopup="dialog"><span><b>${esc(e.name)}</b><small>${r0(e.grams)} g · P ${r0(m.p)} · K ${r0(m.c)} · F ${r0(m.f)}</small></span><span class="k">${r0(m.kcal)} kcal</span></button></li>`; }).join("")}
+        <li><button class="fbtn add" data-act="fadd" data-m="${id}" aria-haspopup="dialog">+ Hinzufügen<span class="sr"> zu ${name}</span></button></li>
+      </ul>`; }).join("")}
+    <p class="foot" style="margin-top:16px">Produktdaten aus dem Netz kommen von Open Food Facts, einer freien Datenbank, die von Freiwilligen gepflegt wird. Prüfe die Werte auf der Verpackung. An Open Food Facts geht nur der Barcode oder Suchbegriff, nichts über dich.</p>
+    <div style="height:24px"></div>`;
+}
+
+/* ---------- Hinzufügen ---------- */
+function openFoodAdd(meal) {
+  ui.fmeal = meal; ui.fq = ""; ui.foff = null; ui.foffState = "";
+  openDialog(`<h2 id="dlg-h">${esc(N.MEALS.find(m => m[0] === meal)[1])}: hinzufügen</h2>
+    <div class="row-btns" style="margin:0 0 16px"><button class="btn small primary" data-act="scan">Barcode scannen</button><button class="btn small" data-act="newfood">Neues Lebensmittel</button></div>
+    <label class="field">Suchen <input id="fq" type="search" data-on="fq" autocomplete="off" enterkeyhint="search"></label>
+    <div id="fres"></div>
+    <button class="btn" data-act="close">Abbrechen</button>`, "#fq");
+  renderFoodResults();
+}
+function localFoods(q) {
+  const used = {}; D().food.forEach((e, i) => { if (e.foodId) used[e.foodId] = i; });
+  return Object.values(D().foods).filter(f => !q || (f.name + " " + (f.brand || "")).toLowerCase().includes(q))
+    .sort((a, b) => (used[b.id] ?? -1) - (used[a.id] ?? -1) || a.name.localeCompare(b.name, "de"));
+}
+function renderFoodResults() {
+  const box = $("#fres"); if (!box) return;
+  const q = ui.fq.trim().toLowerCase(), list = localFoods(q).slice(0, 30);
+  ui.fcands = [...list];
+  const item = (f, i) => `<li><button data-act="pickfood" data-i="${i}"><b>${esc(f.name)}</b><small>${esc(foodLine(f))}</small></button></li>`;
+  let off = "";
+  if (ui.foffState === "loading") off = `<p class="meta" role="status">Suche bei Open Food Facts …</p>`;
+  else if (ui.foffState === "error") off = `<p class="err" role="alert">Open Food Facts ist gerade nicht erreichbar. Prüfe die Verbindung oder leg das Lebensmittel selbst an.</p>`;
+  else if (ui.foff) {
+    const base = ui.fcands.length;
+    ui.fcands.push(...ui.foff);
+    off = `<h3 class="meta" style="margin:12px 0 6px">Open Food Facts: ${ui.foff.length} Treffer</h3>${ui.foff.length ? `<ul class="plist">${ui.foff.map((f, i) => item(f, base + i)).join("")}</ul>` : ""}`;
+  }
+  box.innerHTML = `
+    ${list.length ? `<h3 class="meta" style="margin:0 0 6px">${q ? "Deine Lebensmittel" : "Zuletzt verwendet"}</h3><ul class="plist">${list.map(item).join("")}</ul>`
+      : `<p class="meta">${q ? "Keine eigenen Treffer." : "Noch keine eigenen Lebensmittel. Scanne einen Barcode, suche online oder leg eins an."}</p>`}
+    ${q.length >= 3 && !ui.foff && ui.foffState !== "loading" ? `<button class="btn" data-act="offsearch" style="margin-bottom:12px">„${esc(ui.fq.trim())}“ online suchen</button>` : ""}
+    ${off}`;
+}
+
+/* ---------- Menge ---------- */
+function openAmount(food, entry) {
+  ui.famount = {food, entry};
+  const grams = entry ? entry.grams : food.serving || 100;
+  const mealSel = entry ? entry.meal : ui.fmeal || "snack";
+  openDialog(`<h2 id="dlg-h">${esc(food.name)}</h2>
+    <p class="meta" style="text-align:center;margin-top:-10px">${esc(foodLine(food))}</p>
+    <p class="err" role="alert" hidden></p>
+    <label class="field">Menge in Gramm <input id="fgrams" data-on="fgrams" inputmode="decimal" autocomplete="off" value="${fmt(grams)}"></label>
+    ${food.serving ? `<div class="quick"><button class="btn small" data-act="fgset" data-g="${food.serving}">1 Portion (${fmt(food.serving)} g)</button><button class="btn small" data-act="fgset" data-g="100">100 g</button></div>` : ""}
+    <div class="preview" id="fprev" aria-live="polite"></div>
+    <label class="field">Mahlzeit <select id="fmealsel">${N.MEALS.map(([id, n]) => `<option value="${id}" ${id === mealSel ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="amountsave">${entry ? "Speichern" : "Hinzufügen"}</button></div>
+    ${entry ? `<button class="btn destructive" data-act="fdel" style="margin-top:10px">Eintrag löschen</button>` : ""}
+    ${food.id && D().foods[food.id] ? `<button class="btn" data-act="foodedit" style="margin-top:10px">Lebensmittel bearbeiten</button>` : ""}`, "#fgrams");
+  updatePreview();
+}
+function updatePreview() {
+  const el = $("#fprev"); if (!el || !ui.famount) return;
+  const m = N.macrosFor(ui.famount.food.per100, num($("#fgrams").value));
+  el.innerHTML = `<div><b>${r0(m.kcal)}</b><small>kcal</small></div><div><b>${r1(m.p)}</b><small>Protein g</small></div><div><b>${r1(m.c)}</b><small>Kohlenh. g</small></div><div><b>${r1(m.f)}</b><small>Fett g</small></div>`;
+}
+function saveAmount() {
+  const g = num($("#fgrams").value);
+  if (g <= 0 || g > 5000) return dlgError("Bitte gib eine Menge zwischen 1 und 5000 g ein.");
+  const {food, entry} = ui.famount, meal = $("#fmealsel").value;
+  if (!food.id) { food.id = "f_" + St.uid(); }
+  if (!D().foods[food.id]) D().foods[food.id] = {...food};          // Online-Treffer lokal merken, damit sie offline wieder auftauchen
+  if (entry) Object.assign(entry, {grams: g, meal});
+  else D().food.push({id: St.uid(), date: ui.fday || dkey(), meal, foodId: food.id, name: food.name, brand: food.brand || "", per100: {...food.per100}, grams: g});
+  persist(); ui.fmeal = meal; closeDialog(); if (location.hash.startsWith("#/ernaehrung")) rerender(); else go("#/ernaehrung");
+  say(`${food.name}, ${r0(g)} g ${entry ? "geändert" : "eingetragen"}.`);
+}
+
+/* ---------- Eigenes Lebensmittel ---------- */
+function openFoodForm(pre = {}, note = "") {
+  ui.fedit = pre.id && D().foods[pre.id] ? pre.id : null; ui.fwarned = false; ui.fbarcode = pre.barcode || "";
+  const v = k => pre.per100 && pre.per100[k] != null ? fmt(Math.round(pre.per100[k] * 10) / 10) : "";
+  const fld = (id, label, val) => `<label class="field">${label} <input id="${id}" inputmode="decimal" autocomplete="off" value="${val}"></label>`;
+  openDialog(`<h2 id="dlg-h">${ui.fedit ? "Lebensmittel bearbeiten" : "Neues Lebensmittel"}</h2>
+    ${note ? `<p class="note">${esc(note)}</p>` : ""}
+    <p class="err" role="alert" hidden></p>
+    <label class="field">Name <input id="fn-name" autocomplete="off" value="${esc(pre.name || "")}"></label>
+    <label class="field">Marke <small style="display:inline">(optional)</small><input id="fn-brand" autocomplete="off" value="${esc(pre.brand || "")}"></label>
+    <p class="meta" style="margin:-4px 0 10px">Nährwerte pro 100 g, wie auf der Verpackung</p>
+    <div class="pair">${fld("fn-kcal", "Energie (kcal)", v("kcal"))}${fld("fn-p", "Protein (g)", v("p"))}</div>
+    <div class="pair">${fld("fn-c", "Kohlenhydrate (g)", v("c"))}${fld("fn-f", "Fett (g)", v("f"))}</div>
+    ${fld("fn-serv", "Portion in g (optional)", pre.serving ? fmt(pre.serving) : "")}
+    ${ui.fbarcode ? `<p class="meta">Barcode: ${esc(ui.fbarcode)}</p>` : ""}
+    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="foodsave">Speichern</button></div>
+    ${ui.fedit ? `<button class="btn destructive" data-act="fooddel" style="margin-top:10px">Lebensmittel löschen</button>` : ""}`, "#fn-name");
+}
+function saveFood() {
+  const name = $("#fn-name").value.trim();
+  if (!name) return dlgError("Bitte gib dem Lebensmittel einen Namen.");
+  const per100 = {kcal: num($("#fn-kcal").value), p: num($("#fn-p").value), c: num($("#fn-c").value), f: num($("#fn-f").value)};
+  if (per100.kcal <= 0 || per100.kcal > 900) return dlgError("Energie pro 100 g muss zwischen 1 und 900 kcal liegen (reines Fett hat etwa 900).");
+  if (per100.p + per100.c + per100.f > 100) return dlgError("Protein, Kohlenhydrate und Fett ergeben zusammen mehr als 100 g pro 100 g. Bitte prüfen.");
+  // Plausibilität nach Atwater (4/4/9 kcal pro g). Ballaststoffe und Alkohol erklären kleine Abweichungen.
+  const calc = N.atwater(per100);
+  if (!ui.fwarned && Math.abs(calc - per100.kcal) > Math.max(25, per100.kcal * 0.2)) {
+    ui.fwarned = true;
+    return dlgError(`Aus den Makros ergeben sich etwa ${r0(calc)} kcal, eingetragen sind ${r0(per100.kcal)}. Tippfehler? Zum Speichern trotzdem nochmal tippen.`);
+  }
+  const food = {id: ui.fedit || "f_" + St.uid(), name, brand: $("#fn-brand").value.trim(), barcode: ui.fbarcode, per100, serving: num($("#fn-serv").value), source: "own"};
+  D().foods[food.id] = food; persist(); say(`${name} gespeichert.`);
+  openAmount(food);
+}
+
+/* ---------- Ziele & Quellen ---------- */
+function openGoals() {
+  const pr = D().profile, kg = St.currentWeight(), miss = N.missing(pr, kg), t = N.computeTargets(pr, kg);
+  const seg = `<div class="seg" role="group" aria-label="Art des Ziels" style="margin-bottom:16px">
+    <button type="button" data-act="gmode" data-v="0" aria-pressed="${!pr.manual}">Nach Literatur</button>
+    <button type="button" data-act="gmode" data-v="1" aria-pressed="${!!pr.manual}">Selbst festlegen</button></div>`;
+  const goalSeg = `<div class="seg" role="group" aria-label="Ziel" style="margin-bottom:12px">${Object.entries(N.GOALS).map(([id, g]) => `<button type="button" data-act="pgoal" data-v="${id}" aria-pressed="${pr.goal === id}">${g.l}</button>`).join("")}</div>`;
+  let body;
+  if (pr.manual) {
+    const fld = (id, label, val) => `<label class="field">${label} <input id="${id}" inputmode="decimal" autocomplete="off" value="${val || ""}"></label>`;
+    body = `<p class="err" role="alert" hidden></p>
+      ${fld("g-kcal", "Energie (kcal pro Tag)", pr.kcal)}
+      <div class="pair">${fld("g-p", "Protein (g)", pr.p)}${fld("g-c", "Kohlenhydrate (g)", pr.c)}</div>${fld("g-f", "Fett (g)", pr.f)}
+      ${t ? `<p class="meta">Zum Vergleich, nach Literatur berechnet: ${r0(t.kcal)} kcal, ${t.p} g Protein, ${t.c} g Kohlenhydrate, ${t.f} g Fett.</p>` : ""}
+      <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="goalsave">Speichern</button></div>`;
+  } else if (!t) {
+    body = `<p>Für die Berechnung fehlt noch: <b>${miss.join(", ")}</b>.</p>
+      <a class="btn primary" href="#/mehr">Persönliche Daten eintragen</a>`;
+  } else {
+    const s = t.steps, g = s.goal, sexTxt = pr.sex === "m" ? "+ 5 (Männer)" : pr.sex === "w" ? "− 161 (Frauen)" : "− 78 (Mittelwert, keine Angabe)";
+    body = `${goalSeg}<p class="meta">${esc(g.why)}</p>
+      <ol class="steps">
+        <li>Grundumsatz nach Mifflin-St Jeor: 10 × ${fmt(s.kg)} kg + 6,25 × ${fmt(pr.height)} cm − 5 × ${s.years} Jahre ${sexTxt} = <b>${r0(s.bmr)} kcal</b></li>
+        <li>× Aktivitätsfaktor (PAL) ${fmt(s.pal)} = <b>${r0(s.tdee)} kcal</b> Gesamtbedarf</li>
+        <li>Ziel „${g.l}“: ${g.rate ? `${g.rate > 0 ? "+" : "−"}${fmt(Math.abs(g.rate) * 100)} % Körpergewicht pro Woche × 7700 kcal/kg ÷ 7 = <b>${s.delta > 0 ? "+" : "−"}${r0(Math.abs(s.delta))} kcal</b> pro Tag` : "<b>± 0 kcal</b>"}</li>
+        <li>Tagesziel (gerundet): <b>${r0(t.kcal)} kcal</b></li>
+        <li>Protein: ${fmt(g.protein)} g × ${fmt(s.kg)} kg = <b>${t.p} g</b></li>
+        <li>Fett: 25 % der Energie ÷ 9 kcal/g = <b>${t.f} g</b></li>
+        <li>Kohlenhydrate: der Rest ÷ 4 kcal/g = <b>${t.c} g</b></li>
+      </ol>
+      <p class="meta">Das sind Schätzwerte für gesunde Erwachsene. Die Formel liegt bei den meisten Menschen innerhalb von ±10 % (Frankenfield et al. 2005). Beobachte dein Gewicht 2–3 Wochen und passe dann an. Kein Ersatz für ärztliche oder ernährungsberaterische Beratung, etwa bei Schwangerschaft oder Essstörungen.</p>
+      <button class="btn" data-act="close">Fertig</button>`;
+  }
+  openDialog(`<h2 id="dlg-h">Ziele &amp; Quellen</h2>${seg}${body}
+    <h3 style="margin:20px 0 8px">Quellen</h3>
+    <ol class="sources">${N.SOURCES.map(([a, t2, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(a)}</a>: ${esc(t2)}</li>`).join("")}</ol>`, pr.manual ? "#g-kcal" : null);
+}
+function saveGoals() {
+  const v = {kcal: Math.round(num($("#g-kcal").value)), p: Math.round(num($("#g-p").value)), c: Math.round(num($("#g-c").value)), f: Math.round(num($("#g-f").value))};
+  if (v.kcal < 800 || v.kcal > 8000) return dlgError("Bitte gib eine Energiemenge zwischen 800 und 8000 kcal ein.");
+  const macro = v.p * 4 + v.c * 4 + v.f * 9;
+  if (macro && Math.abs(macro - v.kcal) > v.kcal * 0.1 && !ui.gwarned) { ui.gwarned = true; return dlgError(`Die Makros ergeben ${r0(macro)} kcal, das Ziel sind ${r0(v.kcal)} kcal. Zum Speichern trotzdem nochmal tippen.`); }
+  Object.assign(D().profile, v, {manual: true}); persist(); closeDialog(); rerender(); toast("Eigenes Ziel gespeichert.");
+}
+
+/* ---------- Barcode-Scanner ---------- */
+const scan = {stream: null, timer: 0, reader: null, busy: false};
+function stopScanner() {
+  clearTimeout(scan.timer); scan.timer = 0;
+  if (scan.reader) { try { scan.reader.reset(); } catch (e) {} scan.reader = null; }
+  if (scan.stream) { scan.stream.getTracks().forEach(t => t.stop()); scan.stream = null; }
+}
+const scanStatus = t => { const el = $("#scanst"); if (el) el.textContent = t; };
+function loadZXing() {
+  if (window.ZXing) return Promise.resolve(window.ZXing);
+  return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = "js/vendor/zxing.min.js"; s.onload = () => ok(window.ZXing); s.onerror = fail; document.head.append(s); });
+}
+async function openScanner() {
+  scan.busy = false;
+  openDialog(`<h2 id="dlg-h">Barcode scannen</h2>
+    <div class="scanbox"><video id="scanv" playsinline muted autoplay aria-label="Kamerabild"></video></div>
+    <p class="meta" id="scanst" role="status">Kamera wird gestartet …</p>
+    <div class="inline"><label class="field">Oder Nummer eingeben <input id="bc" inputmode="numeric" autocomplete="off" pattern="[0-9]*"></label><button class="btn" data-act="bclookup">Suchen</button></div>
+    <button class="btn" data-act="close">Abbrechen</button>`, "h2");
+  const video = $("#scanv");
+  if (!navigator.mediaDevices?.getUserMedia) { scanStatus("Dieses Gerät erlaubt hier keinen Kamerazugriff. Gib die Nummer unter dem Barcode ein."); return; }
+  const constraints = {video: {facingMode: {ideal: "environment"}, width: {ideal: 1280}, height: {ideal: 720}}, audio: false};
+  try {
+    let native = false;
+    if ("BarcodeDetector" in window) { try { native = (await BarcodeDetector.getSupportedFormats()).includes("ean_13"); } catch (e) {} }
+    if (native) {
+      scan.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (!dlg.open) return stopScanner();
+      video.srcObject = scan.stream; await video.play().catch(() => {});
+      const det = new BarcodeDetector({formats: ["ean_13", "ean_8", "upc_a", "upc_e"]});
+      scanStatus("Halte den Barcode in den Rahmen.");
+      const tick = async () => {
+        if (!scan.stream) return;
+        try { const r = await det.detect(video); if (r.length) return found(r[0].rawValue); } catch (e) {}
+        scan.timer = setTimeout(tick, 200);
+      };
+      tick();
+    } else {
+      const Z = await loadZXing();
+      if (!dlg.open) return;
+      const hints = new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]]]);
+      scan.reader = new Z.BrowserMultiFormatReader(hints, 250);
+      scanStatus("Halte den Barcode in den Rahmen.");
+      await scan.reader.decodeFromConstraints(constraints, video, res => { if (res && scan.reader) found(res.getText()); });
+      scan.stream = video.srcObject;
+    }
+  } catch (e) {
+    stopScanner();
+    scanStatus(e && e.name === "NotAllowedError"
+      ? "Kein Kamerazugriff erlaubt. Du kannst ihn in den iPhone-Einstellungen erlauben oder die Nummer unter dem Barcode eingeben."
+      : "Die Kamera ließ sich nicht starten. Gib die Nummer unter dem Barcode ein.");
+  }
+}
+function found(code) {
+  if (scan.busy) return; scan.busy = true;
+  if (navigator.vibrate) navigator.vibrate(30);
+  stopScanner(); lookupBarcode(code);
+}
+async function lookupBarcode(code) {
+  code = String(code).replace(/\D/g, "");
+  if (code.length < 8) { scan.busy = false; return scanStatus("Ein Barcode hat 8 bis 13 Ziffern."); }
+  const local = Object.values(D().foods).find(f => f.barcode === code);
+  if (local) return openAmount(local);
+  scanStatus(`Barcode ${code}: suche bei Open Food Facts …`);
+  try {
+    const p = await N.offProduct(code);
+    if (!dlg.open) return;
+    if (p) openAmount(p);
+    else openFoodForm({barcode: code}, `Barcode ${code} ist bei Open Food Facts nicht eingetragen. Leg das Lebensmittel mit den Werten von der Verpackung an. Beim nächsten Scan findet SATZ es dann.`);
+  } catch (e) {
+    openFoodForm({barcode: code}, "Open Food Facts ist gerade nicht erreichbar. Trag die Werte von der Verpackung ein.");
+  }
+}
+
+/* ---------- Persönliche Daten (Mehr) ---------- */
+function profileSection() {
+  const pr = D().profile, kg = St.currentWeight(), years = N.age(pr.birth), lastW = D().weights[D().weights.length - 1];
+  return `<h2 class="sec" style="margin-top:4px">Persönliche Daten</h2>
+    <div class="pair">
+      <label class="field">Geburtsdatum <input type="date" data-on="pbirth" value="${esc(pr.birth)}" max="${dkey()}" min="1900-01-01"></label>
+      <div class="field">Alter <span class="exsel" style="min-height:48px" id="p-age" aria-live="polite">${years != null ? `${years} Jahre` : "–"}</span></div>
+    </div>
+    <div class="pair">
+      <label class="field">Größe (cm) <input data-on="pheight" inputmode="decimal" autocomplete="off" value="${pr.height || ""}"></label>
+      <label class="field">Gewicht (kg) <input data-on="pweight" inputmode="decimal" autocomplete="off" value="${kg ? fmt(kg) : ""}"></label>
+    </div>
+    <label class="field">Geschlecht <small style="display:inline">(für die Grundumsatz-Formel)</small><select data-on="psex">
+      ${[["", "Bitte wählen"], ["m", "Männlich"], ["w", "Weiblich"], ["x", "Keine Angabe (Mittelwert)"]].map(([v, l]) => `<option value="${v}" ${pr.sex === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="field">Aktivität im Alltag <select data-on="ppal">${N.PAL.map(a => `<option value="${a.v}" ${pr.pal === a.v ? "selected" : ""}>${a.l}: ${a.d}</option>`).join("")}</select></label>
+    <div class="field" style="margin-bottom:8px"><span id="l-goal">Ziel</span>
+      <div class="seg" role="group" aria-labelledby="l-goal" style="margin-top:6px">${Object.entries(N.GOALS).map(([id, g]) => `<button type="button" data-act="pgoal" data-v="${id}" aria-pressed="${pr.goal === id}">${g.l}</button>`).join("")}</div></div>
+    <p class="foot">${lastW ? `Gewicht zuletzt eingetragen am ${new Date(lastW.date + "T12:00:00").toLocaleDateString("de-DE")}. ` : ""}Das Alter rechnet sich an deinem Geburtstag automatisch hoch. Die Angaben bleiben auf diesem Gerät und dienen nur der Berechnung deines Bedarfs unter Ernährung.</p>`;
+}
+function accentRow() {
+  const s = D().settings, dark = isDark();
+  return `<div class="row stack"><span id="l-acc">Akzentfarbe</span>
+    <div class="swatches" role="group" aria-labelledby="l-acc">${ACCENTS.map(([id, l, c1, c2]) => `<button type="button" data-act="set" data-k="accent" data-v="${id}" aria-pressed="${s.accent === id}"><i style="background:${dark ? c2 : c1}"></i>${l}</button>`).join("")}</div></div>`;
+}
+
+Object.assign(A, {
+  fday: t => { ui.fday = shiftDay(ui.fday || dkey(), +t.dataset.d); if (ui.fday > dkey()) ui.fday = dkey(); rerender(`[data-act="fday"][data-d="${t.dataset.d}"]:not(:disabled)`); },
+  fadd: t => openFoodAdd(t.dataset.m),
+  fedit: t => { const e = D().food.find(x => x.id === t.dataset.id); if (e) openAmount(D().foods[e.foodId] ? {...D().foods[e.foodId], per100: e.per100} : {name: e.name, brand: e.brand, per100: e.per100}, e); },
+  fdel: () => {
+    const e = ui.famount.entry, snap = St.snapshot();
+    D().food = D().food.filter(x => x.id !== e.id); persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus();
+    toast(`${e.name} gelöscht.`, () => { St.restore(snap); rerender(); });
+  },
+  pickfood: t => openAmount(ui.fcands[+t.dataset.i]),
+  fgset: t => { $("#fgrams").value = fmt(+t.dataset.g); updatePreview(); },
+  amountsave: () => saveAmount(),
+  newfood: () => openFoodForm({name: (ui.fq || "").trim()}),
+  foodedit: () => openFoodForm(D().foods[ui.famount.food.id]),
+  foodsave: () => saveFood(),
+  fooddel: () => {
+    const f = D().foods[ui.fedit], snap = St.snapshot();
+    delete D().foods[ui.fedit]; persist(); opener = null; closeDialog(); rerender();
+    toast(`${f.name} gelöscht. Einträge im Tagebuch bleiben.`, () => { St.restore(snap); rerender(); });
+  },
+  offsearch: async () => {
+    const q = ui.fq.trim(); ui.foffState = "loading"; renderFoodResults();
+    try { ui.foff = (await N.offSearch(q)).slice(0, 20); ui.foffState = ""; } catch (e) { ui.foff = null; ui.foffState = "error"; }
+    if (ui.fq.trim() === q) { renderFoodResults(); say(ui.foff ? `${ui.foff.length} Treffer bei Open Food Facts.` : "Suche fehlgeschlagen."); }
+  },
+  scan: () => openScanner(),
+  bclookup: () => { stopScanner(); scan.busy = true; lookupBarcode($("#bc").value); },
+  goals: () => { ui.gwarned = false; openGoals(); },
+  gmode: t => { D().profile.manual = t.dataset.v === "1"; persist(); openGoals(); rerender(); const b = dlg.querySelector(`[data-act="gmode"][data-v="${t.dataset.v}"]`); if (b) b.focus(); },
+  goalsave: () => saveGoals(),
+  pgoal: t => {
+    D().profile.goal = t.dataset.v; persist();
+    if (dlg.open) { openGoals(); const b = dlg.querySelector(`[data-act="pgoal"][data-v="${t.dataset.v}"]`); if (b) b.focus(); rerender(); }
+    else rerender(`[data-act="pgoal"][data-v="${t.dataset.v}"]`);
+  },
+});
+document.addEventListener("input", ev => {
+  const k = ev.target.dataset.on;
+  if (k === "fq") { ui.fq = ev.target.value; ui.foff = null; ui.foffState = ""; renderFoodResults(); }
+  if (k === "fgrams") updatePreview();
+});
+document.addEventListener("change", ev => {
+  const el = ev.target, k = el.dataset.on, pr = D().profile;
+  if (!k || !k.startsWith("p") || k === "pm" || k === "pq" || k === "pname") return;
+  if (k === "pbirth") { pr.birth = el.value; const y = N.age(pr.birth); $("#p-age").textContent = y != null ? `${y} Jahre` : "–"; }
+  if (k === "psex") pr.sex = el.value;
+  if (k === "ppal") pr.pal = +el.value;
+  if (k === "pheight") { const v = num(el.value); if (v && (v < 100 || v > 250)) { toast("Größe bitte in Zentimetern, zwischen 100 und 250."); el.value = pr.height || ""; return; } pr.height = v; }
+  if (k === "pweight") {
+    const v = Math.round(num(el.value) * 10) / 10;
+    if (v && (v < 30 || v > 300)) { toast("Gewicht bitte in Kilogramm, zwischen 30 und 300."); el.value = St.currentWeight() ? fmt(St.currentWeight()) : ""; return; }
+    if (v) { const w = D().weights, today = dkey(), last = w[w.length - 1]; if (last && last.date === today) last.kg = v; else w.push({date: today, kg: v}); }
+  }
+  persist();
+});
+dlg.addEventListener("close", stopScanner);
 
 /* ============ Start ============ */
 St.load();
