@@ -79,7 +79,8 @@ export const atwater = m => m.p * 4 + m.c * 4 + m.f * 9;
 
 export const MEALS = [["fruehstueck", "Frühstück"], ["mittag", "Mittagessen"], ["abend", "Abendessen"], ["snack", "Snacks"]];
 
-/* ---------- Open Food Facts ---------- */
+/* ---------- Open Food Facts ----------
+   Die Textsuche ist bei Open Food Facts auf etwa 10 Anfragen pro Minute begrenzt, darum nur auf Knopfdruck. */
 const OFF = "https://world.openfoodfacts.org";
 function fromOff(p) {
   const n = p.nutriments || {};
@@ -97,7 +98,7 @@ export async function offProduct(code) {
   return j.status === 1 && j.product ? fromOff({...j.product, code}) : null;
 }
 export async function offSearch(q) {
-  const r = await fetch(`${OFF}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=25&lc=de&cc=de&fields=${FIELDS}`);
+  const r = await fetch(`${OFF}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&json=1&page_size=25&cc=de&sort_by=unique_scans_n&fields=${FIELDS}`);
   if (!r.ok) throw new Error("netz");
   const j = await r.json();
   return (j.products || []).map(fromOff).filter(Boolean);

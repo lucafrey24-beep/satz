@@ -804,7 +804,7 @@ function renderFoodResults() {
   const item = (f, i) => `<li><button data-act="pickfood" data-i="${i}"><b>${esc(f.name)}</b><small>${esc(foodLine(f))}</small></button></li>`;
   let off = "";
   if (ui.foffState === "loading") off = `<p class="meta" role="status">Suche bei Open Food Facts …</p>`;
-  else if (ui.foffState === "error") off = `<p class="err" role="alert">Open Food Facts ist gerade nicht erreichbar. Prüfe die Verbindung oder leg das Lebensmittel selbst an.</p>`;
+  else if (ui.foffState === "error") off = `<p class="err" role="alert">Open Food Facts antwortet gerade nicht. Die Online-Suche erlaubt nur wenige Anfragen pro Minute. Versuch es gleich nochmal, scanne den Barcode oder leg das Lebensmittel selbst an.</p>`;
   else if (ui.foff) {
     const base = ui.fcands.length;
     ui.fcands.push(...ui.foff);
