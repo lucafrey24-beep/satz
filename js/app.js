@@ -528,7 +528,7 @@ function viewMore() {
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen von 90–120 s (Singer et al. 2024), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
-    <p class="meta">Version 0.3.1 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+    <p class="meta">Version 0.3.2 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
 /* ============ Aktionen ============ */

@@ -63,7 +63,7 @@ a{color:var(--tint); text-decoration:none}
 .appbar .ctx{flex:1; text-align:center; font-weight:600; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .navbtn{min-height:44px; min-width:44px; padding:0 4px; border:0; background:transparent; color:var(--tint); font-size:1rem}
 .navbtn.strong{font-weight:600}
-main{flex:1; overflow-y:auto; padding:8px 16px calc(112px + env(safe-area-inset-bottom)); scroll-padding-bottom:120px; -webkit-overflow-scrolling:touch}
+main{flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior-x:none; padding:8px 16px calc(112px + env(safe-area-inset-bottom)); scroll-padding-bottom:120px; -webkit-overflow-scrolling:touch}
 main.modal{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 main:focus{outline:none}
 
@@ -130,7 +130,7 @@ main.modal .actionbar{bottom:0; padding-bottom:calc(8px + env(safe-area-inset-bo
 .exlist li,.edlist li,.logged li,.group > .row{border-bottom:.5px solid var(--sep); padding-right:16px}
 .exlist li:last-child,.edlist li:last-child,.logged li:last-child,.group > .row:last-child{border-bottom:0}
 .exlist{counter-reset:ex}
-.exlist li{display:grid; grid-template-columns:1.9rem 1fr auto; align-items:center; gap:2px 8px; min-height:52px; padding-top:10px; padding-bottom:10px}
+.exlist li{display:grid; grid-template-columns:1.9rem minmax(0,1fr) auto; align-items:center; gap:2px 8px; min-height:52px; padding-top:10px; padding-bottom:10px}
 .exlist li::before{counter-increment:ex; content:counter(ex); color:var(--label-2); font-size:.88rem; font-variant-numeric:tabular-nums}
 .exlist .t{font-weight:400}
 .exlist .s{color:var(--label-2); font-size:.88rem; font-variant-numeric:tabular-nums}
@@ -152,7 +152,7 @@ dialog .field input, dialog .field select{background-color:var(--card-2)}
 .field small{display:block; color:var(--label-2); margin-top:6px; font-size:.765rem}
 fieldset{border:0; padding:0; margin:0 0 16px; min-width:0}
 legend{font-size:.765rem; color:var(--label-2); text-transform:uppercase; letter-spacing:.02em; padding:0; margin-bottom:6px}
-.pair{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.pair{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px}
 .checks{display:grid; grid-template-columns:1fr 1fr; gap:0 10px; background:var(--card-2); border-radius:10px; padding:4px 12px}
 .check{display:flex; align-items:center; gap:10px; min-height:44px; font-size:.94rem}
 .check input{width:22px; height:22px; accent-color:var(--tint); flex:none}
@@ -317,3 +317,14 @@ dialog h2:focus{outline:none}
 .scanbox::after{content:""; position:absolute; left:12%; right:12%; top:50%; height:2px; background:#FF3B30; box-shadow:0 0 8px #FF3B30}
 .inline{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end}
 .inline .btn{width:auto; min-height:48px; margin:0 0 16px}
+
+/* ---------- Seite horizontal starr: nur vertikal scrollen ---------- */
+html,body{overflow:hidden; overscroll-behavior:none; max-width:100%}
+.app{overflow:hidden}
+main > *{max-width:100%}
+.field input,.field select{min-width:0; max-width:100%}
+/* iOS gibt Datumsfeldern eine feste Mindestbreite, die Spalten sprengen kann */
+input[type="date"]{min-width:0; max-width:100%; text-align:left}
+input[type="date"]::-webkit-date-and-time-value{text-align:left}
+.exlist .t,.fbtn b,.plist b{overflow-wrap:anywhere}
+.exsel{min-width:0; overflow-wrap:anywhere}
