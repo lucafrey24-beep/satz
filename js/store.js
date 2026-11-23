@@ -274,7 +274,7 @@ export function sanitizeImport(d) {
     ...(x.notes && typeof x.notes === "object" ? {notes: Object.fromEntries(Object.entries(x.notes).filter(([k]) => ID.test(k)).map(([k, v]) => [k, str(v, 500)]))} : {})}));
   const s = d.settings || {};
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
-    contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, showFig: s.showFig !== false,
+    contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, voice: s.voice !== false, bgBell: !!s.bgBell, showFig: s.showFig !== false,
     accent: ["graphit", "gruen", "kobalt", "signal"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
     ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
   const pr = d.profile || {};

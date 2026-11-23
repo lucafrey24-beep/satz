@@ -1,6 +1,7 @@
 import * as St from "./store.js";
 import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS} from "./data.js";
 import * as AN from "./anim.js";
+import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
 
 /* ============ Hilfen ============ */
@@ -8,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.7.2";
+export const APP_VERSION = "0.7.3";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -526,31 +527,20 @@ setInterval(() => {
   const left = a.restEnd - Date.now(), el = $("#rt");
   if (left > 0) { if (el) el.textContent = restLeft(); lastRestState = true; return; }
   a.restEnd = 0; persist();
-  if (lastRestState) { say("Pause vorbei."); if (navigator.vibrate) navigator.vibrate([150, 80, 150]); }
+  if (lastRestState) {
+    say("Pause vorbei."); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    const fresh = -left < 5000, st = D().settings;
+    // Ohne geplante Glocke (sehr lange Pause) jetzt läuten; Ansage nur, wenn die App gerade sichtbar ist
+    if (st.sound && fresh && !BELL.scheduledUntil) BELL.ring();
+    if (st.sound && st.voice !== false && fresh && document.visibilityState === "visible") setTimeout(BELL.announce, 1300);
+  }
   lastRestState = false;
   if (location.hash === "#/training" && !ui.summary && !dlg.open) rerender();
 }, 1000);
 
-/* ---------- Ton am Pausenende ----------
-   iPhone-Safari kann nicht vibrieren. Darum plant SATZ beim Speichern (einem Tipp, also mit Erlaubnis zum Abspielen)
-   einen kurzen Ton für das Pausenende vor. Der Ton wird im Audio-Takt geplant und kommt auch, wenn JavaScript gedrosselt ist. */
-const beep = {ctx: null, nodes: []};
-function cancelBeep() { beep.nodes.forEach(n => { try { n.stop(); } catch (e) {} }); beep.nodes = []; }
-function scheduleBeep(sec) {
-  cancelBeep();
-  if (!D().settings.sound || sec <= 0) return;
-  try {
-    beep.ctx = beep.ctx || new (window.AudioContext || window.webkitAudioContext)();
-    if (beep.ctx.state === "suspended") beep.ctx.resume();
-    const t0 = beep.ctx.currentTime + sec;
-    [0, 0.25, 0.5].forEach((d, k) => {
-      const o = beep.ctx.createOscillator(), g = beep.ctx.createGain();
-      o.frequency.value = k === 2 ? 1320 : 880; o.type = "sine";
-      g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.4, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.18);
-      o.connect(g).connect(beep.ctx.destination); o.start(t0 + d); o.stop(t0 + d + 0.2); beep.nodes.push(o);
-    });
-  } catch (e) {}
-}
+/* ---------- Ton am Pausenende: Ringglocke + „Next Round“ (js/bell.js) ---------- */
+function cancelBeep() { BELL.cancel(); }
+function scheduleBeep(sec) { if (D().settings.sound) BELL.schedule(sec, !!D().settings.bgBell); else BELL.cancel(); }
 
 /* ---------- Bildschirm wach halten im Training (Wake Lock, iOS ab 16.4) ---------- */
 let wake = null;
@@ -773,10 +763,13 @@ function viewMore() {
     <h2 class="sec">Training</h2>
     <div class="group">
       <label class="row" for="s-rir"><span>„Wdh. in Reserve“ abfragen</span><input id="s-rir" class="switch" type="checkbox" role="switch" data-on="rir" ${s.rir ? "checked" : ""}></label>
-      <label class="row" for="s-sound"><span>Ton am Pausenende</span><input id="s-sound" class="switch" type="checkbox" role="switch" data-on="sound" ${s.sound ? "checked" : ""}></label>
+      <label class="row" for="s-sound"><span>Ringglocke am Pausenende</span><input id="s-sound" class="switch" type="checkbox" role="switch" data-on="sound" ${s.sound ? "checked" : ""}></label>
+      <label class="row" for="s-voice"><span>Ansage „Next Round“</span><input id="s-voice" class="switch" type="checkbox" role="switch" data-on="voice" ${s.voice !== false ? "checked" : ""} ${s.sound ? "" : "disabled"}></label>
+      <label class="row" for="s-bg"><span>Auch im Hintergrund läuten</span><input id="s-bg" class="switch" type="checkbox" role="switch" data-on="bgbell" ${s.bgBell ? "checked" : ""} ${s.sound ? "" : "disabled"}></label>
+      <div class="row"><span>Probe hören</span><button type="button" class="btn small" data-act="bellpreview" style="width:auto">Abspielen</button></div>
       <label class="row" for="s-fig"><span>Ausführung im Training zeigen</span><input id="s-fig" class="switch" type="checkbox" role="switch" data-on="showfig" ${s.showFig !== false ? "checked" : ""}></label>
     </div>
-    <p class="foot">Der Ton kommt auch bei stummgeschaltetem iPhone nur, wenn der Klingelschalter nicht auf lautlos steht. Während des Trainings bleibt der Bildschirm an.</p>
+    <p class="foot">Die Glocke mischt sich mit deiner Musik und kommt nur, wenn der Stummschalter nicht auf lautlos steht. Die Ansage spricht eine englische Stimme deines Geräts, nur solange SATZ offen ist. „Auch im Hintergrund läuten“ spielt die Pause wie Musik ab: Die Glocke kommt dann auch bei gesperrtem Bildschirm oder in einer anderen App, aber deine Musik pausiert während jeder Pause. Während des Trainings bleibt der Bildschirm an.</p>
     <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
       <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (schwere Grundübungen 180 s, andere 120 s, Isolation 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
@@ -924,6 +917,7 @@ const A = {
   sessedit: t => openSessionEdit(t.dataset.id),
   sesssave: () => saveSessionEdit(),
   wopen: () => openWeight(),
+  bellpreview: () => BELL.preview(D().settings.voice !== false),
   wsave: () => saveWeight(),
   wstep: t => { const i = $("#wIn"), v = Math.round((num(i.value) + 0.1 * +t.dataset.d) * 10) / 10; i.value = fmt(Math.max(30, Math.min(300, v))); sayLater(`${fmt(v)} Kilo`); },
   wdel: t => {
@@ -1012,7 +1006,9 @@ document.addEventListener("change", ev => {
   if (k === "contrast" || k === "rir") { D().settings[k] = el.checked; persist(); applySettings(); }
   if (k === "rest") { D().settings.rest = +el.value; persist(); }
   if (k === "kgin" || k === "repsin") { readSetInputs(); el.value = k === "kgin" ? fmt(ui.kg) : ui.reps; }
-  if (k === "sound") { D().settings.sound = el.checked; persist(); }
+  if (k === "sound") { D().settings.sound = el.checked; persist(); ["#s-voice", "#s-bg"].forEach(q => { const v = $(q); if (v) v.disabled = !el.checked; }); }
+  if (k === "bgbell") { D().settings.bgBell = el.checked; persist(); }
+  if (k === "voice") { D().settings.voice = el.checked; persist(); }
   if (k === "showfig") { D().settings.showFig = el.checked; persist(); }
   if (el.id === "importFile" && el.files[0]) {
     const r = new FileReader();

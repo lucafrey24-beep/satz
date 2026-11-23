@@ -20,6 +20,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - `js/nutrition.js` – Energiebedarf (Mifflin-St Jeor × PAL), Makroziele mit Quellen, Open-Food-Facts-Abfragen
 - `js/vendor/zxing.min.js` – Barcode-Erkennung (ZXing 0.21.3, Apache-2.0, siehe `zxing-LICENSE`), wird nur geladen, wenn der Browser keinen eigenen BarcodeDetector hat
 - `js/anim.js` – selbst gezeichnete Bewegungsabläufe (SVG-Strichfiguren mit Gerät). Ähnliche Übungen teilen sich eine Vorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels. Bei „Bewegung reduzieren“ Start- und Endposition als Standbild
+- `js/bell.js` – Pausenende: selbst synthetisierte Ringglocke (Web Audio, mischt sich mit Musik; optional als Audiodatei auch im Hintergrund) und Ansage „Next Round“ über die Sprachausgabe des Geräts
 - `js/body3d.js` – 3D-Körperkarte aus einfachen Formen, Muskeln antippbar, Drehen per Ziehen. Liste als gleichwertige Alternative
 - `js/vendor/three.module.min.js` – three.js r170 (MIT, siehe `three-LICENSE`), wird nur auf der Körperkarte geladen
 - `js/app.js` – Screens und Bedienung
