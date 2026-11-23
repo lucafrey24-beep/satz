@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.7.5";
+export const APP_VERSION = "0.8";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -756,12 +756,17 @@ function chart(vals, labels, unit, caption, trend) {
   const all = trend ? vals.concat(trend) : vals, lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.1 || 1;
   const y0 = lo - pad, y1 = hi + pad, X = k => L + k * ((W - L - R) / (vals.length - 1)), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   const path = arr => "M" + arr.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(" L");
+  const ring = !trend && vals.indexOf(Math.max(...vals)) !== vals.length - 1;
   return `<figure class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(caption)}: von ${fmt(Math.round(vals[0] * 10) / 10)} auf ${fmt(Math.round(vals.at(-1) * 10) / 10)} ${unit}">
     <line x1="${L}" x2="${W - R}" y1="${Y(hi)}" y2="${Y(hi)}" class="grid"/><line x1="${L}" x2="${W - R}" y1="${Y(lo)}" y2="${Y(lo)}" class="grid"/>
     <text x="${L - 6}" y="${Y(hi) + 4}" text-anchor="end">${fmt(Math.round(hi))}</text><text x="${L - 6}" y="${Y(lo) + 4}" text-anchor="end">${fmt(Math.round(lo))}</text>
     <text x="${L}" y="${H - 6}">${esc(labels[0])}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${esc(labels.at(-1))}</text>
-    ${trend ? `<path d="${path(trend)}" class="trend"/>` : ""}<path d="${path(vals)}"/>${vals.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3"/>`).join("")}
-  </svg><figcaption class="meta">${esc(caption)}${trend ? " · gestrichelt: 7-Tage-Mittel" : ""}</figcaption></figure>`;
+    <line x1="${L}" x2="${W - R}" y1="${Y((hi + lo) / 2)}" y2="${Y((hi + lo) / 2)}" class="grid mid"/>
+    ${trend ? `<path d="${path(trend)}" class="trend"/>` : ""}<path d="${path(vals)}"/>${vals.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${k === vals.length - 1 ? 4.5 : 3}"${k === vals.length - 1 ? ' class="last"' : ""}/>`).join("")}
+    ${(() => { const bi = vals.indexOf(Math.max(...vals)), lx = X(vals.length - 1), ly = Y(vals.at(-1));
+      return (ring ? `<circle cx="${X(bi).toFixed(1)}" cy="${Y(vals[bi]).toFixed(1)}" r="6" class="best"/>` : "")
+        + `<text x="${(lx - 8).toFixed(1)}" y="${(ly < T + 14 ? ly + 16 : ly - 9).toFixed(1)}" text-anchor="end" class="val">${fmt(Math.round(vals.at(-1) * 10) / 10)} ${esc(unit)}</text>`; })()}
+  </svg><figcaption class="meta">${esc(caption)}${trend ? " · gestrichelt: 7-Tage-Mittel" : ring ? " · Ring: bisheriger Bestwert" : ""}</figcaption></figure>`;
 }
 const shortDate = iso => new Date(iso).toLocaleDateString("de-DE", {day: "numeric", month: "numeric"});
 function exDetail(id) {

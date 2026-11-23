@@ -1,8 +1,10 @@
 {
+  "id": "./",
   "name": "SATZ – Trainingsheft",
   "short_name": "SATZ",
-  "description": "Krafttraining Satz für Satz eintragen, mit doppelter Progression.",
+  "description": "Krafttraining Satz für Satz eintragen: Pläne, Pausen-Timer, Fortschritt und Ernährung. Offline, ohne Konto.",
   "lang": "de",
+  "dir": "ltr",
   "start_url": "./#/heute",
   "scope": "./",
   "display": "standalone",
@@ -29,6 +31,35 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "health",
+    "fitness",
+    "sports",
+    "lifestyle"
+  ],
+  "screenshots": [
+    {
+      "src": "icons/screens/heute.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Heute: Trainingstag mit Übungen"
+    },
+    {
+      "src": "icons/screens/training.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Training: Satz eintragen mit Ablauf und Pause"
+    },
+    {
+      "src": "icons/screens/koerper.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Körperkarte: Muskel wählen, Übungen finden"
     }
   ]
 }

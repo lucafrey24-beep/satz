@@ -37,18 +37,20 @@ function lerpPose(A, B, k) {
   return o;
 }
 const ln = (a, b, cls) => `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" class="${cls}"/>`;
-const hl = (on, m) => on.includes(m) ? "b hi" : "b";
+const dot = (p, r, cls) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r}" class="${cls}"/>`;
+// Körper mit Volumen: jedes Glied hat eine eigene Dicke (Klassen w-…), aktive Muskeln in Akzentfarbe
+const hi = (on, ...ms) => ms.some(m => on.includes(m)) ? " hi" : "";
 function drawSide(J, on) {
-  const torso = ["brust", "ruecken", "bauch", "lrs"].some(m => on.includes(m)) ? "b hi" : "b";
-  const arm = on.includes("bizeps") || on.includes("trizeps") ? "b hi" : "b";
-  const shoulder = on.includes("schultern") ? "b hi" : arm;
-  const thigh = ["quads", "hamstrings"].some(m => on.includes(m)) ? "b hi" : "b";
+  const torso = hi(on, "brust", "ruecken", "bauch", "lrs"), ua = hi(on, "bizeps", "trizeps", "schultern"), fa = "";
+  const th = hi(on, "quads", "hamstrings"), shin = hi(on, "waden");
+  // Rumpf als Brustkorb + Becken: Mitte etwas zur Brust hin verdickt
+  const mid = lerpP(J.hip, J.sho, 0.62);
   let s = "";
-  if (J.knee2) s += ln(J.hip, J.knee2, thigh + " far") + ln(J.knee2, J.ank2, hl(on, "waden") + " far") + ln(J.ank2, J.toe2, "b far");
-  s += ln(J.hip, J.sho, torso) + ln(J.sho, J.neck, "b") + `<circle cx="${J.head[0].toFixed(1)}" cy="${J.head[1].toFixed(1)}" r="6" class="hd"/>`;
-  s += ln(J.hip, J.knee, thigh) + ln(J.knee, J.ank, hl(on, "waden")) + ln(J.ank, J.toe, "b");
-  if (on.includes("gluteus")) s += `<circle cx="${J.hip[0].toFixed(1)}" cy="${J.hip[1].toFixed(1)}" r="4.5" class="gl"/>`;
-  s += ln(J.sho, J.elb, shoulder) + ln(J.elb, J.hand, "b");
+  if (J.knee2) s += ln(J.hip, J.knee2, "b w-th far" + th) + ln(J.knee2, J.ank2, "b w-sh far" + shin) + ln(J.ank2, J.toe2, "b w-ft far");
+  s += ln(J.hip, J.sho, "b w-tr" + torso) + ln(mid, J.sho, "b w-ch" + torso) + ln(J.sho, J.neck, "b w-nk") + dot(J.head, 6.2, "hd");
+  s += ln(J.hip, J.knee, "b w-th" + th) + ln(J.knee, J.ank, "b w-sh" + shin) + ln(J.ank, J.toe, "b w-ft");
+  if (on.includes("gluteus")) s += dot(J.hip, 5.2, "gl");
+  s += ln(J.sho, J.elb, "b w-ua" + ua) + ln(J.elb, J.hand, "b w-fa" + fa) + dot(J.hand, 2.4, "hand");
   return s;
 }
 
@@ -64,11 +66,12 @@ function frontJoints(p) {
   return J;
 }
 function drawFront(J, on) {
-  const torso = ["brust", "ruecken", "bauch"].some(m => on.includes(m)) ? "b hi" : "b";
-  const sh = on.includes("schultern") ? "b hi" : "b", leg = ["quads", "hamstrings", "gluteus"].some(m => on.includes(m)) ? "b hi" : "b";
-  return ln(J.pel, J.neck, torso) + ln(J.shoL, J.shoR, torso) + ln(J.hipL, J.hipR, "b") + `<circle cx="${J.head[0]}" cy="${J.head[1]}" r="6" class="hd"/>`
-    + ln(J.shoR, J.elbR, sh) + ln(J.elbR, J.handR, "b") + ln(J.shoL, J.elbL, sh) + ln(J.elbL, J.handL, "b")
-    + ln(J.hipR, J.kneeR, leg) + ln(J.kneeR, J.ankR, "b") + ln(J.hipL, J.kneeL, leg) + ln(J.kneeL, J.ankL, "b");
+  const torso = hi(on, "brust", "ruecken", "bauch"), sh = hi(on, "schultern"), leg = hi(on, "quads", "hamstrings", "gluteus");
+  const chest = [J.pel[0], J.pel[1] - 16];
+  return ln(J.pel, J.neck, "b w-tr" + torso) + ln(chest, J.neck, "b w-chf" + torso) + ln(J.shoL, J.shoR, "b w-ua" + torso) + ln(J.hipL, J.hipR, "b w-th") + dot(J.head, 6.2, "hd")
+    + ln(J.shoR, J.elbR, "b w-ua" + sh) + ln(J.elbR, J.handR, "b w-fa") + ln(J.shoL, J.elbL, "b w-ua" + sh) + ln(J.elbL, J.handL, "b w-fa")
+    + dot(J.handR, 2.4, "hand") + dot(J.handL, 2.4, "hand")
+    + ln(J.hipR, J.kneeR, "b w-th" + leg) + ln(J.kneeR, J.ankR, "b w-sh") + ln(J.hipL, J.kneeL, "b w-th" + leg) + ln(J.kneeL, J.ankL, "b w-sh");
 }
 
 /* ---------- Geräte und Gewichte ---------- */
@@ -93,7 +96,7 @@ const P = {
   fly: {front: true, A: {hand: [34, 50], hs: 1, foot: [10, 106], hipY: 74}, B: {hand: [6, 56]},
     eq: () => rect(64, 34, 32, 42, "eq2") + line(46, 18, 46, 108) + line(114, 18, 114, 108)},
   pushup: {A: {hip: [74, 96], t: -8, hand: [106, 106], hs: -1, foot: [40, 106], fs: 1, ft: 90}, B: {hip: [76, 88], t: -24}, eq: () => ""},
-  dips: {floorY: 119, A: {hip: [82, 74], t: -94, hand: [86, 70], hs: 1, foot: [72, 98], fs: 1}, B: {hip: [84, 88], t: -100, foot: [72, 110]},
+  dips: {floorY: 119, A: {hip: [83, 76], t: -95, hand: [86, 70], hs: 1, foot: [76, 108], fs: 1, ft: 80}, B: {hip: [88, 90], t: -108, foot: [80, 120], ft: 70},
     eq: () => line(66, 70, 106, 70, "eqt") + line(70, 70, 70, 120) + line(102, 70, 102, 120)},
   pullup: {floorY: 119, A: {hip: [84, 76], t: -91, hand: [86, 16], hs: 1, foot: [72, 104], fs: 1}, B: {hip: [84, 58], foot: [72, 86]},
     eq: () => line(60, 14, 112, 14, "eqt") + line(64, 14, 64, 120) + line(108, 14, 108, 120)},
@@ -119,7 +122,7 @@ const P = {
   pushdown: {A: {hip: [76, 70], t: -96, hand: [90, 46], hs: 1, foot: [80, 108], fs: -1}, B: {hand: [86, 70]},
     eq: J => stack(120, 6) + line(120, 6, 98, 6) + cable([98, 6], J.hand)},
   overhead: {A: {hip: [76, 70], t: -90, hand: [70, 28], hs: 1, foot: [78, 108], fs: -1}, B: {hand: [80, 12]}, eq: J => db(J.hand)},
-  squat: {A: {hip: [78, 68], t: -88, hand: [70, 40], hs: 1, foot: [84, 106], fs: -1}, B: {hip: [64, 88], t: -52, hand: [80, 64]},
+  squat: {A: {hip: [78, 68], t: -88, hand: [70, 40], hs: 1, foot: [84, 106], fs: -1}, B: {hip: [66, 87], t: -58, hand: [80, 60]},
     eq: J => plate(J.sho, 8)},
   goblet: {base: "squat", A: {hand: [88, 46]}, B: {hand: [96, 70]}, eq: J => db(J.hand)},
   jumpsquat: {A: {hip: [66, 88], t: -55, hand: [60, 92], hs: 1, foot: [84, 106], fs: -1}, B: {hip: [80, 58], t: -88, hand: [96, 22], foot: [82, 98]}, eq: () => ""},
@@ -138,8 +141,8 @@ const P = {
   rdl: {A: {hip: [80, 68], t: -90, hand: [82, 72], hs: -1, foot: [84, 106], fs: -1}, B: {hip: [72, 70], t: -12, hand: [100, 96]}, eq: J => plate(J.hand, 8)},
   deadlift: {A: {hip: [72, 84], t: -38, hand: [98, 98], hs: -1, foot: [86, 106], fs: -1}, B: {hip: [80, 68], t: -90, hand: [82, 72]}, eq: J => plate(J.hand, 9)},
   swing: {A: {hip: [72, 72], t: -28, hand: [82, 96], hs: -1, foot: [84, 106], fs: -1}, B: {hip: [80, 68], t: -92, hand: [112, 42]}, eq: J => kb(J.hand)},
-  thrust: {A: {hip: [70, 98], t: -144, hand: [66, 92], hs: 1, foot: [98, 106], fs: -1}, B: {hip: [74, 76], t: 180, hand: [70, 74]},
-    eq: J => bench(18, 46, 80) + plate(J.hip, 7)},
+  thrust: {A: {hip: [72, 100], t: -150, hand: [72, 94], hs: 1, foot: [100, 106], fs: -1, nod: 30}, B: {hip: [76, 78], t: 178, hand: [76, 72], nod: 60},
+    eq: J => bench(16, 50, 80) + line(J.hip[0] - 2, J.hip[1] - 8, J.hip[0] + 4, J.hip[1] - 8, "eqt") + plate([J.hip[0] + 1, J.hip[1] - 8], 7.5)},
   bridge: {A: {hip: [72, 103], t: 180, hand: [56, 106], hs: 1, foot: [94, 106], fs: -1}, B: {hip: [72, 86], t: 150, hand: [56, 106]}, eq: () => ""},
   kickback: {A: {hip: [82, 68], t: -78, hand: [104, 48], hs: 1, foot: [84, 106], fs: -1, foot2: [80, 106], fs2: -1}, B: {foot2: [52, 88]},
     eq: J => stack(130, 20) + line(110, 30, 110, 108) + cable([34, 104], J.ank2 || [0, 0])},
@@ -160,11 +163,32 @@ for (const p of Object.values(P)) p.B = {...p.A, ...p.B};
 
 export const PATTERNS = Object.keys(P);
 const ease = k => 0.5 - Math.cos(k * Math.PI) / 2;
+// Bewegungsspur: der Punkt, der sich am weitesten bewegt (Hand, Hüfte oder Fuß), als feine gestrichelte Bahn
+const TRAIL = {};
+function trail(p) {
+  if (p.front) return "";
+  if (TRAIL[p.key] != null) return TRAIL[p.key];
+  const pts = [], keys = ["hand", "hip", "ank", "ank2", "sho"];
+  const js = Array.from({length: 13}, (_, i) => sideJoints(lerpPose(p.A, p.B, ease(i / 12))));
+  let best = null, dmax = 0;
+  for (const k of keys) { if (!js[0][k]) continue; const d = Math.hypot(js[12][k][0] - js[0][k][0], js[12][k][1] - js[0][k][1]); if (d > dmax) { dmax = d; best = k; } }
+  if (!best || dmax < 8) return (TRAIL[p.key] = "");
+  js.forEach(j => pts.push(j[best].map(v => v.toFixed(1)).join(",")));
+  return (TRAIL[p.key] = `<polyline points="${pts.join(" ")}" class="trail"/>`);
+}
+for (const [k, p] of Object.entries(P)) p.key = k;
+// Tempo wie im Training: kurz halten, zügig hin (1 s), kurz halten, langsam zurück (1,6 s)
+const CYCLE = 3600, SEG = [[0, 300, 0, 0], [300, 1300, 0, 1], [1300, 1650, 1, 1], [1650, 3600, 1, 0]];
+function phase(ts) {
+  const t = ts % CYCLE;
+  for (const [a, b, from, to] of SEG) if (t < b) { const k = (t - a) / (b - a); return from + (to - from) * k; }
+  return 0;
+}
 
 function frame(p, k, on) {
   const pose = lerpPose(p.A, p.B, ease(k));
   const J = p.front ? frontJoints(pose) : sideJoints(pose);
-  return (p.eq ? p.eq(J) : "") + (p.front ? drawFront(J, on) : drawSide(J, on));
+  return trail(p) + (p.eq ? p.eq(J) : "") + (p.front ? drawFront(J, on) : drawSide(J, on));
 }
 const reduce = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -182,7 +206,7 @@ function tick(ts) {
   if (document.hidden || reduce()) return;
   const els = document.querySelectorAll("svg.exanim");
   if (!els.length) return;
-  const k = (Math.sin(ts / 2600 * 2 * Math.PI - Math.PI / 2) + 1) / 2;   // 2,6 s hin und zurück
+  const k = phase(ts);
   els.forEach(el => { const p = P[el.dataset.pat]; const g = el.querySelector(".fig"); if (p && g) g.innerHTML = frame(p, k, (el.dataset.on || "").split(" ")); });
   raf = requestAnimationFrame(tick);
 }

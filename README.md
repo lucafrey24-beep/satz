@@ -1,6 +1,6 @@
-# SATZ – Trainingsheft (Version 0.7)
+# SATZ – Trainingsheft (Version 0.8)
 
-Installierbare Web-App (PWA) fürs Krafttraining. Läuft im Browser, offline, ohne Konto. Alle Daten bleiben auf dem Gerät (localStorage), Sicherung als JSON-Datei unter „Mehr“.
+Installierbare Web-App (PWA) fürs Krafttraining mit Ernährungstagebuch. Live: https://lucafrey24-beep.github.io/satz/ Läuft im Browser, offline, ohne Konto. Alle Daten bleiben auf dem Gerät (localStorage), Sicherung als JSON-Datei unter „Mehr“.
 
 ## Starten (lokal)
 ```
@@ -25,7 +25,9 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - `js/vendor/three.module.min.js` – three.js r170 (MIT, siehe `three-LICENSE`), wird nur auf der Körperkarte geladen
 - `js/app.js` – Screens und Bedienung
 - `icons/icon.svg` – einzige Quelle für das App-Icon. Ändern: SVG bearbeiten, `node tools/make-icons.js` erzeugt alle PNGs, dann veröffentlichen
-- `sw.js`, `manifest.webmanifest`, `icons/`, `fonts/` – Offline-Betrieb und Installation (Wortmarken-Schrift selbst gehostet, keine Anfragen an Google)
+- `sw.js`, `manifest.webmanifest`, `icons/` – Offline-Betrieb und Installation; `icons/splash/` iOS-Startbilder (`node tools/make-splash.js`), `icons/screens/` Screenshots fürs Manifest (`node tools/make-screens.js`)
+- `fonts/archivo-satz.woff2` – Wortmarken-Schrift Archivo (SIL OFL), auf „SATZ.“ reduziert (1 KB), selbst gehostet
+- `docs/aufbau.md` – Aufbau der App: Bildschirme, Navigation, Darstellung, Technik
 
 ## Regeln hinter der App
 - Doppelte Progression pro Übung: alle Sätze am oberen Ende der Spanne, dann Gewicht um den Steigerungsschritt erhöhen. Alle Sätze unter der Spanne: einen Schritt leichter. Über 14 Tage Pause: Start mit ca. 90 %.
@@ -34,6 +36,11 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - Plateau: dreimal in Folge kein neuer Bestwert beim geschätzten 1RM (Epley) → ein leichteres Training mit 90 %, danach neu steigern.
 - Volumen zählt nur harte Sätze (Arbeits- und Drop-Sätze, nicht 4+ in Reserve, keine Aufwärmsätze).
 - Verlauf hängt an festen Übungs-IDs: Umbenennen und Tauschen verändern alte Trainings nicht. Trainings speichern Plan- und Tagesnamen als Kopie.
-- Ernährung: Grundumsatz nach Mifflin-St Jeor, Aktivitätsfaktor nach FAO/WHO/UNU 2004, Ziel −0,5 % / 0 / +0,25 % Körpergewicht pro Woche, Protein 2,0 bzw. 1,6 g/kg, Fett 25 % der Energie, Rest Kohlenhydrate. Quellen in der App unter Ernährung → Ziel.
+- Ernährung: Grundumsatz nach Mifflin-St Jeor, Aktivitätsfaktor nach FAO/WHO/UNU 2004, Ziel −0,5 % / 0 / +0,25 % Körpergewicht pro Woche, Protein 2,0 / 1,6 / 1,8 g/kg (Abnehmen / Halten / Aufbauen), Fett 25 % der Energie, Rest Kohlenhydrate. Quellen in der App unter Ernährung → Ziel.
 - Trainingsziele nach ACSM Position Stand 2009: Kraft & Muskeln 6–12 Wdh. und 2–3 min Pause, Kraftausdauer 15–25 Wdh. und unter 1 min Pause, Athletik explosive Übungen mit 3–6 Wdh. und langen Pausen. Übungen aus der Körperkarte starten mit dem Satzschema des Plan-Ziels.
 - Datenschutz Ernährung: An Open Food Facts gehen nur Barcode oder Suchbegriff. Profil, Gewicht und Tagebuch bleiben auf dem Gerät.
+
+## Veröffentlichen
+1. Änderung machen, in `sw.js` die `CACHE`-Version und in `js/app.js` `APP_VERSION` erhöhen.
+2. Nach `main` pushen. GitHub Pages veröffentlicht in etwa einer Minute; installierte Apps laden die neue Version beim nächsten Öffnen.
+3. Ein neues App-Icon übernimmt iOS erst nach Entfernen und erneutem Hinzufügen zum Home-Bildschirm.

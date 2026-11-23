@@ -1,7 +1,8 @@
 /* SATZ – iOS-Look nach Apple Human Interface Guidelines.
    Systemschrift (SF Pro) mit Dynamic Type, gruppierte Listen, große Titel, schwebende Tab-Bar.
    Eigenständig bleiben: Wortmarke, Akzentfarbe Grün, tabellarische Zahlen. */
-@font-face{font-family:"Archivo";src:url(../fonts/archivo.woff2) format("woff2");font-weight:400 900;font-stretch:62% 125%;font-display:swap}
+/* Archivo (SIL OFL), auf die Zeichen „SATZ.“ in Black/Condensed reduziert: 1 KB statt 90 KB */
+@font-face{font-family:"Archivo";src:url(../fonts/archivo-satz.woff2) format("woff2");font-weight:900;font-stretch:62%;font-display:swap}
 
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --card-2:#F2F2F7; --fill:rgba(120,120,128,.16); --fill-2:rgba(120,120,128,.08);
@@ -389,10 +390,14 @@ button,a,input,select,label,summary{touch-action:manipulation}
 /* ---------- Version 0.7: Übungsanimation ---------- */
 svg.exanim{display:block; width:100%; height:auto; max-height:200px}
 .exanim .b{stroke:var(--label); stroke-width:3.6; stroke-linecap:round; fill:none}
-.exanim .b.hi{stroke:var(--tint); stroke-width:4.2}
+.exanim .b.hi{stroke:var(--tint)}
+.exanim .w-tr{stroke-width:9}.exanim .w-ch{stroke-width:11}.exanim .w-chf{stroke-width:13}.exanim .w-nk{stroke-width:4.5}
+.exanim .w-ua{stroke-width:5.6}.exanim .w-fa{stroke-width:4.4}.exanim .w-th{stroke-width:7.4}.exanim .w-sh{stroke-width:5.4}.exanim .w-ft{stroke-width:3.6}
+.exanim .hand{fill:var(--label)}
+.exanim .trail{fill:none; stroke:var(--tint); stroke-width:1.2; stroke-dasharray:2 3; opacity:.55}
 .exanim .far{opacity:.4}
-.exanim .hd{fill:var(--card); stroke:var(--label); stroke-width:2.6}
-.exanim .gl{fill:var(--tint)}
+.exanim .hd{fill:var(--label); stroke:none}
+.exanim .gl{fill:var(--tint); stroke:var(--card); stroke-width:1.2}
 .exanim .eq{fill:var(--fill); stroke:var(--label-2); stroke-width:1.2}
 .exanim .eq2{fill:var(--fill-2); stroke:var(--label-2); stroke-width:1.2}
 .exanim .eql{stroke:var(--label-2); stroke-width:2; stroke-linecap:round}
@@ -470,3 +475,7 @@ body.hasmini main:not(.modal){padding-bottom:calc(180px + env(safe-area-inset-bo
 body.hasmini main:not(.modal) .actionbar{bottom:calc(150px + env(safe-area-inset-bottom))}
 body.hasmini main:not(.modal):has(.actionbar){padding-bottom:calc(230px + env(safe-area-inset-bottom))}
 body.hasmini .toast{bottom:calc(214px + env(safe-area-inset-bottom))}
+.chart line.grid.mid{stroke-dasharray:2 4}
+.chart circle.last{stroke:var(--card); stroke-width:2}
+.chart circle.best{fill:none; stroke:var(--tint); stroke-width:1.5}
+.chart text.val{fill:var(--label); font-weight:700; font-size:12px}
