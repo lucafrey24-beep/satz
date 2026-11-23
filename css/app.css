@@ -449,3 +449,24 @@ dialog .exfig{background:var(--card-2)}
 .logged .setrow .chev{color:var(--label-2); margin-left:4px}
 .logged .setrow .num{color:var(--label-2); font-variant-numeric:tabular-nums; text-align:right}
 [hidden]{display:none !important}
+/* Mini-Player (verkleinertes Training) */
+.navl{display:flex; align-items:center; gap:2px}
+.minbtn{display:grid; place-items:center; padding:0}
+.mini{position:fixed; z-index:16; left:50%; transform:translateX(-50%); bottom:calc(84px + env(safe-area-inset-bottom));
+  width:min(560px, calc(100vw - 24px)); min-height:58px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px;
+  padding:8px 16px 8px 12px; border:.5px solid var(--glass-border); border-radius:20px; overflow:hidden; text-align:left; color:var(--label); font:inherit;
+  background:var(--glass); -webkit-backdrop-filter:saturate(180%) blur(24px); backdrop-filter:saturate(180%) blur(24px); box-shadow:var(--shadow);
+  animation:miniIn .3s cubic-bezier(.25,1.2,.45,1)}
+@keyframes miniIn{from{transform:translate(-50%, 40px); opacity:0}}
+@media (prefers-reduced-motion: reduce){ .mini{animation:none} }
+.mini .mi-ic{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--tint); color:var(--on-tint)}
+.mini .mi-t{display:flex; flex-direction:column; min-width:0}
+.mini b{font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.mini small{color:var(--label-2); font-size:.82rem; font-variant-numeric:tabular-nums}
+.mini.resting small{color:var(--tint); font-weight:600}
+.mini .mi-up{color:var(--label-2)}
+.mini .mi-bar{position:absolute; left:0; bottom:0; height:3px; background:var(--tint); width:0; transition:width 1s linear}
+body.hasmini main:not(.modal){padding-bottom:calc(180px + env(safe-area-inset-bottom))}
+body.hasmini main:not(.modal) .actionbar{bottom:calc(150px + env(safe-area-inset-bottom))}
+body.hasmini main:not(.modal):has(.actionbar){padding-bottom:calc(230px + env(safe-area-inset-bottom))}
+body.hasmini .toast{bottom:calc(214px + env(safe-area-inset-bottom))}

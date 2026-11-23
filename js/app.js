@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.7.4";
+export const APP_VERSION = "0.7.5";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -94,7 +94,9 @@ const ROUTES = {koerper: viewBody, heute: viewToday, plaene: viewPlans, vorlage:
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   let name = parts[0] || "heute";
-  if (D().active && name !== "training") { location.replace("#/training"); return; }
+  // Laufendes Training: nur verlassen, wenn es zum Mini-Player verkleinert ist (wie bei Spotify)
+  if (D().active && name !== "training" && !ui.mini) { location.replace("#/training"); return; }
+  if (name === "training") ui.mini = false; else ui.miniFrom = "#/" + parts.filter(Boolean).join("/");
   if (!D().active && name === "training") { location.replace("#/heute"); return; }
   if (!ROUTES[name]) name = "heute";
   const training = name === "training";
@@ -104,6 +106,7 @@ function route() {
   placePill(tabFor(name));
   updateWakeLock();
   renderBar(training, name);
+  renderMini();
   if (dlg.open) dlg.close();
   if (name !== "koerper") dropBody();
   ROUTES[name](parts[1]);
@@ -128,7 +131,7 @@ function renderBar(training, name) {
   const a = D().active, back = BACK[name];
   bar.classList.remove("titled");
   bar.innerHTML = training && a
-    ? `<button class="navbtn" data-act="end">Beenden</button><span class="ctx">${esc(a.dayName)}</span>
+    ? `<span class="navl"><button class="navbtn minbtn" data-act="mini" aria-label="Training verkleinern, Timer läuft weiter"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 9l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="navbtn" data-act="end">Beenden</button></span><span class="ctx">${esc(a.dayName)}</span>
        <button class="navbtn strong" data-act="overview" aria-haspopup="dialog">Übersicht</button>`
     : back
       ? `<a class="navbtn back" href="${back[0]}"><span aria-hidden="true">‹</span> ${back[1]}<span class="sr"> (zurück)</span></a><span class="ctx" id="barTitle" aria-hidden="true"></span><span class="navspace" aria-hidden="true"></span>`
@@ -220,7 +223,7 @@ function viewToday() {
         return `<li><span class="t">${esc(e.name)}</span><span class="s"><span aria-hidden="true">${scheme(sl)}</span><span class="sr">${schemeSr(sl)}</span></span>
         ${l ? `<span class="l">Zuletzt: ${St.fmtW(e, Math.max(...l.sets.map(x => x.kg)))}, ${l.sets.map(x => x.reps).join(" + ")} Wdh.</span>` : ""}</li>`; }).join("")}
     </ol>
-    ${d.slots.length ? `<div class="actionbar"><button class="btn primary" data-act="start" data-i="${di}">Training starten</button></div>`
+    ${d.slots.length ? `<div class="actionbar"><button class="btn primary" data-act="start" data-i="${di}">${D().active ? "Training fortsetzen" : "Training starten"}</button></div>`
       : `<p class="meta">Dieser Tag hat noch keine Übungen.</p><a class="btn" href="#/plan/${p.id}">Plan bearbeiten</a>`}`;
 }
 
@@ -531,7 +534,7 @@ setInterval(() => {
   const a = D() && D().active;
   if (!a || !a.restEnd) return;
   const left = a.restEnd - Date.now(), el = $("#rt");
-  if (left > 0) { if (el) el.textContent = restLeft(); lastRestState = true; return; }
+  if (left > 0) { if (el) el.textContent = restLeft(); lastRestState = true; updateMini(); return; }
   a.restEnd = 0; persist();
   if (lastRestState) {
     say("Pause vorbei."); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
@@ -542,7 +545,63 @@ setInterval(() => {
   }
   lastRestState = false;
   if (location.hash === "#/training" && !ui.summary && !dlg.open) rerender();
+  updateMini();
 }, 1000);
+
+/* ---------- Mini-Player: verkleinertes Training über der Tab-Bar ---------- */
+const mini = $("#mini");
+function miniText() {
+  const a = D().active; if (!a) return null;
+  const i = St.firstOpen(a, a.idx) < 0 ? -1 : a.idx, it = i >= 0 ? a.queue[i] : null;
+  const resting = a.restEnd > Date.now();
+  const name = it ? St.ex(it.exId).name : "Alle Übungen erledigt";
+  const sub = resting ? `Pause · noch ${restLeft()}` : it ? `Satz ${Math.min(St.loggedFor(a, i).length + 1, St.targetSets(it))} von ${St.targetSets(it)} · bereit` : "Zum Speichern öffnen";
+  const pct = resting && a.restTotal ? Math.max(0, Math.min(100, (a.restEnd - Date.now()) / (a.restTotal * 1000) * 100)) : 0;
+  return {name, sub, resting, pct};
+}
+function renderMini() {
+  const on = !!(D().active && ui.mini && !location.hash.startsWith("#/training"));
+  mini.hidden = !on; document.body.classList.toggle("hasmini", on);
+  if (on) updateMini(true);
+}
+function updateMini(force) {
+  if (mini.hidden) return;
+  const t = miniText(); if (!t) { renderMini(); return; }
+  if (force || !mini.firstChild) mini.innerHTML = `<span class="mi-ic" aria-hidden="true"><svg viewBox="0 0 28 28" width="22" height="22" fill="currentColor"><rect x="1" y="11" width="3" height="6" rx="1.5"/><rect x="24" y="11" width="3" height="6" rx="1.5"/><rect x="4.5" y="7" width="4.5" height="14" rx="2"/><rect x="19" y="7" width="4.5" height="14" rx="2"/><rect x="9" y="12.5" width="10" height="3" rx="1"/></svg></span>
+    <span class="mi-t"><b></b><small></small></span><span class="mi-up" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 15l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><i class="mi-bar" aria-hidden="true"></i>`;
+  mini.querySelector("b").textContent = t.name; mini.querySelector("small").textContent = t.sub;
+  mini.querySelector(".mi-bar").style.width = t.pct + "%";
+  mini.classList.toggle("resting", t.resting);
+  mini.setAttribute("aria-label", `Training öffnen. ${t.name}, ${t.sub}`);
+}
+function minimize() {
+  if (!D().active) return;
+  ui.mini = true; readSetInputs(); persist();
+  go(ui.miniFrom || "#/heute");
+  say("Training verkleinert. Der Timer läuft weiter. Unten über der Tab-Leiste kannst du es wieder öffnen.");
+}
+// Nach unten wischen verkleinert das Training (nur ganz oben, nicht auf Eingabefeldern)
+(() => {
+  let y0 = null, dy = 0;
+  view.addEventListener("touchstart", ev => {
+    if (!view.classList.contains("modal") || view.scrollTop > 0 || dlg.open || ev.target.closest("input,select,textarea,.stepper,.seg,.rir,button")) { y0 = null; return; }
+    y0 = ev.touches[0].clientY; dy = 0;
+  }, {passive: true});
+  view.addEventListener("touchmove", ev => {
+    if (y0 == null) return;
+    dy = ev.touches[0].clientY - y0;
+    if (dy > 0 && view.scrollTop <= 0) { if (ev.cancelable) ev.preventDefault(); view.style.transition = "none"; view.style.transform = `translateY(${dy * 0.8}px)`; view.style.opacity = String(Math.max(0.4, 1 - dy / 600)); }
+    else { y0 = null; view.style.transform = ""; view.style.opacity = ""; }
+  }, {passive: false});
+  const end = () => {
+    if (y0 == null) return; y0 = null;
+    const go2 = dy > 110;
+    view.style.transition = "transform .22s ease, opacity .22s ease";
+    view.style.transform = go2 ? "translateY(60%)" : ""; view.style.opacity = go2 ? "0" : "";
+    setTimeout(() => { view.style.transition = ""; view.style.transform = ""; view.style.opacity = ""; if (go2) minimize(); }, go2 ? 200 : 230);
+  };
+  view.addEventListener("touchend", end); view.addEventListener("touchcancel", end);
+})();
 
 /* ---------- Ton am Pausenende: Ringglocke + „Next Round“ (js/bell.js) ---------- */
 function cancelBeep() { BELL.cancel(); }
@@ -575,7 +634,7 @@ function saveSet() {
   const nextIdx = St.firstOpen(a, i);
   if (nextIdx < 0) { a.restEnd = 0; cancelBeep(); persist(); ui.summary = true; say(msg + " Alle Übungen erledigt."); rerender(); view.querySelector("h1").focus(); return; }
   const rest = type === "warm" ? 60 : type === "drop" ? 0 : it.rest;
-  a.restEnd = rest ? Date.now() + rest * 1000 : 0; lastRestState = !!rest; scheduleBeep(rest);
+  a.restEnd = rest ? Date.now() + rest * 1000 : 0; a.restTotal = rest; lastRestState = !!rest; scheduleBeep(rest);
   if (n >= target) { a.idx = nextIdx; msg += ` ${e.name} erledigt. Nächste Übung: ${St.ex(a.queue[nextIdx].exId).name}.`; }
   if (rest) msg += ` Pause ${rest} Sekunden.`;
   persist(); say(msg); rerender(); view.scrollTop = 0;
@@ -843,7 +902,7 @@ function backupDue() {
 const A = {
   close: () => closeDialog(),
   pickday: t => { ui.day = +t.dataset.i; rerender(`[data-act="pickday"][data-i="${ui.day}"]`); },
-  start: t => { const p = St.activePlan(); St.startSession(p, +t.dataset.i); ui.summary = false; ui.key = ""; ui.day = null; go("#/training"); say(`Training gestartet: ${p.days[+t.dataset.i].name}.`); },
+  start: t => { if (D().active) return go("#/training"); const p = St.activePlan(); St.startSession(p, +t.dataset.i); ui.summary = false; ui.key = ""; ui.day = null; go("#/training"); say(`Training gestartet: ${p.days[+t.dataset.i].name}.`); },
   adopt: t => {
     const tpl = TEMPLATES.find(x => x.id === t.dataset.id), p = St.instantiate(tpl);
     D().plans.push(p); D().activePlanId = p.id; persist(); ui.day = null;
@@ -931,9 +990,11 @@ const A = {
     ui.key = ""; persist(); rerender(); view.querySelector("h1").focus();
     toast(`${name} ausgelassen.`, () => { a.queue[i].skipped = false; a.idx = i; ui.summary = false; ui.key = ""; persist(); rerender(); view.querySelector("h1").focus(); });
   },
-  rest30: () => { const a = D().active; a.restEnd += 30000; scheduleBeep((a.restEnd - Date.now()) / 1000); persist(); const el = $("#rt"); if (el) el.textContent = restLeft(); say(`Pause verlängert, noch ${restLeft().replace(":", " Minuten ")} Sekunden.`); },
+  rest30: () => { const a = D().active; a.restEnd += 30000; a.restTotal = (a.restTotal || 0) + 30; scheduleBeep((a.restEnd - Date.now()) / 1000); persist(); const el = $("#rt"); if (el) el.textContent = restLeft(); say(`Pause verlängert, noch ${restLeft().replace(":", " Minuten ")} Sekunden.`); },
   skiprest: () => { D().active.restEnd = 0; lastRestState = false; cancelBeep(); readSetInputs(); persist(); rerender("#saveset"); },
   overview: () => openOverview(),
+  mini: () => minimize(),
+  maxi: () => go("#/training"),
   exprev: () => moveEx(-1),
   exnext: () => moveEx(1),
   exgo: () => { const a = D().active, n = St.firstOpen(a, a.idx); ui.pin = null; ui.key = ""; if (n < 0) ui.summary = true; else a.idx = n; persist(); rerender(); view.scrollTop = 0; view.querySelector("h1").focus(); },
