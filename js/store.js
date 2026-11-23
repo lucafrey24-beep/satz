@@ -34,7 +34,8 @@ export const corruptKeys = () => Object.keys(localStorage).filter(k => k.startsW
 // Ergänzt fehlende Felder (auch nach dem Laden einer älteren Sicherung)
 function migrate() {
   // neue Bibliotheksübungen nachrüsten, ohne eigene Umbenennungen zu überschreiben
-  EXERCISES.forEach(e => { if (!S.exercises[e.id]) S.exercises[e.id] = {...e}; });
+  // Bei Bibliotheksübungen sind die Muskeln fest hinterlegt: Korrekturen (z. B. Kreuzheben ab 0.7) übernehmen
+  EXERCISES.forEach(e => { const x = S.exercises[e.id]; if (!x) S.exercises[e.id] = {...e}; else if (!x.custom) { x.primary = [...e.primary]; x.secondary = [...e.secondary]; } });
   // Ergänzungen ab Version 0.3 (Ernährung, Profil), rückwärtskompatibel
   S.profile = Object.assign({birth: "", sex: "", height: 0, pal: 1.55, goal: "maintain", manual: false, kcal: 0, p: 0, c: 0, f: 0}, S.profile || {});
   S.weights = S.weights || [];
@@ -61,10 +62,10 @@ export function restore(snap) { S = JSON.parse(snap); migrate(); save(); }
 /* ---------- Pläne ---------- */
 export function instantiate(t) {
   return {
-    id: uid(), name: t.name, perWeek: t.perWeek, template: t.id,
+    id: uid(), name: t.name, perWeek: t.perWeek, template: t.id, goal: t.goal || "kraft",
     days: t.days.map(d => ({
       id: uid(), name: d.name,
-      slots: d.slots.map(([exId, sets, min, max]) => ({id: uid(), exId, sets, min, max, rest: 0})),
+      slots: d.slots.map(([exId, sets, min, max, rest]) => ({id: uid(), exId, sets, min, max, rest: rest || 0})),
     })),
   };
 }
@@ -262,7 +263,7 @@ export function sanitizeImport(d) {
       step: optNum(e.step, 0.1, 50, 2.5), unit: e.unit === "bw" ? "bw" : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
     if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
   }
-  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined,
+  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik"].includes(p.goal) ? p.goal : "kraft",
     days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
       slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
         min: Math.round(num(s.min, 1, 100, "Wdh.")), max: Math.round(num(s.max, 1, 100, "Wdh.")), rest: Math.round(optNum(s.rest, 0, 900, 0))}))}))}));
@@ -273,7 +274,7 @@ export function sanitizeImport(d) {
     ...(x.notes && typeof x.notes === "object" ? {notes: Object.fromEntries(Object.entries(x.notes).filter(([k]) => ID.test(k)).map(([k, v]) => [k, str(v, 500)]))} : {})}));
   const s = d.settings || {};
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
-    contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false,
+    contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, showFig: s.showFig !== false,
     accent: ["graphit", "gruen", "kobalt", "signal"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
     ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
   const pr = d.profile || {};
@@ -282,9 +283,9 @@ export function sanitizeImport(d) {
     manual: !!pr.manual, kcal: optNum(pr.kcal, 0, 8000, 0), p: optNum(pr.p, 0, 1000, 0), c: optNum(pr.c, 0, 2000, 0), f: optNum(pr.f, 0, 1000, 0)};
   const weights = arr(d.weights || [], "Gewicht").map(w => ({date: day(w.date), kg: num(w.kg, 20, 400, "Gewicht")}));
   const foods = {};
-  for (const [k, f] of Object.entries(d.foods || {})) { id(k, "Lebensmittel"); foods[k] = {id: k, name: str(f.name, 120) || "Lebensmittel", brand: str(f.brand, 80), barcode: /^\d{0,14}$/.test(f.barcode || "") ? f.barcode || "" : "", per100: per100(f.per100), serving: optNum(f.serving, 0, 5000, 0), source: f.source === "off" ? "off" : "own"}; }
+  for (const [k, f] of Object.entries(d.foods || {})) { id(k, "Lebensmittel"); foods[k] = {id: k, name: str(f.name, 120) || "Lebensmittel", brand: str(f.brand, 80), barcode: /^\d{0,14}$/.test(f.barcode || "") ? f.barcode || "" : "", per100: per100(f.per100), serving: optNum(f.serving, 0, 5000, 0), source: f.source === "off" ? "off" : "own", ...(f.fav ? {fav: true} : {})}; }
   const food = arr(d.food || [], "Tagebuch").map(e => ({id: id(e.id, "Eintrag"), date: day(e.date), meal: ["fruehstueck", "mittag", "abend", "snack"].includes(e.meal) ? e.meal : "snack",
-    foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge")}));
+    foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge"), ...(e.quick ? {quick: true} : {})}));
   const activePlanId = d.activePlanId && plans.some(p => p.id === d.activePlanId) ? d.activePlanId : plans[0]?.id || null;
   return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, foods, food};
 }

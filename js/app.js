@@ -1,5 +1,6 @@
 import * as St from "./store.js";
-import {MUSCLES, MUSCLE_NAME, TEMPLATES} from "./data.js";
+import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS} from "./data.js";
+import * as AN from "./anim.js";
 import * as N from "./nutrition.js";
 
 /* ============ Hilfen ============ */
@@ -7,7 +8,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.6";
+export const APP_VERSION = "0.7";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -40,6 +41,7 @@ function openDialog(html, focusSel) {
   if (!dlg.open) dlg.showModal();
   const f = focusSel && dlg.querySelector(focusSel);
   (f || dlg.querySelector("h2")).focus();
+  AN.startAnim();
 }
 function closeDialog() { dlg.close(); }
 dlg.addEventListener("close", () => { if (opener && document.contains(opener)) opener.focus(); opener = null; });
@@ -83,10 +85,11 @@ function applySettings() {
   if (s.contrast) r.dataset.contrast = "high"; else delete r.dataset.contrast;
   const dark = s.theme === "dark" || (s.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.querySelector('meta[name="theme-color"]').content = dark ? "#000000" : "#F2F2F7";
+  if (body3d) body3d.recolor();
 }
 
 /* ============ Router ============ */
-const ROUTES = {heute: viewToday, plaene: viewPlans, vorlage: viewTemplate, plan: viewEditor, uebungen: viewExercises, verlauf: viewHistory, ernaehrung: viewNutrition, mehr: viewMore, training: viewTraining};
+const ROUTES = {koerper: viewBody, heute: viewToday, plaene: viewPlans, vorlage: viewTemplate, plan: viewEditor, uebungen: viewExercises, verlauf: viewHistory, ernaehrung: viewNutrition, mehr: viewMore, training: viewTraining};
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   let name = parts[0] || "heute";
@@ -101,22 +104,25 @@ function route() {
   updateWakeLock();
   renderBar(training, name);
   if (dlg.open) dlg.close();
+  if (name !== "koerper") dropBody();
   ROUTES[name](parts[1]);
+  AN.startAnim();
   view.scrollTop = 0;
   const h = view.querySelector("h1");
   if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); }
   document.title = (h ? h.textContent.replace(/\s+/g, " ").trim() + " · " : "") + "SATZ";
 }
-const tabFor = n => ({vorlage: "plaene", plan: "plaene", uebungen: "plaene"})[n] || n;
+const tabFor = n => ({vorlage: "plaene", plan: "plaene", uebungen: "plaene", koerper: "plaene"})[n] || n;
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 function rerender(focusSel) {
   const top = view.scrollTop;
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   (ROUTES[parts[0]] || viewToday)(parts[1]);
   view.scrollTop = top;
+  AN.startAnim();
   if (focusSel) { const f = view.querySelector(focusSel); if (f) f.focus({preventScroll: false}); }
 }
-const BACK = {vorlage: ["#/plaene", "Pläne"], plan: ["#/plaene", "Pläne"], uebungen: ["#/plaene", "Pläne"]};
+const BACK = {vorlage: ["#/plaene", "Pläne"], plan: ["#/plaene", "Pläne"], uebungen: ["#/plaene", "Pläne"], koerper: ["#/plaene", "Pläne"]};
 function renderBar(training, name) {
   const a = D().active, back = BACK[name];
   bar.classList.remove("titled");
@@ -156,11 +162,24 @@ function lowMuscles(v) { return MUSCLES.filter(m => St.volStatus(m, v[m.id]) ===
 function templateCard(t, compact) {
   return `<article class="card" aria-labelledby="t-${t.id}">
     <h3 id="t-${t.id}">${esc(t.name)}</h3>
-    <p class="meta">${t.level} · ${t.days.length} ${t.days.length === 1 ? "Tag" : "Tage"} · ${t.perWeek}× pro Woche</p>
+    <p class="meta">${goalLabel(t.goal)} · ${t.level} · ${t.days.length} ${t.days.length === 1 ? "Tag" : "Tage"} · ${t.perWeek}× pro Woche</p>
     ${compact ? "" : `<p>${esc(t.desc)}</p>`}
     <div class="row-btns"><a class="btn small" href="#/vorlage/${t.id}">Ansehen</a>
       <button class="btn small primary" data-act="adopt" data-id="${t.id}">Übernehmen</button></div>
   </article>`;
+}
+const goalLabel = g => (TGOALS.find(x => x.id === g) || TGOALS[0]).l;
+// Fertige Pläne mit Filter nach Trainingsziel
+function templatesBlock(compact) {
+  const g = ui.tgoal || "all", list = TEMPLATES.filter(t => g === "all" || t.goal === g), gd = TGOALS.find(x => x.id === g);
+  return `<div class="seg wrap" role="group" aria-label="Trainingsziel" style="margin-bottom:10px">
+      ${[["all", "Alle"], ...TGOALS.map(x => [x.id, x.l])].map(([v, l]) => `<button type="button" data-act="tgoal" data-v="${v}" aria-pressed="${g === v}">${l}</button>`).join("")}</div>
+    <p class="meta" aria-live="polite">${gd ? esc(gd.d) + " " : ""}${list.length} ${list.length === 1 ? "Plan" : "Pläne"}.</p>
+    ${list.map(t => templateCard(t, compact)).join("")}`;
+}
+function bodyCard() {
+  return `<a class="card linkcard" href="#/koerper"><span class="lc-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><circle cx="12" cy="4.5" r="2.4" fill="currentColor"/><path d="M12 8v7m0 0-3 6m3-6 3 6M12 9.5 6.5 14M12 9.5l5.5 4.5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>
+    <span><b>Körperkarte</b><small>Muskel antippen, passende Übungen mit Ablauf sehen und zum Plan hinzufügen.</small></span><span class="chev" aria-hidden="true">›</span></a>`;
 }
 function emptyPlanBtn() { return `<button class="btn" data-act="newplan">Leeren Plan anlegen</button>`; }
 
@@ -172,7 +191,7 @@ function viewToday() {
       <p>SATZ ist dein Trainingsheft: Plan wählen, Satz für Satz eintragen, und die App sagt dir, wann du steigern kannst.</p>
       <p>Wähle einen Plan als Startpunkt. Du kannst später alles ändern, Übungen tauschen und eigene anlegen.</p>
       <h2 class="sec">Fertige Pläne</h2>
-      ${TEMPLATES.map(t => templateCard(t)).join("")}
+      ${templatesBlock(false)}
       ${emptyPlanBtn()}<div style="height:24px"></div>`;
     return;
   }
@@ -208,9 +227,10 @@ function viewToday() {
 function viewPlans() {
   const s = D(), customN = Object.values(s.exercises).filter(e => e.custom).length;
   view.innerHTML = `<h1 class="big">Pläne</h1>
+    ${bodyCard()}
     ${s.plans.length ? s.plans.map(p => `<article class="card" aria-labelledby="p-${p.id}">
       <h3 id="p-${p.id}">${esc(p.name)}${p.id === s.activePlanId ? `<span class="badge">aktiv</span>` : ""}</h3>
-      <p class="meta">${p.days.length} ${p.days.length === 1 ? "Tag" : "Tage"} · ${p.perWeek}× pro Woche</p>
+      <p class="meta">${p.goal ? goalLabel(p.goal) + " · " : ""}${p.days.length} ${p.days.length === 1 ? "Tag" : "Tage"} · ${p.perWeek}× pro Woche</p>
       <div class="row-btns">
         ${p.id !== s.activePlanId ? `<button class="btn small primary" data-act="activate" data-id="${p.id}">Aktivieren</button>` : ""}
         <a class="btn small" href="#/plan/${p.id}" aria-label="${esc(p.name)} bearbeiten">Bearbeiten</a>
@@ -220,7 +240,7 @@ function viewPlans() {
     ${emptyPlanBtn()}
     <h2 class="sec">Fertige Pläne</h2>
     <p class="meta">Nach Trainingswissenschaft zusammengestellt. Übernehmen erstellt eine Kopie, die du frei ändern kannst.</p>
-    ${TEMPLATES.map(t => templateCard(t, true)).join("")}
+    ${templatesBlock(true)}
     <h2 class="sec">Übungen</h2>
     <p class="meta">${Object.keys(s.exercises).length} Übungen, davon ${customN} eigene.</p>
     <a class="btn" href="#/uebungen">Übungen verwalten</a><div style="height:24px"></div>`;
@@ -230,7 +250,7 @@ function viewTemplate(id) {
   const t = TEMPLATES.find(x => x.id === id);
   if (!t) return go("#/plaene");
   const p = St.instantiate(t);
-  view.innerHTML = `<p class="eyebrow">Fertiger Plan · ${t.level}</p><h1 class="big">${esc(t.name)}</h1>
+  view.innerHTML = `<p class="eyebrow">Fertiger Plan · ${goalLabel(t.goal)} · ${t.level}</p><h1 class="big">${esc(t.name)}</h1>
     <p>${esc(t.desc)}</p><p class="meta">${t.days.length} ${t.days.length === 1 ? "Tag" : "Tage"} · ${t.perWeek}× pro Woche</p>
     ${t.days.map((d, i) => `<h2 class="sec">Tag ${i + 1}: ${esc(d.name)}</h2><ol class="exlist">
       ${p.days[i].slots.map(sl => `<li><span class="t">${esc(St.ex(sl.exId).name)}</span><span class="s"><span aria-hidden="true">${scheme(sl)}</span><span class="sr">${schemeSr(sl)}</span></span></li>`).join("")}</ol>`).join("")}
@@ -336,6 +356,7 @@ function openExForm(exId, name, after) {
   const used = exId && D().plans.some(p => p.days.some(d => d.slots.some(s => s.exId === exId)));
   ui.exAfter = after; ui.exEdit = exId;
   openDialog(`<h2 id="dlg-h">${exId ? "Übung bearbeiten" : "Eigene Übung"}</h2>
+    ${exId ? exFigure(e) : ""}
     <p class="err" role="alert" hidden></p>
     <label class="field">Name <input id="x-name" value="${esc(e.name)}" autocomplete="off"></label>
     ${lockMuscles ? `<p class="meta">Muskeln: ${esc(muscleList(e))}. Bei dieser Übung sind sie fest hinterlegt.</p>` : `
@@ -385,6 +406,67 @@ function viewExercises() {
       <small>${esc(muscleList(e))} · ${St.setCount(e.id)} Sätze im Verlauf</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
 }
 
+/* ============ Ausführung: Gerät und Bewegungsablauf ============ */
+function exInfo(e) {
+  const i = INFO[e.id];
+  return i ? {pat: i[0], eq: i[1], cue: i[2]} : {pat: PATTERN_BY_MUSCLE[e.primary[0]] || "squat", eq: "", cue: ""};
+}
+function exFigure(e, small) {
+  const x = exInfo(e);
+  return `<figure class="exfig${small ? " small" : ""}">${AN.svgFor(x.pat, e.primary, esc(`Bewegungsablauf ${e.name}, schematisch`))}
+    <figcaption>${x.eq ? `<b>${esc(x.eq)}.</b> ${esc(x.cue)}` : "Eigene Übung: grober Ablauf nach Hauptmuskel, nicht genau deine Übung."}</figcaption></figure>`;
+}
+
+/* ============ Körperkarte ============ */
+// Muskeln, die man von hinten sieht: beim Antippen in der Liste dreht sich die Figur um
+const BACKSIDE = new Set(["ruecken", "lrs", "trizeps", "hamstrings", "gluteus", "waden"]);
+let body3d = null;
+function dropBody() { if (body3d) { body3d.destroy(); body3d = null; } }
+function viewBody() {
+  dropBody();
+  const m = ui.bm || null, side = ui.bside || "front";
+  view.innerHTML = `<p class="eyebrow"><a href="#/plaene">Pläne</a></p><h1 class="big">Körperkarte</h1>
+    <p class="meta">Tippe auf einen Muskel oder wähle ihn unten in der Liste. Zum Drehen seitlich ziehen.</p>
+    <div class="b3wrap"><div class="body3d" id="body3d"><p class="meta b3load">Figur wird geladen …</p></div>
+      <button type="button" class="b3tag" id="b3tag" data-act="b3go" ${m ? "" : "hidden"}>${m ? `${MUSCLE_NAME[m]} <span aria-hidden="true">↓</span>` : ""}</button></div>
+    <div class="seg" role="group" aria-label="Figur drehen" style="margin:10px 0 4px">
+      <button type="button" data-act="bside" data-v="front" aria-pressed="${side === "front"}">Vorne</button><button type="button" data-act="bside" data-v="back" aria-pressed="${side === "back"}">Hinten</button></div>
+    <h2 class="sec" id="bm-h">Muskelgruppe</h2>
+    <div class="chips" role="group" aria-labelledby="bm-h">${MUSCLES.map(x => `<button type="button" class="chip" data-act="bm" data-m="${x.id}" aria-pressed="${x.id === m}">${x.name}</button>`).join("")}</div>
+    <div id="bmList">${muscleExList(m)}</div><div style="height:24px"></div>`;
+  const host = $("#body3d");
+  import("./body3d.js").then(mod => {
+    if (!document.contains(host)) return;
+    host.innerHTML = "";
+    body3d = mod.mountBody(host, {selected: m, onPick: id => pickMuscle(id, true)});
+    if (body3d && side === "back") body3d.back();
+  }).catch(() => { host.innerHTML = `<p class="meta b3load">Die 3D-Figur ließ sich nicht laden. Nutze die Liste darunter.</p>`; });
+}
+function muscleExList(m) {
+  if (!m) return `<p class="meta" style="margin-top:12px">Noch kein Muskel gewählt.</p>`;
+  const all = Object.values(D().exercises).filter(e => !e.archived), byName = (a, b) => a.name.localeCompare(b.name, "de");
+  const prim = all.filter(e => e.primary.includes(m)).sort(byName), sec = all.filter(e => !e.primary.includes(m) && e.secondary.includes(m)).sort(byName);
+  return `<h2 class="sec" id="bx-h" tabindex="-1">${MUSCLE_NAME[m]}: ${prim.length} ${prim.length === 1 ? "Übung" : "Übungen"}</h2>
+    ${prim.map(e => `<article class="card exsug" aria-labelledby="bx-${e.id}"><h3 id="bx-${e.id}">${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</h3>${exFigure(e)}
+      <p class="meta">${esc(muscleList(e))}</p>
+      <div class="row-btns"><button class="btn small primary" data-act="bmadd" data-id="${e.id}" aria-haspopup="dialog" aria-label="${esc(e.name)} zum Plan hinzufügen">Zum Plan hinzufügen</button></div></article>`).join("")}
+    ${sec.length ? `<p class="meta">Arbeitet außerdem mit bei: ${sec.map(e => esc(e.name)).join(", ")}.</p>` : ""}`;
+}
+function pickMuscle(id, from3d) {
+  ui.bm = id;
+  view.querySelectorAll('[data-act="bm"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === id)));
+  const box = $("#bmList"); if (box) box.innerHTML = muscleExList(id);
+  AN.startAnim();
+  if (body3d) { body3d.select(id); if (!from3d) { const back = BACKSIDE.has(id); back ? body3d.back() : body3d.front(); setSide(back ? "back" : "front"); } }
+  const n = Object.values(D().exercises).filter(e => !e.archived && e.primary.includes(id)).length;
+  say(`${MUSCLE_NAME[id]} gewählt. ${n} passende Übungen.`);
+  const tag = $("#b3tag");
+  if (tag) { tag.hidden = false; tag.innerHTML = `${MUSCLE_NAME[id]} · ${n} ${n === 1 ? "Übung" : "Übungen"} <span aria-hidden="true">↓</span>`; }
+}
+function setSide(v) { ui.bside = v; view.querySelectorAll('[data-act="bside"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
+// Standard-Satzschema nach Ziel des Plans (ACSM 2009)
+const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? [3, 4, 6, 150] : [3, 8, 12, 0];
+
 /* ============ Training ============ */
 function viewTraining() {
   const a = D().active;
@@ -408,6 +490,7 @@ function viewTraining() {
     <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · Satz ${logged.length + 1} von ${target} · Ziel ${it.min}–${it.max} Wdh.</p>
     <h1 class="big">${esc(e.name)}</h1>
     <p class="hint">${esc(sug.text)}${lastNote && !note ? `<br><b>Notiz vom ${dateDe(lastNote.date)}:</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>Notiz:</b> ${esc(note)}` : ""}</p>
+    ${D().settings.showFig !== false ? exFigure(e, true) : ""}
     <div class="rest ${resting ? "on" : ""}" role="group" aria-label="Pause">
       <span class="eyebrow">${resting ? "Pause" : "Pause nach dem Satz"}</span>
       <div class="num" id="rt" aria-hidden="true">${resting ? restLeft() : fmtSec(st === "warm" ? 60 : st === "drop" ? 0 : it.rest)}</div>
@@ -658,6 +741,7 @@ function viewMore() {
     <div class="group">
       <label class="row" for="s-rir"><span>„Wdh. in Reserve“ abfragen</span><input id="s-rir" class="switch" type="checkbox" role="switch" data-on="rir" ${s.rir ? "checked" : ""}></label>
       <label class="row" for="s-sound"><span>Ton am Pausenende</span><input id="s-sound" class="switch" type="checkbox" role="switch" data-on="sound" ${s.sound ? "checked" : ""}></label>
+      <label class="row" for="s-fig"><span>Ausführung im Training zeigen</span><input id="s-fig" class="switch" type="checkbox" role="switch" data-on="showfig" ${s.showFig !== false ? "checked" : ""}></label>
     </div>
     <p class="foot">Der Ton kommt auch bei stummgeschaltetem iPhone nur, wenn der Klingelschalter nicht auf lautlos steht. Während des Trainings bleibt der Bildschirm an.</p>
     <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
@@ -674,6 +758,7 @@ function viewMore() {
     <button class="btn destructive" data-act="reset">Alle Daten löschen</button>
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
+    <p class="meta">3D-Körperkarte mit three.js (MIT). Figur und Bewegungsabläufe sind selbst gezeichnete Schemata: ähnliche Übungen teilen sich eine Bewegungsvorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels.</p>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
     <p class="meta">Version ${APP_VERSION} · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
@@ -810,6 +895,27 @@ const A = {
     const snap = St.snapshot(); D().sessions = D().sessions.filter(x => x.id !== t.dataset.id); persist(); rerender(); view.querySelector("h1").focus();
     toast("Training gelöscht.", () => { St.restore(snap); rerender(); });
   },
+  /* Körperkarte & Ziele */
+  tgoal: t => { ui.tgoal = t.dataset.v; rerender(`[data-act="tgoal"][data-v="${t.dataset.v}"]`); },
+  bm: t => pickMuscle(t.dataset.m, false),
+  b3go: () => { const h = $("#bx-h"); if (h) { h.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"}); h.focus({preventScroll: true}); } },
+  bside: t => { setSide(t.dataset.v); if (body3d) t.dataset.v === "back" ? body3d.back() : body3d.front(); say(t.dataset.v === "back" ? "Rückansicht." : "Vorderansicht."); },
+  bmadd: t => {
+    const p = St.activePlan(), e = St.ex(t.dataset.id);
+    if (!p) return toast("Übernimm zuerst einen Plan oder leg einen leeren an. Dann kannst du Übungen hinzufügen.");
+    if (!p.days.length) return toast(`„${p.name}“ hat noch keinen Trainingstag. Leg zuerst einen an.`);
+    const [sets, min, max] = goalScheme(p.goal);
+    openDialog(`<h2 id="dlg-h">${esc(e.name)} hinzufügen</h2>
+      <p class="meta" style="text-align:center;margin-top:-10px">Zu welchem Tag in „${esc(p.name)}“? Startet mit ${sets}×${min}–${max}, im Plan änderbar.</p>
+      <ul class="plist" style="max-height:none">${p.days.map((d, i) => `<li><button data-act="bmaddday" data-i="${i}" data-id="${e.id}"><b>${esc(d.name)}</b><small>${d.slots.length} Übungen${d.slots.some(s => s.exId === e.id) ? " · schon enthalten" : ""}</small></button></li>`).join("")}</ul>
+      <button class="btn" data-act="close">Abbrechen</button>`);
+  },
+  bmaddday: t => {
+    const p = St.activePlan(), d = p.days[+t.dataset.i], e = St.ex(t.dataset.id), [sets, min, max, rest] = goalScheme(p.goal);
+    const sl = {id: St.uid(), exId: e.id, sets, min, max, rest};
+    d.slots.push(sl); persist(); closeDialog();
+    toast(`${e.name} zu „${d.name}“ hinzugefügt.`, () => { d.slots = d.slots.filter(x => x !== sl); persist(); });
+  },
   /* Einstellungen */
   set: t => { const k = t.dataset.k, v = t.dataset.v; D().settings[k] = k === "scale" ? +v : v; persist(); applySettings(); rerender(`[data-k="${k}"][data-v="${v}"]`); },
   export: () => {
@@ -867,6 +973,7 @@ document.addEventListener("change", ev => {
   if (k === "rest") { D().settings.rest = +el.value; persist(); }
   if (k === "kgin" || k === "repsin") { readSetInputs(); el.value = k === "kgin" ? fmt(ui.kg) : ui.reps; }
   if (k === "sound") { D().settings.sound = el.checked; persist(); }
+  if (k === "showfig") { D().settings.showFig = el.checked; persist(); }
   if (el.id === "importFile" && el.files[0]) {
     const r = new FileReader();
     r.onload = () => {
@@ -883,7 +990,7 @@ document.addEventListener("change", ev => {
 dlg.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "fq") { ev.preventDefault(); const b = dlg.querySelector('[data-act="offsearch"]'); if (b) b.click(); return; }
   if (ev.key !== "Enter" || ev.target.tagName !== "INPUT" || ev.target.type === "search" || ev.target.type === "checkbox") return;
-  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"]'); if (b) b.click();
+  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"],[data-act="quicksave"]'); if (b) b.click();
 });
 
 /* ============ Tab-Bar: Pille ziehen ============ */
@@ -942,13 +1049,14 @@ const targets = () => N.activeTargets(D().profile, St.currentWeight());
 const foodLine = f => [f.brand, `${r0(f.per100.kcal)} kcal / 100 g`].filter(Boolean).join(" · ");
 
 /* ============ Ernährung: Ansicht ============ */
+const prevMeal = id => D().food.filter(e => e.date === shiftDay(ui.fday || dkey(), -1) && e.meal === id).length;
 function viewNutrition() {
   if (!ui.fday) ui.fday = dkey();
   const k = ui.fday, today = dkey(), t = targets();
   const entries = D().food.filter(e => e.date === k), sum = N.sumEntries(entries);
   const bar = (v, max) => { const pct = max ? Math.min(100, v / max * 100) : 0; return `<div class="bar ${max && v > max * 1.05 ? "over" : ""}" aria-hidden="true"><i style="width:${pct}%"></i></div>`; };
   const mac = (name, v, max) => `<div><span class="n">${name}</span><div class="g">${r0(v)}${max ? ` / ${r0(max)}` : ""} g</div>${bar(v, max)}</div>`;
-  const left = t ? t.kcal - sum.kcal : 0;
+  const left = t ? t.kcal - sum.kcal : 0, prevN = D().food.filter(e => e.date === shiftDay(k, -1)).length;
   view.innerHTML = `<h1 class="big">Ernährung</h1>
     <div class="daynav"><button type="button" data-act="fday" data-d="-1" aria-label="Vorheriger Tag">‹</button>
       <span class="t" aria-live="polite">${esc(dayLabel(k))}</span>
@@ -961,11 +1069,14 @@ function viewNutrition() {
       <div class="macros">${mac("Protein", sum.p, t && t.p)}${mac("Kohlenhydrate", sum.c, t && t.c)}${mac("Fett", sum.f, t && t.f)}</div>
       <div class="row-btns"><button class="btn small" data-act="goals" aria-haspopup="dialog">${t ? (t.manual ? "Ziel: manuell" : "Ziel: berechnet") + " · Quellen" : "Ziel festlegen"}</button></div>
     </section>
-    ${t ? "" : N.computeTargets(D().profile, St.currentWeight())?.blocked ? `<p class="hint">SATZ berechnet Ernährungsziele erst ab ${N.MIN_AGE} Jahren. Du kannst trotzdem mitschreiben, was du isst.</p>` : `<p class="hint">Trag unter <a href="#/mehr">Mehr → Persönliche Daten</a> Geburtsdatum, Geschlecht, Größe und Gewicht ein. Dann berechnet SATZ deinen Bedarf nach anerkannten Formeln. Oder leg die Werte selbst fest.</p>`}
+    ${t ? "" : N.computeTargets(D().profile, St.currentWeight())?.blocked ? `<p class="hint">SATZ berechnet Ernährungsziele erst ab ${N.MIN_AGE} Jahren. Du kannst trotzdem mitschreiben, was du isst.</p>`
+      : `<section class="card" aria-labelledby="ob-h"><h2 id="ob-h" style="font-size:1.1rem;margin:0 0 4px">Bedarf berechnen</h2><p class="meta">Mit diesen Angaben berechnet SATZ deinen Bedarf nach anerkannten Formeln. Noch fehlt: ${esc(N.missing(D().profile, St.currentWeight()).join(", "))}. Oder leg die Werte über „Ziel festlegen“ selbst fest.</p>${profileSection().replace('<h2 class="sec" style="margin-top:4px">Persönliche Daten</h2>', "")}</section>`}
+    ${t && k === today ? `<div class="inline wline"><label class="field">Gewicht heute (kg) <input data-on="pweight" inputmode="decimal" autocomplete="off" value="${D().weights.at(-1)?.date === today ? fmt(D().weights.at(-1).kg) : ""}" placeholder="${St.currentWeight() ? fmt(St.currentWeight()) : "z. B. 70"}"></label><button class="btn" data-act="weightsave">Eintragen</button></div>` : ""}
+    ${!entries.length && prevN ? `<button class="btn" data-act="fcopyprev">Vortag übernehmen (${prevN} ${prevN === 1 ? "Eintrag" : "Einträge"})</button>` : ""}
     ${N.MEALS.map(([id, name]) => { const es = entries.filter(e => e.meal === id), ms = N.sumEntries(es); return `
-      <div class="mealh"><h2 class="sec" id="m-${id}">${name}</h2>${es.length ? `<span>${r0(ms.kcal)} kcal</span>` : ""}</div>
+      <div class="mealh"><h2 class="sec" id="m-${id}">${name}</h2>${es.length ? `<span>${r0(ms.kcal)} kcal</span>` : entries.length && prevMeal(id) ? `<button type="button" class="linkbtn" data-act="fcopymeal" data-m="${id}">Wie gestern<span class="sr"> (${name})</span></button>` : ""}</div>
       <ul class="group" aria-labelledby="m-${id}">
-        ${es.map(e => { const m = N.macrosFor(e.per100, e.grams); return `<li><button class="fbtn" data-act="fedit" data-id="${e.id}" aria-haspopup="dialog"><span><b>${esc(e.name)}</b><small>${r0(e.grams)} g · P ${r0(m.p)} · K ${r0(m.c)} · F ${r0(m.f)}</small></span><span class="k">${r0(m.kcal)} kcal</span></button></li>`; }).join("")}
+        ${es.map(e => { const m = N.macrosFor(e.per100, e.grams); return `<li><button class="fbtn" data-act="fedit" data-id="${e.id}" aria-haspopup="dialog"><span><b>${esc(e.name)}</b><small>${e.quick ? "Schnell-Eintrag" : `${r0(e.grams)} g`} · P ${r0(m.p)} · K ${r0(m.c)} · F ${r0(m.f)}</small></span><span class="k">${r0(m.kcal)} kcal</span></button></li>`; }).join("")}
         <li><button class="fbtn add" data-act="fadd" data-m="${id}" aria-haspopup="dialog">+ Hinzufügen<span class="sr"> zu ${name}</span></button></li>
       </ul>`; }).join("")}
     <p class="foot" style="margin-top:16px">Produktdaten aus dem Netz kommen von Open Food Facts, einer freien Datenbank, die von Freiwilligen gepflegt wird. Prüfe die Werte auf der Verpackung. An Open Food Facts geht nur der Barcode oder Suchbegriff, nichts über dich.</p>
@@ -976,7 +1087,7 @@ function viewNutrition() {
 function openFoodAdd(meal) {
   ui.fmeal = meal; ui.fq = ""; ui.foff = null; ui.foffState = "";
   openDialog(`<h2 id="dlg-h">${esc(N.MEALS.find(m => m[0] === meal)[1])}: hinzufügen</h2>
-    <div class="row-btns" style="margin:0 0 16px"><button class="btn small primary" data-act="scan">Barcode scannen</button><button class="btn small" data-act="newfood">Neues Lebensmittel</button></div>
+    <div class="row-btns" style="margin:0 0 16px"><button class="btn small primary" data-act="scan">Barcode scannen</button><button class="btn small" data-act="newfood">Neues Lebensmittel</button><button class="btn small" data-act="fquick" aria-haspopup="dialog">Nur kcal</button></div>
     <label class="field">Suchen <input id="fq" type="search" data-on="fq" autocomplete="off" enterkeyhint="search"></label>
     <div id="fres"></div>
     <button class="btn" data-act="close">Abbrechen</button>`, "#fq");
@@ -989,9 +1100,10 @@ function localFoods(q) {
 }
 function renderFoodResults() {
   const box = $("#fres"); if (!box) return;
-  const q = ui.fq.trim().toLowerCase(), list = localFoods(q).slice(0, 30);
-  ui.fcands = [...list];
-  const item = (f, i) => `<li><button data-act="pickfood" data-i="${i}"><b>${esc(f.name)}</b><small>${esc(foodLine(f))}</small></button></li>`;
+  const q = ui.fq.trim().toLowerCase(), all = localFoods(q);
+  const favs = q ? [] : all.filter(f => f.fav), list = all.filter(f => !favs.includes(f)).slice(0, 30);
+  ui.fcands = [...favs, ...list];
+  const item = (f, i) => `<li><button data-act="pickfood" data-i="${i}"><b>${f.fav ? `<span aria-hidden="true">★ </span>` : ""}${esc(f.name)}${f.fav && q ? `<span class="sr"> (Favorit)</span>` : ""}</b><small>${esc(foodLine(f))}</small></button></li>`;
   let off = "";
   if (ui.foffState === "loading") off = `<p class="meta" role="status">Suche bei Open Food Facts …</p>`;
   else if (ui.foffState === "error") off = `<p class="err" role="alert">Open Food Facts antwortet gerade nicht. Die Online-Suche erlaubt nur wenige Anfragen pro Minute. Versuch es gleich nochmal, scanne den Barcode oder leg das Lebensmittel selbst an.</p>`;
@@ -1001,8 +1113,9 @@ function renderFoodResults() {
     off = `<h3 class="meta" style="margin:12px 0 6px">Open Food Facts: ${ui.foff.length} Treffer</h3>${ui.foff.length ? `<ul class="plist">${ui.foff.map((f, i) => item(f, base + i)).join("")}</ul>` : ""}`;
   }
   box.innerHTML = `
-    ${list.length ? `<h3 class="meta" style="margin:0 0 6px">${q ? "Deine Lebensmittel" : "Zuletzt verwendet"}</h3><ul class="plist">${list.map(item).join("")}</ul>`
-      : `<p class="meta">${q ? "Keine eigenen Treffer." : "Noch keine eigenen Lebensmittel. Scanne einen Barcode, suche online oder leg eins an."}</p>`}
+    ${favs.length ? `<h3 class="meta" style="margin:0 0 6px">Favoriten</h3><ul class="plist">${favs.map(item).join("")}</ul>` : ""}
+    ${list.length ? `<h3 class="meta" style="margin:${favs.length ? "12px" : "0"} 0 6px">${q ? "Deine Lebensmittel" : "Zuletzt verwendet"}</h3><ul class="plist">${list.map((f, i) => item(f, favs.length + i)).join("")}</ul>`
+      : favs.length ? "" : `<p class="meta">${q ? "Keine eigenen Treffer." : "Noch keine eigenen Lebensmittel. Scanne einen Barcode, suche online oder leg eins an."}</p>`}
     ${q.length >= 3 && !ui.foff && ui.foffState !== "loading" ? `<button class="btn" data-act="offsearch" style="margin-bottom:12px">„${esc(ui.fq.trim())}“ online suchen</button>` : ""}
     ${off}`;
 }
@@ -1011,12 +1124,15 @@ function renderFoodResults() {
 function openAmount(food, entry) {
   ui.famount = {food, entry};
   const grams = entry ? entry.grams : food.serving || 100;
-  const mealSel = entry ? entry.meal : ui.fmeal || "snack";
+  const mealSel = entry ? entry.meal : ui.fmeal || "snack", fav = !!(food.id && D().foods[food.id] && D().foods[food.id].fav);
   openDialog(`<h2 id="dlg-h">${esc(food.name)}</h2>
     <p class="meta" style="text-align:center;margin-top:-10px">${esc(foodLine(food))}</p>
+    <div class="favrow"><button type="button" class="btn small favbtn" data-act="ffav" aria-pressed="${fav}"><span aria-hidden="true">${fav ? "★" : "☆"}</span> ${fav ? "Favorit" : "Als Favorit merken"}</button></div>
     <p class="err" role="alert" hidden></p>
-    <label class="field">Menge in Gramm <input id="fgrams" data-on="fgrams" inputmode="decimal" autocomplete="off" value="${fmt(grams)}"></label>
-    ${food.serving ? `<div class="quick"><button class="btn small" data-act="fgset" data-g="${food.serving}">1 Portion (${fmt(food.serving)} g)</button><button class="btn small" data-act="fgset" data-g="100">100 g</button></div>` : ""}
+    ${food.serving ? `<div class="pair"><label class="field">Portionen à ${fmt(food.serving)} g <input id="fport" data-on="fport" inputmode="decimal" autocomplete="off" value="${fmt(Math.round(grams / food.serving * 100) / 100)}"></label>
+      <label class="field">Gramm <input id="fgrams" data-on="fgrams" inputmode="decimal" autocomplete="off" value="${fmt(grams)}"></label></div>
+      <div class="quick"><button class="btn small" data-act="fgset" data-g="${food.serving / 2}">½ Portion</button><button class="btn small" data-act="fgset" data-g="${food.serving}">1 Portion</button><button class="btn small" data-act="fgset" data-g="${food.serving * 2}">2 Portionen</button><button class="btn small" data-act="fgset" data-g="100">100 g</button></div>`
+      : `<label class="field">Menge in Gramm <input id="fgrams" data-on="fgrams" inputmode="decimal" autocomplete="off" value="${fmt(grams)}"></label>`}
     <div class="preview" id="fprev" aria-live="polite"></div>
     <label class="field">Mahlzeit <select id="fmealsel">${N.MEALS.map(([id, n]) => `<option value="${id}" ${id === mealSel ? "selected" : ""}>${n}</option>`).join("")}</select></label>
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="amountsave">${entry ? "Speichern" : "Hinzufügen"}</button></div>
@@ -1028,6 +1144,36 @@ function updatePreview() {
   const el = $("#fprev"); if (!el || !ui.famount) return;
   const m = N.macrosFor(ui.famount.food.per100, num($("#fgrams").value));
   el.innerHTML = `<div><b>${r0(m.kcal)}</b><small>kcal</small></div><div><b>${r1(m.p)}</b><small>Protein g</small></div><div><b>${r1(m.c)}</b><small>Kohlenh. g</small></div><div><b>${r1(m.f)}</b><small>Fett g</small></div>`;
+}
+function syncPort() { const f = ui.famount && ui.famount.food, p = $("#fport"); if (f && f.serving && p) { const g = num($("#fgrams").value); p.value = g ? fmt(Math.round(g / f.serving * 100) / 100) : ""; } }
+/* ---------- Schnell-Eintrag: nur Kalorien (z. B. Restaurant) ---------- */
+// Gespeichert als 1000 g mit Werten pro 100 g = Gesamtwert ÷ 10, damit die normale Rechnung und Import-Prüfung gelten.
+function openQuick(entry) {
+  ui.fquickEdit = entry || null;
+  const v = k => entry ? fmt(Math.round(entry.per100[k] * 10)) : "";
+  const mealSel = entry ? entry.meal : ui.fmeal || "snack";
+  const fld = (id, label, val) => `<label class="field">${label} <input id="${id}" inputmode="decimal" autocomplete="off" value="${val}"></label>`;
+  openDialog(`<h2 id="dlg-h">${entry ? "Schnell-Eintrag ändern" : "Nur Kalorien eintragen"}</h2>
+    <p class="meta" style="text-align:center;margin-top:-10px">Für Essen ohne Verpackung, etwa im Restaurant. Schätzen ist besser als weglassen.</p>
+    <p class="err" role="alert" hidden></p>
+    <label class="field">Bezeichnung <small style="display:inline">(optional)</small><input id="q-name" autocomplete="off" value="${esc(entry ? entry.name : "")}" placeholder="z. B. Pizza beim Italiener"></label>
+    ${fld("q-kcal", "Energie (kcal)", v("kcal"))}
+    <p class="meta" style="margin:-4px 0 10px">Optional, falls bekannt:</p>
+    <div class="pair">${fld("q-p", "Protein (g)", v("p"))}${fld("q-c", "Kohlenh. (g)", v("c"))}</div>${fld("q-f", "Fett (g)", v("f"))}
+    <label class="field">Mahlzeit <select id="q-meal">${N.MEALS.map(([id, n]) => `<option value="${id}" ${id === mealSel ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="quicksave">${entry ? "Speichern" : "Hinzufügen"}</button></div>
+    ${entry ? `<button class="btn destructive" data-act="qdel" style="margin-top:10px">Eintrag löschen</button>` : ""}`, "#q-kcal");
+}
+function saveQuick() {
+  const kcal = num($("#q-kcal").value), p = num($("#q-p").value), c = num($("#q-c").value), f = num($("#q-f").value);
+  if (kcal <= 0 || kcal > 9000) return dlgError("Bitte gib eine Energiemenge zwischen 1 und 9000 kcal ein.");
+  if (p < 0 || c < 0 || f < 0 || p > 1000 || c > 1000 || f > 1000) return dlgError("Bitte prüfe Protein, Kohlenhydrate und Fett.");
+  const name = $("#q-name").value.trim().slice(0, 120) || "Schnell-Eintrag", meal = $("#q-meal").value;
+  const per100 = {kcal: kcal / 10, p: p / 10, c: c / 10, f: f / 10};
+  if (ui.fquickEdit) Object.assign(ui.fquickEdit, {name, meal, per100});
+  else D().food.push({id: St.uid(), date: ui.fday || dkey(), meal, foodId: null, name, brand: "", per100, grams: 1000, quick: true});
+  persist(); ui.fmeal = meal; opener = null; closeDialog(); if (location.hash.startsWith("#/ernaehrung")) rerender(); else go("#/ernaehrung");
+  say(`${name}, ${r0(kcal)} kcal eingetragen.`);
 }
 function saveAmount() {
   const g = num($("#fgrams").value);
@@ -1228,14 +1374,36 @@ function accentRow() {
 Object.assign(A, {
   fday: t => { ui.fday = shiftDay(ui.fday || dkey(), +t.dataset.d); if (ui.fday > dkey()) ui.fday = dkey(); rerender(`[data-act="fday"][data-d="${t.dataset.d}"]:not(:disabled)`); },
   fadd: t => openFoodAdd(t.dataset.m),
-  fedit: t => { const e = D().food.find(x => x.id === t.dataset.id); if (e) openAmount(D().foods[e.foodId] ? {...D().foods[e.foodId], per100: e.per100} : {name: e.name, brand: e.brand, per100: e.per100}, e); },
+  fedit: t => { const e = D().food.find(x => x.id === t.dataset.id); if (e && e.quick) return openQuick(e); if (e) openAmount(D().foods[e.foodId] ? {...D().foods[e.foodId], per100: e.per100} : {name: e.name, brand: e.brand, per100: e.per100}, e); },
+  qdel: () => {
+    const e = ui.fquickEdit, snap = St.snapshot();
+    D().food = D().food.filter(x => x.id !== e.id); persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus();
+    toast(`${e.name} gelöscht.`, () => { St.restore(snap); rerender(); });
+  },
   fdel: () => {
     const e = ui.famount.entry, snap = St.snapshot();
     D().food = D().food.filter(x => x.id !== e.id); persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus();
     toast(`${e.name} gelöscht.`, () => { St.restore(snap); rerender(); });
   },
   pickfood: t => openAmount(ui.fcands[+t.dataset.i]),
-  fgset: t => { $("#fgrams").value = fmt(+t.dataset.g); updatePreview(); },
+  fgset: t => { $("#fgrams").value = fmt(+t.dataset.g); syncPort(); updatePreview(); },
+  ffav: t => {
+    const food = ui.famount.food;
+    if (!food.id) food.id = "f_" + St.uid();
+    if (!D().foods[food.id]) D().foods[food.id] = {...food};
+    const f = D().foods[food.id]; if (f.fav) delete f.fav; else f.fav = true; persist();
+    t.setAttribute("aria-pressed", String(!!f.fav)); t.innerHTML = `<span aria-hidden="true">${f.fav ? "★" : "☆"}</span> ${f.fav ? "Favorit" : "Als Favorit merken"}`;
+    say(f.fav ? `${f.name} ist jetzt Favorit.` : `${f.name} ist kein Favorit mehr.`);
+  },
+  fcopyprev: t => {
+    const k = ui.fday || dkey(), m = t.dataset.m, prev = D().food.filter(e => e.date === shiftDay(k, -1) && (!m || e.meal === m)), snap = St.snapshot();
+    prev.forEach(e => D().food.push({...e, per100: {...e.per100}, id: St.uid(), date: k}));
+    persist(); rerender(); view.querySelector("h1").focus();
+    toast(`${prev.length} ${prev.length === 1 ? "Eintrag" : "Einträge"} vom Vortag übernommen.`, () => { St.restore(snap); rerender(); });
+  },
+  fcopymeal: t => A.fcopyprev(t),
+  fquick: () => openQuick(),
+  quicksave: () => saveQuick(),
   amountsave: () => saveAmount(),
   newfood: () => openFoodForm({name: (ui.fq || "").trim()}),
   foodedit: () => openFoodForm(D().foods[ui.famount.food.id]),
@@ -1264,11 +1432,14 @@ Object.assign(A, {
 document.addEventListener("input", ev => {
   const k = ev.target.dataset.on;
   if (k === "fq") { ui.fq = ev.target.value; ui.foff = null; ui.foffState = ""; renderFoodResults(); }
-  if (k === "fgrams") updatePreview();
+  if (k === "fgrams") { syncPort(); updatePreview(); }
+  if (k === "fport") { const f = ui.famount && ui.famount.food, n = num(ev.target.value); if (f && f.serving) $("#fgrams").value = n ? fmt(Math.round(n * f.serving * 10) / 10) : ""; updatePreview(); }
 });
 document.addEventListener("change", ev => {
   const el = ev.target, k = el.dataset.on, pr = D().profile;
   if (!k || !k.startsWith("p") || k === "pm" || k === "pq" || k === "pname") return;
+  const hadT = !!targets();
+  queueMicrotask(() => { if (!hadT && targets() && location.hash.startsWith("#/ernaehrung")) { rerender(); say("Dein Bedarf ist jetzt berechnet."); } });
   if (k === "pbirth") { pr.birth = el.value; const y = N.age(pr.birth); $("#p-age").textContent = y != null ? `${y} Jahre` : "–"; }
   if (k === "psex") pr.sex = el.value;
   if (k === "ppal") pr.pal = +el.value;

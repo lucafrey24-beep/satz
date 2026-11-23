@@ -385,3 +385,53 @@ button,a,input,select,label,summary{touch-action:manipulation}
 .splash-ver{margin:14px 0 0; color:var(--label-2); font-size:.88rem; font-variant-numeric:tabular-nums}
 .splash-skip{margin:40px 0 0; color:var(--label-2); font-size:.765rem; opacity:.8}
 @media (prefers-reduced-motion: reduce){ .splash-bar i{width:100%!important} }
+
+/* ---------- Version 0.7: Übungsanimation ---------- */
+svg.exanim{display:block; width:100%; height:auto; max-height:200px}
+.exanim .b{stroke:var(--label); stroke-width:3.6; stroke-linecap:round; fill:none}
+.exanim .b.hi{stroke:var(--tint); stroke-width:4.2}
+.exanim .far{opacity:.4}
+.exanim .hd{fill:var(--card); stroke:var(--label); stroke-width:2.6}
+.exanim .gl{fill:var(--tint)}
+.exanim .eq{fill:var(--fill); stroke:var(--label-2); stroke-width:1.2}
+.exanim .eq2{fill:var(--fill-2); stroke:var(--label-2); stroke-width:1.2}
+.exanim .eql{stroke:var(--label-2); stroke-width:2; stroke-linecap:round}
+.exanim .eqt{stroke:var(--label-2); stroke-width:3.4; stroke-linecap:round}
+.exanim .cbl{stroke:var(--label-2); stroke-width:1; stroke-dasharray:3 2}
+.exanim .ld{fill:var(--label-2)}
+.exanim .hub{fill:var(--card)}
+.exanim .fl{stroke:var(--sep); stroke-width:1.5}
+.exanim .ghost{opacity:.28}
+
+/* ---------- v0.7: Körperkarte, Ablauf, Ziel-Filter, Ernährung ---------- */
+:root{ --fig-neutral:#D1D1D6; --fig-muscle:#9DB5A8 }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --fig-neutral:#48484A; --fig-muscle:#5F7D6E } }
+:root[data-theme="dark"]{ --fig-neutral:#48484A; --fig-muscle:#5F7D6E }
+.body3d{position:relative; height:min(420px, 56dvh); background:var(--card); border-radius:var(--r-lg); overflow:hidden; touch-action:pan-y}
+.body3d canvas{display:block; cursor:grab}
+.body3d .b3load{position:absolute; inset:0; display:grid; place-items:center; margin:0; padding:16px; text-align:center}
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px}
+.chips .chip[aria-pressed="true"]{background:var(--tint); color:var(--on-tint)}
+.exfig{margin:0 0 12px; background:var(--card); border-radius:var(--r); padding:8px 12px 10px}
+.card .exfig{background:var(--card-2); margin:8px 0}
+.exfig figcaption{font-size:.82rem; color:var(--label-2); margin-top:4px; line-height:1.35}
+.exfig figcaption b{color:var(--label); font-weight:600}
+.exfig.small svg.exanim{max-height:140px}
+dialog .exfig{background:var(--card-2)}
+.linkcard{display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; color:inherit; text-decoration:none; min-height:64px}
+.linkcard b{display:block; font-weight:600}
+.linkcard small{display:block; color:var(--label-2); font-size:.82rem}
+.linkcard .lc-ic{width:44px; height:44px; border-radius:12px; display:grid; place-items:center; background:var(--tint-soft); color:var(--tint)}
+.linkcard .chev{color:var(--label-2); font-size:1.4rem}
+.seg.wrap{flex-wrap:wrap}
+.seg.wrap button{flex:1 1 40%}
+.favrow{display:flex; justify-content:center; margin:-4px 0 12px}
+.favbtn{width:auto; padding:0 14px}
+.favbtn[aria-pressed="true"]{color:var(--tint)}
+.wline{margin-top:4px}
+.b3wrap{position:relative}
+.b3tag{position:absolute; left:50%; top:12px; transform:translateX(-50%); min-height:44px; padding:0 16px; border:0; border-radius:22px; background:var(--tint); color:var(--on-tint); font-weight:600; font-size:.9rem; box-shadow:var(--shadow); white-space:nowrap}
+.exfig.small{display:grid; grid-template-columns:44% 1fr; gap:12px; align-items:center; padding:8px 12px}
+.exfig.small figcaption{margin:0}
+.card .field input, .card .field select{background-color:var(--card-2)}
+.mealh .linkbtn{font-size:.85rem; font-weight:600; margin:-12px -4px -12px 0}

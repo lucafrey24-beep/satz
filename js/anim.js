@@ -1,0 +1,190 @@
+// Animierte Übungsausführung: selbst gezeichnete Strichfigur mit Gerät, eine Vorlage pro Bewegungsmuster.
+// Jede Vorlage hat zwei Posen (Start A, Ende B). Arme und Beine werden per inverser Kinematik zwischen Gelenk und Zielpunkt gerechnet,
+// so bleiben Hände an der Stange und Füße am Boden. Bei „Bewegung reduzieren“ zeigt die Grafik beide Posen still übereinander.
+
+const L = {t: 30, ua: 15, fa: 14, th: 20, sh: 19, ft: 7};
+const R = Math.PI / 180;
+const dir = (deg, len) => [Math.cos(deg * R) * len, Math.sin(deg * R) * len];
+const add = (p, q) => [p[0] + q[0], p[1] + q[1]];
+const lerp = (a, b, k) => a + (b - a) * k;
+const lerpP = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+// Zwei-Glied-IK: Basis P, Ziel T, Längen a, b, Beugerichtung s (+1/-1). Gibt [Mittelgelenk, Endpunkt].
+function ik(P, T, a, b, s) {
+  let dx = T[0] - P[0], dy = T[1] - P[1], d = Math.hypot(dx, dy) || 0.001;
+  const dd = Math.min(a + b - 0.01, Math.max(Math.abs(a - b) + 0.01, d));
+  const base = Math.atan2(dy, dx), cosA = (a * a + dd * dd - b * b) / (2 * a * dd);
+  const al = Math.acos(Math.max(-1, Math.min(1, cosA)));
+  const mid = [P[0] + Math.cos(base + s * al) * a, P[1] + Math.sin(base + s * al) * a];
+  return [mid, [P[0] + Math.cos(base) * dd, P[1] + Math.sin(base) * dd]];
+}
+
+/* ---------- Seitenansicht ---------- */
+function sideJoints(p) {
+  const hip = p.hip, sho = add(hip, dir(p.t, L.t)), neck = add(sho, dir(p.t, 4)), head = add(neck, dir(p.t + (p.nod || 0), 6));
+  const [elb, hand] = ik(sho, p.hand, L.ua, L.fa, p.hs ?? 1);
+  const [knee, ank] = ik(hip, p.foot, L.th, L.sh, p.fs ?? -1);
+  const toe = add(ank, dir(p.ft ?? 0, L.ft));
+  const J = {hip, sho, neck, head, elb, hand, knee, ank, toe};
+  if (p.foot2) { const [k2, a2] = ik(hip, p.foot2, L.th, L.sh, p.fs2 ?? p.fs ?? -1); J.knee2 = k2; J.ank2 = a2; J.toe2 = add(a2, dir(p.ft2 ?? 0, L.ft)); }
+  return J;
+}
+function lerpPose(A, B, k) {
+  const o = {};
+  for (const key of Object.keys(B)) {
+    const b = B[key], a = A[key] ?? b;
+    o[key] = Array.isArray(a) ? lerpP(a, b, k) : typeof a === "number" ? lerp(a, b, k) : a;
+  }
+  return o;
+}
+const ln = (a, b, cls) => `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" class="${cls}"/>`;
+const hl = (on, m) => on.includes(m) ? "b hi" : "b";
+function drawSide(J, on) {
+  const torso = ["brust", "ruecken", "bauch", "lrs"].some(m => on.includes(m)) ? "b hi" : "b";
+  const arm = on.includes("bizeps") || on.includes("trizeps") ? "b hi" : "b";
+  const shoulder = on.includes("schultern") ? "b hi" : arm;
+  const thigh = ["quads", "hamstrings"].some(m => on.includes(m)) ? "b hi" : "b";
+  let s = "";
+  if (J.knee2) s += ln(J.hip, J.knee2, thigh + " far") + ln(J.knee2, J.ank2, hl(on, "waden") + " far") + ln(J.ank2, J.toe2, "b far");
+  s += ln(J.hip, J.sho, torso) + ln(J.sho, J.neck, "b") + `<circle cx="${J.head[0].toFixed(1)}" cy="${J.head[1].toFixed(1)}" r="6" class="hd"/>`;
+  s += ln(J.hip, J.knee, thigh) + ln(J.knee, J.ank, hl(on, "waden")) + ln(J.ank, J.toe, "b");
+  if (on.includes("gluteus")) s += `<circle cx="${J.hip[0].toFixed(1)}" cy="${J.hip[1].toFixed(1)}" r="4.5" class="gl"/>`;
+  s += ln(J.sho, J.elb, shoulder) + ln(J.elb, J.hand, "b");
+  return s;
+}
+
+/* ---------- Frontansicht ---------- */
+function frontJoints(p) {
+  const c = p.cx ?? 80, hipY = p.hipY ?? 70, shoY = hipY - 28;
+  const J = {pel: [c, hipY], neck: [c, shoY - 3], head: [c, shoY - 11], shoL: [c - 11, shoY], shoR: [c + 11, shoY], hipL: [c - 6, hipY], hipR: [c + 6, hipY]};
+  const hand = p.hand, foot = p.foot;
+  [J.elbR, J.handR] = ik(J.shoR, [c + hand[0], hand[1]], L.ua, L.fa, p.hs ?? 1);
+  [J.elbL, J.handL] = ik(J.shoL, [c - hand[0], hand[1]], L.ua, L.fa, -(p.hs ?? 1));
+  [J.kneeR, J.ankR] = ik(J.hipR, [c + foot[0], foot[1]], L.th, L.sh, p.fs ?? -1);
+  [J.kneeL, J.ankL] = ik(J.hipL, [c - foot[0], foot[1]], L.th, L.sh, -(p.fs ?? -1));
+  return J;
+}
+function drawFront(J, on) {
+  const torso = ["brust", "ruecken", "bauch"].some(m => on.includes(m)) ? "b hi" : "b";
+  const sh = on.includes("schultern") ? "b hi" : "b", leg = ["quads", "hamstrings", "gluteus"].some(m => on.includes(m)) ? "b hi" : "b";
+  return ln(J.pel, J.neck, torso) + ln(J.shoL, J.shoR, torso) + ln(J.hipL, J.hipR, "b") + `<circle cx="${J.head[0]}" cy="${J.head[1]}" r="6" class="hd"/>`
+    + ln(J.shoR, J.elbR, sh) + ln(J.elbR, J.handR, "b") + ln(J.shoL, J.elbL, sh) + ln(J.elbL, J.handL, "b")
+    + ln(J.hipR, J.kneeR, leg) + ln(J.kneeR, J.ankR, "b") + ln(J.hipL, J.kneeL, leg) + ln(J.kneeL, J.ankL, "b");
+}
+
+/* ---------- Geräte und Gewichte ---------- */
+const rect = (x, y, w, h, cls = "eq") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" class="${cls}"/>`;
+const line = (x1, y1, x2, y2, cls = "eql") => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}"/>`;
+const plate = (p, r = 6.5) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r}" class="ld"/><circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="1.5" class="hub"/>`;
+const db = p => `<rect x="${(p[0] - 5).toFixed(1)}" y="${(p[1] - 2.5).toFixed(1)}" width="10" height="5" rx="2" class="ld"/>`;
+const kb = p => `<circle cx="${p[0].toFixed(1)}" cy="${(p[1] + 5).toFixed(1)}" r="5" class="ld"/>`;
+const cable = (from, p) => line(from[0], from[1], p[0].toFixed(1), p[1].toFixed(1), "cbl") + `<circle cx="${from[0]}" cy="${from[1]}" r="3" class="eq"/>`;
+const stack = (x, top) => rect(x - 4, top, 8, 108 - top, "eq2");
+const bench = (x1, x2, y) => rect(x1, y, x2 - x1, 4) + line(x1 + 4, y + 4, x1 + 4, 108) + line(x2 - 4, y + 4, x2 - 4, 108);
+const floor = (y = 108) => line(4, y, 156, y, "fl");
+
+/* ---------- Vorlagen ---------- */
+// A/B: hip, t (Rumpfwinkel, -90 = aufrecht), hand, foot (Knöchel), hs/fs Beugerichtung, ft Fußwinkel, foot2 zweites Bein
+const P = {
+  bench: {A: {hip: [72, 76], t: 180, hand: [40, 68], hs: -1, foot: [96, 106], fs: -1, ft: 0}, B: {hand: [42, 46]},
+    eq: J => bench(26, 84, 80) + line(36, 108, 36, 40, "eql") + plate(J.hand)},
+  bench_db: {base: "bench", eq: J => bench(26, 84, 80) + db(J.hand)},
+  incline: {A: {hip: [76, 80], t: 215, hand: [54, 56], hs: -1, foot: [98, 106], fs: -1}, B: {hand: [48, 32]},
+    eq: J => line(78, 84, 46, 62, "eqt") + bench(66, 90, 84) + plate(J.hand)},
+  fly: {front: true, A: {hand: [34, 50], hs: 1, foot: [10, 106], hipY: 74}, B: {hand: [6, 56]},
+    eq: () => rect(64, 34, 32, 42, "eq2") + line(46, 18, 46, 108) + line(114, 18, 114, 108)},
+  pushup: {A: {hip: [74, 96], t: -8, hand: [106, 106], hs: -1, foot: [40, 106], fs: 1, ft: 90}, B: {hip: [76, 88], t: -24}, eq: () => ""},
+  dips: {floorY: 119, A: {hip: [82, 74], t: -94, hand: [86, 70], hs: 1, foot: [72, 98], fs: 1}, B: {hip: [84, 88], t: -100, foot: [72, 110]},
+    eq: () => line(66, 70, 106, 70, "eqt") + line(70, 70, 70, 120) + line(102, 70, 102, 120)},
+  pullup: {floorY: 119, A: {hip: [84, 76], t: -91, hand: [86, 16], hs: 1, foot: [72, 104], fs: 1}, B: {hip: [84, 58], foot: [72, 86]},
+    eq: () => line(60, 14, 112, 14, "eqt") + line(64, 14, 64, 120) + line(108, 14, 108, 120)},
+  latpull: {A: {hip: [76, 82], t: -92, hand: [82, 22], hs: 1, foot: [100, 106], fs: -1}, B: {hand: [80, 50]},
+    eq: J => rect(60, 84, 30, 4) + line(66, 88, 66, 108) + rect(84, 66, 14, 5, "eq2") + stack(40, 14) + line(40, 8, 90, 8) + cable([90, 8], J.hand) + line(J.hand[0] - 14, J.hand[1], J.hand[0] + 6, J.hand[1], "eqt")},
+  row_bb: {A: {hip: [84, 66], t: -32, hand: [110, 92], hs: -1, foot: [90, 106], fs: -1}, B: {hand: [100, 70]}, eq: J => plate(J.hand, 8)},
+  row_tbar: {base: "row_bb", eq: J => line(30, 106, J.hand[0].toFixed(1), J.hand[1].toFixed(1), "eqt") + plate(J.hand, 8)},
+  row_db: {A: {hip: [80, 64], t: -18, hand: [104, 90], hs: -1, foot: [84, 106], fs: -1}, B: {hand: [94, 70]},
+    eq: J => bench(100, 140, 78) + db(J.hand)},
+  row_cable: {A: {hip: [60, 92], t: -86, hand: [98, 76], hs: -1, foot: [96, 98], fs: -1}, B: {t: -96, hand: [72, 74]},
+    eq: J => rect(40, 94, 40, 4) + rect(98, 90, 6, 18, "eq2") + stack(132, 40) + cable([128, 76], J.hand)},
+  hyperext: {A: {hip: [80, 60], t: 100, hand: [74, 82], hs: 1, foot: [42, 80], fs: 1, ft: 90}, B: {t: -12, hand: [104, 58]},
+    eq: () => line(84, 64, 50, 86, "eqt") + rect(76, 60, 12, 6, "eq2") + rect(38, 82, 8, 6, "eq2") + line(60, 76, 60, 108) + line(46, 86, 46, 108)},
+  press: {A: {hip: [70, 82], t: -90, hand: [76, 50], hs: 1, foot: [94, 106], fs: -1}, B: {hand: [72, 18]},
+    eq: J => rect(56, 84, 28, 4) + line(62, 88, 62, 108) + line(60, 84, 60, 40, "eqt") + plate(J.hand)},
+  lateral: {front: true, A: {hand: [10, 72], hs: 1, foot: [8, 108]}, B: {hand: [29, 44]}, eq: J => db(J.handR) + db(J.handL)},
+  rearfly: {front: true, A: {hand: [6, 56], hs: 1, foot: [10, 106], hipY: 74}, B: {hand: [34, 50]},
+    eq: () => rect(64, 34, 32, 42, "eq2") + line(46, 18, 46, 108) + line(114, 18, 114, 108)},
+  facepull: {A: {hip: [76, 70], t: -92, hand: [112, 40], hs: -1, foot: [80, 108], fs: -1}, B: {hand: [88, 34]},
+    eq: J => stack(140, 20) + cable([136, 38], J.hand)},
+  curl: {A: {hip: [76, 70], t: -90, hand: [80, 70], hs: 1, foot: [78, 108], fs: -1}, B: {hand: [88, 44]}, eq: J => db(J.hand)},
+  curl_bar: {base: "curl", eq: J => plate(J.hand, 5)},
+  pushdown: {A: {hip: [76, 70], t: -96, hand: [90, 46], hs: 1, foot: [80, 108], fs: -1}, B: {hand: [86, 70]},
+    eq: J => stack(120, 6) + line(120, 6, 98, 6) + cable([98, 6], J.hand)},
+  overhead: {A: {hip: [76, 70], t: -90, hand: [70, 28], hs: 1, foot: [78, 108], fs: -1}, B: {hand: [80, 12]}, eq: J => db(J.hand)},
+  squat: {A: {hip: [78, 68], t: -88, hand: [70, 40], hs: 1, foot: [84, 106], fs: -1}, B: {hip: [64, 88], t: -52, hand: [80, 64]},
+    eq: J => plate(J.sho, 8)},
+  goblet: {base: "squat", A: {hand: [88, 46]}, B: {hand: [96, 70]}, eq: J => db(J.hand)},
+  jumpsquat: {A: {hip: [66, 88], t: -55, hand: [60, 92], hs: 1, foot: [84, 106], fs: -1}, B: {hip: [80, 58], t: -88, hand: [96, 22], foot: [82, 98]}, eq: () => ""},
+  legpress: {A: {hip: [60, 88], t: -125, hand: [62, 86], hs: 1, foot: [86, 76], fs: -1}, B: {foot: [104, 62]},
+    eq: J => line(66, 94, 40, 60, "eqt") + rect(50, 90, 24, 5) + line(80, 104, 130, 54, "eql") + line(J.ank[0] - 6, J.ank[1] - 6, J.ank[0] + 6, J.ank[1] + 6, "eqt")},
+  lunge: {A: {hip: [80, 68], t: -90, hand: [80, 70], hs: -1, foot: [86, 106], fs: -1, foot2: [74, 106], fs2: -1}, B: {hip: [80, 84], hand: [80, 86], foot: [102, 106], foot2: [56, 106], ft2: 50},
+    eq: J => db(J.hand)},
+  bulgarian: {A: {hip: [80, 70], t: -88, hand: [80, 72], hs: -1, foot: [98, 106], fs: -1, foot2: [52, 84], fs2: 1, ft2: 20}, B: {hip: [78, 86], hand: [78, 88]},
+    eq: J => bench(36, 60, 86) + db(J.hand)},
+  stepup: {A: {hip: [80, 72], t: -86, hand: [80, 72], hs: -1, foot: [102, 86], fs: -1, foot2: [70, 106], fs2: -1}, B: {hip: [98, 50], hand: [98, 52], foot: [102, 86], foot2: [98, 74]},
+    eq: J => rect(90, 86, 34, 22, "eq2") + db(J.hand)},
+  legext: {A: {hip: [70, 80], t: -96, hand: [72, 84], hs: 1, foot: [90, 104], fs: -1, ft: 0}, B: {foot: [106, 80]},
+    eq: J => rect(52, 82, 32, 5) + line(54, 82, 52, 46, "eqt") + line(60, 87, 60, 108) + `<circle cx="${J.ank[0].toFixed(1)}" cy="${J.ank[1].toFixed(1)}" r="3.5" class="eq2"/>`},
+  legcurl: {A: {hip: [72, 76], t: 180, hand: [34, 80], hs: 1, foot: [110, 78], fs: 1, ft: -90}, B: {foot: [92, 54]},
+    eq: J => bench(28, 104, 80) + `<circle cx="${J.ank[0].toFixed(1)}" cy="${(J.ank[1] - 3).toFixed(1)}" r="3.5" class="eq2"/>`},
+  rdl: {A: {hip: [80, 68], t: -90, hand: [82, 72], hs: -1, foot: [84, 106], fs: -1}, B: {hip: [72, 70], t: -12, hand: [100, 96]}, eq: J => plate(J.hand, 8)},
+  deadlift: {A: {hip: [72, 84], t: -38, hand: [98, 98], hs: -1, foot: [86, 106], fs: -1}, B: {hip: [80, 68], t: -90, hand: [82, 72]}, eq: J => plate(J.hand, 9)},
+  swing: {A: {hip: [72, 72], t: -28, hand: [82, 96], hs: -1, foot: [84, 106], fs: -1}, B: {hip: [80, 68], t: -92, hand: [112, 42]}, eq: J => kb(J.hand)},
+  thrust: {A: {hip: [70, 98], t: -144, hand: [66, 92], hs: 1, foot: [98, 106], fs: -1}, B: {hip: [74, 76], t: 180, hand: [70, 74]},
+    eq: J => bench(18, 46, 80) + plate(J.hip, 7)},
+  bridge: {A: {hip: [72, 103], t: 180, hand: [56, 106], hs: 1, foot: [94, 106], fs: -1}, B: {hip: [72, 86], t: 150, hand: [56, 106]}, eq: () => ""},
+  kickback: {A: {hip: [82, 68], t: -78, hand: [104, 48], hs: 1, foot: [84, 106], fs: -1, foot2: [80, 106], fs2: -1}, B: {foot2: [52, 88]},
+    eq: J => stack(130, 20) + line(110, 30, 110, 108) + cable([34, 104], J.ank2 || [0, 0])},
+  calf: {A: {hip: [80, 63], t: -90, hand: [81, 66], hs: -1, foot: [80, 101.5], fs: -1, ft: 0}, B: {hip: [80, 57], hand: [81, 60], foot: [80, 95.5], ft: 50},
+    eq: J => rect(70, 102, 30, 6, "eq2") + db(J.hand)},
+  crunch: {A: {hip: [82, 102], t: 180, hand: [50, 100], hs: 1, foot: [102, 104], fs: -1}, B: {t: 208, hand: [58, 86]}, eq: () => ""},
+  legraise: {floorY: 119, A: {hip: [84, 76], t: -91, hand: [86, 16], hs: 1, foot: [86, 114], fs: 1}, B: {foot: [122, 74]},
+    eq: () => line(60, 14, 112, 14, "eqt") + line(64, 14, 64, 120) + line(108, 14, 108, 120)},
+  cablecrunch: {A: {hip: [80, 82], t: -84, hand: [82, 44], hs: 1, foot: [56, 104], fs: -1, ft: 180}, B: {t: -18, hand: [104, 72]},
+    eq: J => stack(70, 4) + line(70, 4, 86, 4) + cable([86, 4], J.hand)},
+  boxjump: {A: {hip: [62, 88], t: -52, hand: [50, 84], hs: 1, foot: [72, 106], fs: -1}, B: {hip: [104, 64], t: -62, hand: [128, 52], foot: [114, 84]},
+    eq: () => rect(98, 84, 36, 24, "eq2")},
+  abduct: {front: true, A: {hand: [16, 70], hs: 1, foot: [9, 104], fs: -1}, B: {foot: [26, 104]},
+    eq: () => rect(64, 68, 32, 8, "eq2") + rect(66, 30, 28, 38, "eq2")},
+};
+for (const k of Object.keys(P)) { const p = P[k]; if (p.base) { const b = P[p.base]; P[k] = {...b, ...p, A: {...b.A, ...(p.A || {})}, B: {...b.B, ...(p.B || {})}}; } }
+for (const p of Object.values(P)) p.B = {...p.A, ...p.B};
+
+export const PATTERNS = Object.keys(P);
+const ease = k => 0.5 - Math.cos(k * Math.PI) / 2;
+
+function frame(p, k, on) {
+  const pose = lerpPose(p.A, p.B, ease(k));
+  const J = p.front ? frontJoints(pose) : sideJoints(pose);
+  return (p.eq ? p.eq(J) : "") + (p.front ? drawFront(J, on) : drawSide(J, on));
+}
+const reduce = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+export function svgFor(pattern, on = [], label = "") {
+  const p = P[pattern]; if (!p) return "";
+  const still = reduce();
+  return `<svg class="exanim" viewBox="0 0 160 120" role="img" aria-label="${label}" data-pat="${pattern}" data-on="${on.join(" ")}">
+    ${floor(p.floorY)}${still ? `<g class="ghost">${frame(p, 0, on)}</g>` : ""}<g class="fig">${frame(p, still ? 1 : 0, on)}</g></svg>`;
+}
+
+// Eine gemeinsame Animationsschleife für alle sichtbaren Grafiken
+let raf = 0;
+function tick(ts) {
+  raf = 0;
+  if (document.hidden || reduce()) return;
+  const els = document.querySelectorAll("svg.exanim");
+  if (!els.length) return;
+  const k = (Math.sin(ts / 2600 * 2 * Math.PI - Math.PI / 2) + 1) / 2;   // 2,6 s hin und zurück
+  els.forEach(el => { const p = P[el.dataset.pat]; const g = el.querySelector(".fig"); if (p && g) g.innerHTML = frame(p, k, (el.dataset.on || "").split(" ")); });
+  raf = requestAnimationFrame(tick);
+}
+export function startAnim() { if (!raf && !reduce()) raf = requestAnimationFrame(tick); }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) startAnim(); });
