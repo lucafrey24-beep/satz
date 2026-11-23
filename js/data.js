@@ -206,3 +206,17 @@ export const TEMPLATES = [
     ],
   },
 ];
+
+/* Körpermaße: Messstellen mit Anleitung. y = Höhe der Messlinie in der Figur (viewBox 0–200 × 0–420), x/w = Lage und Breite.
+   Taille und Hüfte nach WHO (2008, Expert Consultation „Waist circumference and waist–hip ratio“),
+   die übrigen Stellen nach gängigem anthropometrischen Vorgehen (ISAK). */
+export const MEASURES = [
+  {id: "hals", l: "Hals", y: 62, x: 91, w: 18, how: "Direkt unter dem Kehlkopf, Band leicht nach vorn unten geneigt. Kopf gerade, Schultern locker."},
+  {id: "schulter", l: "Schultern", y: 90, x: 44, w: 112, how: "Um die breiteste Stelle der Schultermuskeln, Arme locker hängen lassen. Band waagerecht."},
+  {id: "brust", l: "Brust", y: 112, x: 54, w: 92, how: "Auf Höhe der Brustwarzen, unter den Achseln durch. Nach normalem Ausatmen messen, nicht einziehen."},
+  {id: "arm", l: "Oberarm", y: 126, x: 32, w: 22, side: true, how: "Rechter Arm, angespannt: Faust zur Schulter, an der dicksten Stelle des Bizeps. Immer denselben Arm messen."},
+  {id: "taille", l: "Taille", y: 160, x: 66, w: 68, how: "Mitte zwischen unterster Rippe und Oberkante des Beckenknochens (WHO), meist knapp über dem Bauchnabel. Nach normalem Ausatmen, Bauch nicht einziehen."},
+  {id: "huefte", l: "Hüfte", y: 200, x: 60, w: 80, how: "Um die breiteste Stelle des Gesäßes (WHO), Füße zusammen. Band waagerecht, von der Seite prüfen."},
+  {id: "oberschenkel", l: "Oberschenkel", y: 246, x: 67, w: 26, side: true, how: "Rechtes Bein, knapp unter der Gesäßfalte an der dicksten Stelle. Gewicht auf beide Beine, Muskel locker."},
+  {id: "wade", l: "Wade", y: 330, x: 65, w: 22, side: true, how: "Rechtes Bein, an der dicksten Stelle der Wade. Stehend, Gewicht auf beiden Beinen."},
+];

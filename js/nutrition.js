@@ -26,6 +26,8 @@ export const SOURCES = [
   ["Iraki et al. (2019)", "Nutrition recommendations for bodybuilders in the off-season. Sports 7(7): 0,25–0,5 %/Woche Zunahme", "https://pubmed.ncbi.nlm.nih.gov/31247944/"],
   ["Institute of Medicine (2005)", "Dietary Reference Intakes for Energy and Macronutrients: Fett 20–35 % der Energie", "https://nap.nationalacademies.org/catalog/10490"],
   ["WHO", "Body mass index: Untergewicht unter 18,5 kg/m²", "https://www.who.int/data/gho/data/themes/topics/topic-details/GHO/body-mass-index"],
+  ["Ashwell et al. (2012)", "Waist-to-height ratio is a better screening tool than waist circumference and BMI. Obes Rev 13(3): Grenzwert 0,5", "https://pubmed.ncbi.nlm.nih.gov/22106927/"],
+  ["WHO (2008)", "Waist circumference and waist–hip ratio: report of a WHO expert consultation. Messstellen Taille und Hüfte", "https://www.who.int/publications/i/item/9789241501491"],
   ["Hall (2008)", "What is the required energy deficit per unit weight loss? Int J Obes 32(3): 7700 kcal/kg nur als Näherung", "https://pubmed.ncbi.nlm.nih.gov/17848938/"],
 ];
 
@@ -64,7 +66,8 @@ export function computeTargets(p, kg) {
   const b = bmr(p.sex, kg, p.height, years), bm = bmi(kg, p.height);
   if (bm < 18.5 && g.rate < 0) { g = GOALS.maintain; warnings.push(`Dein BMI liegt bei ${bm.toFixed(1).replace(".", ",")}, also im Untergewicht (unter 18,5). SATZ rechnet deshalb ohne Defizit.`); }
   if (years > 78) warnings.push("Die Formel wurde nur bis 78 Jahre geprüft. Der Wert kann stärker abweichen.");
-  const tdee = b * p.pal;
+  // Übernommener echter Verbrauch ersetzt Grundumsatz × PAL
+  const tdee = p.tdeeAdj ? p.tdeeAdj.tdee : b * p.pal;
   const delta = kg * g.rate * KCAL_PER_KG / 7;
   let kcal = Math.round((tdee + delta) / 10) * 10;
   const floor = Math.max(MIN_KCAL, Math.round(b / 10) * 10);
@@ -73,7 +76,36 @@ export function computeTargets(p, kg) {
   const fat = Math.max(Math.round(kcal * FAT_SHARE / 9), Math.round(kg * MIN_FAT_PER_KG));
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
   return {kcal, p: protein, c: carbs, f: fat, warnings,
-    steps: {years, bmr: Math.round(b), pal: p.pal, tdee: Math.round(tdee), delta: Math.round(delta), goal: g, kg, bmi: bm}};
+    steps: {years, bmr: Math.round(b), pal: p.pal, tdee: Math.round(tdee), adj: p.tdeeAdj || null, delta: Math.round(delta), goal: g, kg, bmi: bm}};
+}
+
+/* Adaptiver Bedarf (Energiebilanz-Methode):
+   Verbrauch ≈ mittlere Zufuhr − Gewichtsänderung × 7700 kcal/kg ÷ Tage.
+   Die Gewichtsänderung kommt aus der Trendlinie (lineare Regression) aller Wiegungen im Zeitraum,
+   damit einzelne Wasserschwankungen kaum ins Gewicht fallen. 7700 kcal/kg ist eine Näherung (Hall 2008).
+   Zufuhr: nur Tage mit Einträgen zählen. Wer nicht alles einträgt, bekommt einen zu niedrigen Wert,
+   darum braucht SATZ mindestens 14 Tage und 80 % eingetragene Tage, sonst gibt es keinen Vorschlag. */
+export const ADAPT = {minDays: 14, maxDays: 28, minLogged: 0.8, minWeighins: 5};
+export function adaptiveTdee(food, weights, todayKey) {
+  const DAY = 864e5, t0 = new Date(todayKey + "T12:00:00");
+  const k = d => new Date(d + "T12:00:00");
+  // gestern als letzter Tag: heute ist meist noch nicht fertig eingetragen
+  const end = new Date(t0 - DAY), byDay = {};
+  food.forEach(e => { const d = k(e.date); if (d <= end && d > end - ADAPT.maxDays * DAY) byDay[e.date] = (byDay[e.date] || 0) + e.per100.kcal * e.grams / 100; });
+  const days = Object.keys(byDay).sort();
+  if (!days.length) return {ok: false, need: `Trag mindestens ${ADAPT.minDays} Tage dein Essen ein und wiege dich mehrmals pro Woche.`, logged: 0, span: 0};
+  const start = k(days[0]), span = Math.round((end - start) / DAY) + 1, logged = days.length;
+  const ws = weights.filter(w => k(w.date) >= start && k(w.date) <= t0);
+  const status = {logged, span, weighins: ws.length};
+  if (span < ADAPT.minDays) return {...status, ok: false, need: `Noch ${ADAPT.minDays - span} ${ADAPT.minDays - span === 1 ? "Tag" : "Tage"} eintragen. SATZ braucht mindestens ${ADAPT.minDays} Tage.`};
+  if (logged / span < ADAPT.minLogged) return {...status, ok: false, need: `Du hast an ${logged} von ${span} Tagen eingetragen. Für einen verlässlichen Wert braucht es mindestens 80 %, sonst wirkt dein Verbrauch zu niedrig.`};
+  if (ws.length < ADAPT.minWeighins || (k(ws.at(-1).date) - k(ws[0].date)) / DAY < 10) return {...status, ok: false, need: `Wiege dich öfter: mindestens ${ADAPT.minWeighins} Mal, verteilt über 10 Tage oder mehr (bisher ${ws.length}).`};
+  const xs = ws.map(w => (k(w.date) - start) / DAY), ys = ws.map(w => w.kg), n = xs.length;
+  const mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
+  const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);   // kg pro Tag
+  const intake = days.reduce((a, d) => a + byDay[d], 0) / logged;
+  const tdee = Math.round((intake - slope * KCAL_PER_KG) / 10) * 10;
+  return {...status, ok: true, intake: Math.round(intake), slopeWeek: Math.round(slope * 7 * 100) / 100, tdee};
 }
 
 export function activeTargets(p, kg) {

@@ -1,5 +1,5 @@
 import * as St from "./store.js";
-import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS} from "./data.js";
+import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES} from "./data.js";
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
@@ -9,11 +9,11 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.8.2";
+export const APP_VERSION = "0.9";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
-const schemeSr = sl => `${sl.sets} Sätze, ${sl.min} bis ${sl.max} Wiederholungen`;
+const schemeSr = sl => `${sl.sets} ${sl.sets === 1 ? "Satz" : "Sätze"}, ${sl.min} bis ${sl.max} Wiederholungen`;
 const dateDe = iso => new Date(iso).toLocaleDateString("de-DE", {weekday: "short", day: "numeric", month: "numeric"});
 const muscleList = e => [...e.primary.map(m => MUSCLE_NAME[m]), ...e.secondary.map(m => MUSCLE_NAME[m] + " (mit)")].join(", ");
 
@@ -205,8 +205,9 @@ function viewToday() {
     return;
   }
   const di = ui.day != null && ui.day < p.days.length ? ui.day : St.nextDayIndex(p);
-  const d = p.days[di], sets = d.slots.reduce((a, s) => a + s.sets, 0);
-  const mins = Math.round(d.slots.reduce((a, s) => a + s.sets * (St.restFor(s) + 45), 0) / 60);
+  const dlw = St.deloadNow(p), dsl = sl => dlw ? {...sl, sets: St.deloadSets(sl.sets)} : sl;
+  const d = p.days[di], sets = d.slots.reduce((a, s) => a + dsl(s).sets, 0);
+  const mins = Math.round(d.slots.reduce((a, s) => a + dsl(s).sets * (St.restFor(s) + 45), 0) / 60);
   const last = St.lastSession(), gap = last ? St.daysSince(last.date) : null;
   const week = D().sessions.filter(s => St.daysSince(s.date) < 7).length;
   view.innerHTML = `
@@ -214,17 +215,37 @@ function viewToday() {
     <h1 class="big">${di === St.nextDayIndex(p) ? "Heute:<br>" : ""}${esc(d.name)}</h1>
     ${gap != null && gap > 14 ? `<p class="note">Willkommen zurück. Dein letztes Training ist ${gap} Tage her. Die Vorschläge starten heute etwas leichter.</p>` : ""}
     <p class="meta">Letzte 7 Tage: ${week} von ${p.perWeek} geplanten Trainings.</p>
+    ${cycleNote(p)}
     ${backupDue() ? `<div class="note"><b>Zeit für eine Sicherung.</b> ${D().settings.lastBackup ? `Die letzte ist ${St.daysSince(D().settings.lastBackup)} Tage alt.` : "Du hast noch keine."} Deine Trainings liegen nur auf diesem Gerät.
       <div class="row-btns"><button class="btn small primary" data-act="export">Jetzt sichern</button><button class="btn small" data-act="snoozebackup">Später</button></div></div>` : ""}
     ${p.days.length > 1 ? dayBar(p, di, "pickday", "Trainingstag wählen") : ""}
     <p class="meta">${d.slots.length} Übungen · ${sets} Sätze · ca. ${mins} Min.</p>
     <ol class="exlist" aria-label="Übungen">
       ${d.slots.map(sl => { const e = St.ex(sl.exId), l = St.lastSetsFor(sl.exId);
-        return `<li><span class="t">${esc(e.name)}</span><span class="s"><span aria-hidden="true">${scheme(sl)}</span><span class="sr">${schemeSr(sl)}</span></span>
+        return `<li><span class="t">${esc(e.name)}</span><span class="s"><span aria-hidden="true">${scheme(dsl(sl))}</span><span class="sr">${schemeSr(dsl(sl))}</span></span>
         ${l ? `<span class="l">Zuletzt: ${St.fmtW(e, Math.max(...l.sets.map(x => x.kg)))}, ${l.sets.map(x => x.reps).join(" + ")} Wdh.</span>` : ""}</li>`; }).join("")}
     </ol>
     ${d.slots.length ? `<div class="actionbar"><button class="btn primary" data-act="start" data-i="${di}">${D().active ? "Training fortsetzen" : "Training starten"}</button></div>`
       : `<p class="meta">Dieser Tag hat noch keine Übungen.</p><a class="btn" href="#/plan/${p.id}">Plan bearbeiten</a>`}`;
+}
+
+// Entlastungsrhythmus: Woche x von n, wann die nächste Phase beginnt
+const inDaysLabel = n => { const d = new Date(Date.now() + n * 864e5); return n <= 1 ? "morgen" : d.toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "numeric"}).replace(",", "").replace(/\.$/, ""); };
+function cycleNote(p) {
+  const c = St.cycleWeek(p); if (!c) return "";
+  const dots = `<span class="cyc" aria-hidden="true">${Array.from({length: c.weeks}, (_, k) => `<i class="${k === c.weeks - 1 ? "dl" : ""}${k === c.week - 1 ? " on" : ""}"></i>`).join("")}</span>`;
+  if (c.deload) return `<div class="note cycnote">${dots}<b>Entlastungswoche.</b> Halbe Satzzahl, etwa 90 % Gewicht, 3 oder mehr Wdh. in Reserve. So erholst du dich, bevor es wieder bergauf geht. Aufbau ab ${esc(inDaysLabel(c.inDays))}.</div>`;
+  const next = c.inDays + (c.weeks - 1 - c.week) * 7;
+  return `<p class="meta cycline">${dots}Woche ${c.week} von ${c.weeks}: Aufbau. Entlastung ab ${esc(inDaysLabel(next))}.</p>`;
+}
+function cycleEditor(p) {
+  const c = St.cycleWeek(p), w = p.cycle ? p.cycle.weeks : 0;
+  return `<h2 class="sec">Rhythmus</h2>
+    <label class="field">Entlastungswoche <select data-on="cycleweeks">
+      ${St.CYCLES.map(n => `<option value="${n}" ${n === w ? "selected" : ""}>${n ? `Alle ${n} Wochen (${n - 1} Aufbau + 1 Entlastung)` : "Aus"}</option>`).join("")}</select></label>
+    ${c ? `<p class="meta">Gerade: Woche ${c.week} von ${c.weeks}${c.deload ? ", Entlastung" : ", Aufbau"}.</p>
+    <div class="row-btns">${c.deload ? `<button class="btn small" data-act="cyclerestart">Entlastung beenden, Aufbau starten</button>` : `<button class="btn small" data-act="deloadnow">Diese Woche entlasten</button><button class="btn small" data-act="cyclerestart">Mit Woche 1 neu beginnen</button>`}</div>` : ""}
+    <p class="foot">In der Entlastungswoche halbiert SATZ die Sätze und schlägt etwa 90 % des Gewichts vor. Danach geht es vom Stand davor weiter. Entlastungen alle 4–8 Wochen sind in der Praxis üblich, vor allem mit weniger Volumen (Bell et al. 2023, Expertenkonsens). Fühlst du dich früher platt, entlaste früher.</p>`;
 }
 
 /* ============ Pläne ============ */
@@ -234,7 +255,7 @@ function viewPlans() {
     ${bodyCard()}
     ${s.plans.length ? s.plans.map(p => `<article class="card" aria-labelledby="p-${p.id}">
       <h3 id="p-${p.id}">${esc(p.name)}${p.id === s.activePlanId ? `<span class="badge">aktiv</span>` : ""}</h3>
-      <p class="meta">${p.goal ? goalLabel(p.goal) + " · " : ""}${p.days.length} ${p.days.length === 1 ? "Tag" : "Tage"} · ${p.perWeek}× pro Woche</p>
+      <p class="meta">${p.goal ? goalLabel(p.goal) + " · " : ""}${p.days.length} ${p.days.length === 1 ? "Tag" : "Tage"} · ${p.perWeek}× pro Woche${(c => c ? ` · Woche ${c.week}/${c.weeks}${c.deload ? " Entlastung" : ""}` : "")(St.cycleWeek(p))}</p>
       <div class="row-btns">
         ${p.id !== s.activePlanId ? `<button class="btn small primary" data-act="activate" data-id="${p.id}">Aktivieren</button>` : ""}
         <a class="btn small" href="#/plan/${p.id}" aria-label="${esc(p.name)} bearbeiten">Bearbeiten</a>
@@ -291,6 +312,7 @@ function viewEditor(id) {
     </ol>
     <button class="btn" data-act="addslot" id="addslot">+ Übung hinzufügen</button>
     ${p.days.length > 1 ? `<button class="btn destructive" data-act="delday">Tag ${ui.eday + 1} löschen</button>` : ""}` : `<p>Dieser Plan hat noch keine Tage.</p>`}
+    ${cycleEditor(p)}
     <h2 class="sec">Wochenvolumen</h2>
     <p>${low.length ? `Unter 10 Sätzen pro Woche: <b>${low.join(", ")}</b>. Mehr Sätze, mehr Trainings pro Woche oder eine zusätzliche Übung heben das an.` : "Alle großen Muskelgruppen liegen bei mindestens 10 Sätzen pro Woche."}</p>
     <details><summary>Tabelle: Sätze pro Muskel und Woche</summary>${volumeTable(v, "Sätze pro Muskel und Woche")}</details>
@@ -715,7 +737,7 @@ function viewSummary() {
 function viewHistory() {
   const s = D(), ses = [...s.sessions].reverse();
   if (!ses.length) {
-    view.innerHTML = `<h1 class="big">Verlauf</h1><p>Noch keine Trainings. Nach deinem ersten Training siehst du hier, was sich bei jeder Übung verändert.</p>${weightSection()}<div style="height:24px"></div>`;
+    view.innerHTML = `<h1 class="big">Verlauf</h1><p>Noch keine Trainings. Nach deinem ersten Training siehst du hier, was sich bei jeder Übung verändert.</p>${weightSection()}${measureSection()}<div style="height:24px"></div>`;
     return;
   }
   const exIds = [...new Set(s.sessions.flatMap(x => x.sets.map(y => y.exId)))];
@@ -729,6 +751,7 @@ function viewHistory() {
   const p = St.activePlan();
   view.innerHTML = `<h1 class="big">Verlauf</h1>
     ${weightSection()}
+    ${measureSection()}
     ${changes.length ? `<h2 class="sec" style="margin-top:4px">Was sich verändert hat</h2><ul class="logged">
       ${changes.map(c => { const e = St.ex(c.id), d = c.to - c.from; return `<li><span>${esc(e.name)}</span><span class="num">${fmt(c.from)} → ${fmt(c.to)} kg <span class="sr">,</span>(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))})</span></li>`; }).join("")}
     </ul><p class="meta" style="margin-top:6px">Schwerster Satz im ersten und im letzten Training.</p>` : ""}
@@ -756,10 +779,11 @@ function chart(vals, labels, unit, caption, trend) {
   const all = trend ? vals.concat(trend) : vals, lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.1 || 1;
   const y0 = lo - pad, y1 = hi + pad, X = k => L + k * ((W - L - R) / (vals.length - 1)), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
   const path = arr => "M" + arr.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(" L");
+  const ax = v => hi - lo < 5 ? Math.round(v * 10) / 10 : Math.round(v);
   const ring = !trend && vals.indexOf(Math.max(...vals)) !== vals.length - 1;
   return `<figure class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(caption)}: von ${fmt(Math.round(vals[0] * 10) / 10)} auf ${fmt(Math.round(vals.at(-1) * 10) / 10)} ${unit}">
     <line x1="${L}" x2="${W - R}" y1="${Y(hi)}" y2="${Y(hi)}" class="grid"/><line x1="${L}" x2="${W - R}" y1="${Y(lo)}" y2="${Y(lo)}" class="grid"/>
-    <text x="${L - 6}" y="${Y(hi) + 4}" text-anchor="end">${fmt(Math.round(hi))}</text><text x="${L - 6}" y="${Y(lo) + 4}" text-anchor="end">${fmt(Math.round(lo))}</text>
+    <text x="${L - 6}" y="${Y(hi) + 4}" text-anchor="end">${fmt(ax(hi))}</text><text x="${L - 6}" y="${Y(lo) + 4}" text-anchor="end">${fmt(ax(lo))}</text>
     <text x="${L}" y="${H - 6}">${esc(labels[0])}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${esc(labels.at(-1))}</text>
     <line x1="${L}" x2="${W - R}" y1="${Y((hi + lo) / 2)}" y2="${Y((hi + lo) / 2)}" class="grid mid"/>
     ${trend ? `<path d="${path(trend)}" class="trend"/>` : ""}<path d="${path(vals)}"/>${vals.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${k === vals.length - 1 ? 4.5 : 3}"${k === vals.length - 1 ? ' class="last"' : ""}/>`).join("")}
@@ -826,6 +850,84 @@ function weightSection() {
     ${w.length >= 2 ? chart(w.map(x => x.kg), w.map(x => shortDate(x.date + "T12:00:00")), "kg", "Körpergewicht", avg) : `<p class="meta">Wiege dich ein paar Mal pro Woche, am besten morgens. Nach zwei Einträgen erscheint hier der Verlauf mit Trend.</p>`}
     ${w.length >= 8 ? (() => { const d = avg.at(-1) - avg[Math.max(0, avg.length - 8)]; return `<p class="meta">Trend: ${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(Math.round(d * 10) / 10))} kg im Vergleich zu vor etwa einer Woche.</p>`; })() : ""}`;
 }
+/* ---------- Körpermaße ---------- */
+const ML = Object.fromEntries(MEASURES.map(m => [m.id, m]));
+// Schematische Figur von vorn mit Messlinien. Die Figur zeigt dich wie im Spiegel: dein rechter Arm ist links im Bild.
+function measureFig(on) {
+  const line = m => { const r = m.w / 2, cx = m.x + r;
+    return `<g class="ml${m.id === on ? " on" : ""}"><ellipse cx="${cx}" cy="${m.y}" rx="${r + 3}" ry="${m.side ? 3 : 4}"/></g>`; };
+  return `<svg class="mfig" viewBox="0 0 200 420" role="img" aria-label="${on ? `Messstelle ${esc(ML[on].l)}` : "Figur mit allen Messstellen"}">
+    <g class="limb"><path d="M52 94 L40 150 L35 206"/><path d="M148 94 L160 150 L165 206"/><path d="M83 222 L79 302 L77 396"/><path d="M117 222 L121 302 L123 396"/></g>
+    <g class="limb in"><path d="M52 94 L40 150 L35 206"/><path d="M148 94 L160 150 L165 206"/><path d="M83 222 L79 302 L77 396"/><path d="M117 222 L121 302 L123 396"/></g>
+    <circle class="sk" cx="100" cy="34" r="20"/>
+    <path class="sk" d="M91 50h18v24h-18z"/>
+    <path class="sk" d="M70 76 Q100 68 130 76 L144 84 Q152 89 150 100 L142 138 Q137 153 133 164 Q141 184 140 204 L136 230 L64 230 L60 204 Q59 184 67 164 Q63 153 58 138 L50 100 Q48 89 56 84 Z"/>
+    ${MEASURES.map(line).join("")}
+  </svg>`;
+}
+function measureSection() {
+  const ms = D().measures, last = ms.at(-1);
+  const series = id => ms.filter(x => x.m[id] != null).map(x => ({date: x.date, v: x.m[id]}));
+  const ids = MEASURES.map(m => m.id).filter(id => series(id).length);
+  if (!ui.msel || !ids.includes(ui.msel)) ui.msel = ids.find(id => series(id).length >= 2) || ids[0];
+  const card = `<button type="button" class="card wcard" data-act="mopen" aria-haspopup="dialog">
+    <span class="wl"><span class="eyebrow">Letzte Messung</span><b>${last ? dl(last.date).replace(/^./, c => c.toUpperCase()) : "Noch nicht gemessen"}</b>
+      <small>${last ? (St.daysSince(last.date + "T12:00:00") >= 14 ? "Zeit für eine neue Messung" : "Alle 2–4 Wochen messen reicht") : "Maßband genügt. SATZ zeigt dir, wo du misst."}</small></span>
+    <span class="wbtn">Messen</span></button>`;
+  if (!ids.length) return `<h2 class="sec">Körpermaße</h2>${card}`;
+  const h = D().profile.height, waist = last && last.m.taille;
+  const sel = series(ui.msel);
+  return `<h2 class="sec">Körpermaße</h2>${card}
+    <ul class="logged">${ids.map(id => { const sr = series(id), a = sr[0], b = sr.at(-1), d = Math.round((b.v - a.v) * 10) / 10;
+      return `<li><span>${esc(ML[id].l)}</span><span class="num">${fmt(b.v)} cm${sr.length > 1 ? ` <small class="meta">(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} seit ${shortDate(a.date + "T12:00:00")})</small>` : ""}</span></li>`; }).join("")}</ul>
+    ${h && waist ? (() => { const r = waist / h; return `<p class="meta" style="margin-top:6px">Taille ÷ Größe: ${fmt(Math.round(r * 100) / 100)}. Unter 0,5 gilt als günstig für die Gesundheit (Ashwell et al. 2012).</p>`; })() : ""}
+    ${ids.length > 1 ? `<label class="field" style="margin-top:12px">Verlauf <select data-on="msel">${ids.map(id => `<option value="${id}" ${id === ui.msel ? "selected" : ""}>${esc(ML[id].l)}</option>`).join("")}</select></label>` : ""}
+    ${sel.length >= 2 ? chart(sel.map(x => x.v), sel.map(x => shortDate(x.date + "T12:00:00")), "cm", ML[ui.msel].l) : `<p class="meta">Nach der zweiten Messung erscheint hier der Verlauf.</p>`}`;
+}
+function openMeasures(date) {
+  const k = date || dkey(), ms = D().measures, cur = ms.find(x => x.date === k), prev = [...ms].reverse().find(x => x.date !== k);
+  ui.mdate = k;
+  openDialog(`<h2 id="dlg-h">Körpermaße</h2>
+    <div class="mwrap">${measureFig(MEASURES[0].id)}<p class="mhow" id="mhow" aria-live="polite"><b>${esc(MEASURES[0].l)}:</b> ${esc(MEASURES[0].how)}</p></div>
+    <details class="mtips"><summary>So misst du richtig</summary><ul>
+      <li>Morgens, vor dem Essen und vor dem Training, immer unter gleichen Bedingungen.</li>
+      <li>Weiches Maßband direkt auf der Haut, waagerecht, anliegend, ohne einzuschneiden. Ein Spiegel hilft.</li>
+      <li>Jede Stelle zweimal messen. Weichen die Werte um mehr als 0,5 cm ab, ein drittes Mal und den Mittelwert nehmen.</li>
+      <li>Du musst nicht alles messen. Taille allein sagt schon viel.</li></ul></details>
+    <p class="err" role="alert" hidden></p>
+    <label class="field">Datum <input id="mDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
+    <div class="mgrid">${MEASURES.map(m => `<label class="field">${esc(m.l)}${m.side ? " (rechts)" : ""}
+      <input name="mval" data-m="${m.id}" inputmode="decimal" autocomplete="off" aria-describedby="mh-${m.id}" value="${cur && cur.m[m.id] != null ? fmt(cur.m[m.id]) : ""}" placeholder="${prev && prev.m[m.id] != null ? fmt(prev.m[m.id]) : "cm"}">
+      <span class="sr" id="mh-${m.id}">${esc(m.how)}</span></label>`).join("")}</div>
+    <p class="foot">Felder in cm. Grau steht dein letzter Wert, leere Felder bleiben leer. Die Figur schaut dich an: Dein rechter Arm und dein rechtes Bein sind links im Bild.</p>
+    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="msave">Speichern</button></div>
+    ${ms.length ? `<h3 class="meta" style="margin:16px 0 6px">Frühere Messungen</h3><ul class="logged">${ms.slice(-6).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${Object.keys(x.m).length} Maße <button type="button" class="linkbtn" data-act="mdel" data-d="${x.date}" aria-label="Messung ${esc(dayLabel(x.date))} löschen">Löschen</button></span></li>`).join("")}</ul>` : ""}`, '[name="mval"]');
+}
+function saveMeasures() {
+  const k = $("#mDate").value || dkey();
+  if (k > dkey()) return dlgError("Das Datum liegt in der Zukunft.");
+  const vals = {};
+  for (const inp of dlg.querySelectorAll('input[name="mval"]')) {
+    if (!inp.value.trim()) continue;
+    const v = Math.round(num(inp.value) * 10) / 10;
+    if (!(v >= 10 && v <= 250)) { inp.focus(); return dlgError(`${ML[inp.dataset.m].l}: bitte einen Wert zwischen 10 und 250 cm eintragen.`); }
+    vals[inp.dataset.m] = v;
+  }
+  if (!Object.keys(vals).length) return dlgError("Trag mindestens ein Maß ein.");
+  const ms = D().measures, cur = ms.find(x => x.date === k), snap = St.snapshot();
+  if (cur) cur.m = vals; else ms.push({date: k, m: vals});
+  ms.sort((a, b) => a.date.localeCompare(b.date));
+  persist(); opener = null; closeDialog(); rerender();
+  toast(`${Object.keys(vals).length} ${Object.keys(vals).length === 1 ? "Maß" : "Maße"} für ${dayLabel(k)} gespeichert.`.replace(` für ${dayLabel(k)}`, ` ${dl(k)}`), () => { St.restore(snap); rerender(); });
+  const b = view.querySelector('[data-act="mopen"]'); if (b) b.focus();
+}
+// Fokus auf ein Feld zeigt die passende Messstelle in der Figur
+document.addEventListener("focusin", ev => {
+  const inp = ev.target.closest && ev.target.closest('input[name="mval"]'); if (!inp) return;
+  const m = ML[inp.dataset.m], fig = dlg.querySelector(".mfig"), how = $("#mhow"); if (!fig || !how) return;
+  fig.outerHTML = measureFig(m.id); how.innerHTML = `<b>${esc(m.l)}:</b> ${esc(m.how)}`;
+});
+
 function openSessionEdit(id) {
   const x = D().sessions.find(y => y.id === id); if (!x) return;
   ui.sedit = id;
@@ -923,7 +1025,7 @@ const A = {
     go("#/heute"); toast(`„${p.name}“ übernommen und aktiviert.`);
   },
   newplan: () => {
-    const p = {id: St.uid(), name: "Mein Plan", perWeek: 3, days: [{id: St.uid(), name: "Tag 1", slots: []}]};
+    const p = {id: St.uid(), name: "Mein Plan", perWeek: 3, cycle: {weeks: St.DEFAULT_CYCLE, start: dkey()}, days: [{id: St.uid(), name: "Tag 1", slots: []}]};
     D().plans.push(p); if (!D().activePlanId) D().activePlanId = p.id; persist(); ui.eday = 0; go(`#/plan/${p.id}`);
   },
   activate: t => { D().activePlanId = t.dataset.id; ui.day = null; persist(); rerender(); say(`${St.plan(t.dataset.id).name} ist jetzt aktiv.`); view.querySelector("h1").focus(); },
@@ -939,6 +1041,8 @@ const A = {
     persist(); rerender(); view.querySelector("h1").focus();
     toast(`„${p.name}“ gelöscht. Deine Trainings bleiben im Verlauf.`, () => { St.restore(snap); rerender(); });
   },
+  cyclerestart: () => { const p = curPlan(); p.cycle = {weeks: p.cycle.weeks, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); say("Rhythmus neu gestartet: Woche 1, Aufbau."); },
+  deloadnow: () => { const p = curPlan(); p.cycle = {weeks: p.cycle.weeks, start: shiftDay(dkey(), -(p.cycle.weeks - 1) * 7)}; persist(); rerender('[data-act="cyclerestart"]'); say("Diese Woche ist jetzt Entlastungswoche."); },
   perweek: t => { const p = curPlan(); p.perWeek = Math.min(7, Math.max(1, p.perWeek + +t.dataset.d)); persist(); rerender(`[data-act="perweek"][data-d="${t.dataset.d}"]`); },
   eday: t => { ui.eday = +t.dataset.i; rerender(`[data-act="eday"][data-i="${ui.eday}"]`); },
   addday: () => { const p = curPlan(); p.days.push({id: St.uid(), name: `Tag ${p.days.length + 1}`, slots: []}); ui.eday = p.days.length - 1; persist(); rerender('[data-on="dname"]'); view.querySelector('[data-on="dname"]').select(); say(`Tag ${ui.eday + 1} hinzugefügt. Gib ihm einen Namen.`); },
@@ -1103,6 +1207,13 @@ const A = {
     applySettings(); rerender();
     toast(`Stand vor dem Update geladen: ${D().sessions.length} Trainings.`, () => { St.restore(snap); applySettings(); rerender(); });
   },
+  mopen: () => openMeasures(),
+  msave: () => saveMeasures(),
+  mdel: t => {
+    const snap = St.snapshot(), k = t.dataset.d;
+    D().measures = D().measures.filter(x => x.date !== k); persist(); openMeasures(); rerender();
+    toast(`Messung vom ${dayLabel(k)} gelöscht.`, () => { St.restore(snap); rerender(); });
+  },
   resetgo: () => {
     if ($("#resetIn").value.trim().toUpperCase() !== "LÖSCHEN") return dlgError("Bitte LÖSCHEN eintippen.");
     closeDialog();
@@ -1132,6 +1243,8 @@ document.addEventListener("change", ev => {
   if (k === "pm") { ui.pm = el.value; renderPickList(); }
   if (k === "pname") { curPlan().name = el.value.trim() || "Mein Plan"; persist(); rerender('[data-on="pname"]'); }
   if (k === "dname") { const p = curPlan(); p.days[ui.eday].name = el.value.trim() || `Tag ${ui.eday + 1}`; persist(); rerender('[data-on="dname"]'); }
+  if (k === "cycleweeks") { const p = curPlan(), n = +el.value; p.cycle = n ? {weeks: n, start: p.cycle && p.cycle.weeks ? p.cycle.start : dkey()} : {weeks: 0, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); }
+  if (k === "msel") { ui.msel = el.value; rerender('[data-on="msel"]'); }
   if (k === "histex") { ui.histEx = el.value; rerender('[data-on="histex"]'); }
   if (k === "contrast" || k === "rir") { D().settings[k] = el.checked; persist(); applySettings(); }
   if (k === "rest") { D().settings.rest = +el.value; persist(); }
@@ -1238,6 +1351,7 @@ function viewNutrition() {
     ${t ? "" : N.computeTargets(D().profile, St.currentWeight())?.blocked ? `<p class="hint">SATZ berechnet Ernährungsziele erst ab ${N.MIN_AGE} Jahren. Du kannst trotzdem mitschreiben, was du isst.</p>`
       : `<section class="card" aria-labelledby="ob-h"><h2 id="ob-h" style="font-size:1.1rem;margin:0 0 4px">Bedarf berechnen</h2><p class="meta">Mit diesen Angaben berechnet SATZ deinen Bedarf nach anerkannten Formeln. Noch fehlt: ${esc(N.missing(D().profile, St.currentWeight()).join(", "))}. Oder leg die Werte über „Ziel festlegen“ selbst fest.</p>${profileSection().replace('<h2 class="sec" style="margin-top:4px">Persönliche Daten</h2>', "")}</section>`}
     ${t && k === today ? weightCard() : ""}
+    ${t && k === today ? adaptCard() : ""}
     ${!entries.length && prevN ? `<button class="btn" data-act="fcopyprev">Vortag übernehmen (${prevN} ${prevN === 1 ? "Eintrag" : "Einträge"})</button>` : ""}
     ${N.MEALS.map(([id, name]) => { const es = entries.filter(e => e.meal === id), ms = N.sumEntries(es); return `
       <div class="mealh"><h2 class="sec" id="m-${id}">${name}</h2>${es.length ? `<span>${r0(ms.kcal)} kcal</span>` : entries.length && prevMeal(id) ? `<button type="button" class="linkbtn" data-act="fcopymeal" data-m="${id}">Wie gestern<span class="sr"> (${name})</span></button>` : ""}</div>
@@ -1247,6 +1361,31 @@ function viewNutrition() {
       </ul>`; }).join("")}
     <p class="foot" style="margin-top:16px">Produktdaten aus dem Netz kommen von Open Food Facts, einer freien Datenbank, die von Freiwilligen gepflegt wird. Prüfe die Werte auf der Verpackung. An Open Food Facts geht nur der Barcode oder Suchbegriff, nichts über dich.</p>
     <div style="height:24px"></div>`;
+}
+
+/* ---------- Adaptiver Bedarf ---------- */
+function adaptCard() {
+  const pr = D().profile, a = N.adaptiveTdee(D().food, D().weights, dkey()), adj = pr.tdeeAdj;
+  if (!a.ok) {
+    const pct = Math.min(100, Math.round(Math.min(a.span, N.ADAPT.minDays) / N.ADAPT.minDays * 100));
+    return `<section class="card adapt" aria-labelledby="ad-h"><h2 id="ad-h" class="eyebrow" style="margin:0 0 4px">Dein echter Verbrauch</h2>
+      ${adj ? `<p class="meta">Dein Ziel nutzt den gemessenen Verbrauch von ${r0(adj.tdee)} kcal (Stand ${shortDate(adj.date + "T12:00:00")}).</p>` : `<p class="meta">Aus Gewicht und Essen errechnet SATZ nach 2 Wochen, was du wirklich verbrauchst.</p>`}
+      <div class="bar" role="progressbar" aria-label="Fortschritt bis zur Berechnung" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
+      <p class="meta" style="margin:6px 0 0">${esc(a.need)}</p></section>`;
+  }
+  const kg = St.currentWeight(), formula = N.computeTargets({...pr, tdeeAdj: null}, kg), next = N.computeTargets({...pr, tdeeAdj: {tdee: a.tdee}}, kg);
+  if (!formula || formula.blocked || !next) return "";
+  const cur = adj ? adj.tdee : formula.steps.tdee, diff = a.tdee - cur;
+  const odd = a.tdee < formula.steps.bmr || a.tdee > formula.steps.bmr * 2.6;
+  const trend = `${a.slopeWeek > 0 ? "+" : a.slopeWeek < 0 ? "−" : "±"}${fmt(Math.abs(a.slopeWeek))} kg pro Woche`;
+  return `<section class="card adapt" aria-labelledby="ad-h"><h2 id="ad-h" class="eyebrow" style="margin:0 0 4px">Dein echter Verbrauch</h2>
+    <p class="kcal" style="margin:0"><span class="v">ca. ${r0(a.tdee)}<span class="meta" style="font-size:1rem;font-weight:500"> kcal</span></span><span class="r">Formel: ${r0(formula.steps.tdee)}</span></p>
+    <p class="meta">Aus ${a.logged} eingetragenen Tagen: im Schnitt ${r0(a.intake)} kcal gegessen, Gewichtstrend ${trend}.</p>
+    ${odd ? `<p class="note">Der Wert liegt ${a.tdee < formula.steps.bmr ? "unter deinem Grundumsatz" : "ungewöhnlich hoch"}. Meist fehlen Einträge oder das Gewicht schwankt stark. SATZ schlägt deshalb nichts vor.</p>`
+      : Math.abs(diff) < 100 ? `<p class="meta">${adj ? "Dein Ziel nutzt diesen Wert bereits." : "Passt zur Formel. Kein Anpassen nötig."}</p>`
+      : `<p>Neues Tagesziel: <b>${r0(next.kcal)} kcal</b> statt ${r0(targets().kcal)} (${diff > 0 ? "+" : "−"}${r0(Math.abs(diff))} kcal Verbrauch).</p>
+        <div class="row-btns"><button class="btn small primary" data-act="adapt" data-v="${a.tdee}" data-n="${a.logged}">Übernehmen</button><button class="btn small" data-act="goals" aria-haspopup="dialog">Rechnung ansehen</button></div>`}
+  </section>`;
 }
 
 /* ---------- Hinzufügen ---------- */
@@ -1416,7 +1555,8 @@ function openGoals() {
     body = `${goalSeg}${t.warnings.map(w => `<p class="note">${esc(w)}</p>`).join("")}<p class="meta">${esc(g.why)}</p>
       <ol class="steps">
         <li>Grundumsatz nach Mifflin-St Jeor: 10 × ${fmt(s.kg)} kg + 6,25 × ${fmt(pr.height)} cm − 5 × ${s.years} Jahre ${sexTxt} = <b>${r0(s.bmr)} kcal</b></li>
-        <li>× Aktivitätsfaktor (PAL) ${fmt(s.pal)} = <b>${r0(s.tdee)} kcal</b> Gesamtbedarf</li>
+        ${s.adj ? `<li>Gesamtbedarf aus deinen eigenen Daten (Essen und Gewichtstrend, Stand ${shortDate(s.adj.date + "T12:00:00")}): <b>${r0(s.tdee)} kcal</b>. Die Formel ergäbe ${r0(Math.round(s.bmr * s.pal / 10) * 10)} kcal. <button type="button" class="linkbtn" data-act="adaptoff">Wieder die Formel nutzen</button></li>`
+          : `<li>× Aktivitätsfaktor (PAL) ${fmt(s.pal)} = <b>${r0(s.tdee)} kcal</b> Gesamtbedarf</li>`}
         <li>Ziel „${g.l}“: ${g.rate ? `${g.rate > 0 ? "+" : "−"}${fmt(Math.abs(g.rate) * 100)} % Körpergewicht pro Woche × 7700 kcal/kg ÷ 7 = <b>${s.delta > 0 ? "+" : "−"}${r0(Math.abs(s.delta))} kcal</b> pro Tag` : "<b>± 0 kcal</b>"}</li>
         <li>Tagesziel (gerundet): <b>${r0(t.kcal)} kcal</b></li>
         <li>Protein: ${fmt(g.protein)} g × ${fmt(s.kg)} kg = <b>${t.p} g</b></li>
@@ -1588,6 +1728,12 @@ Object.assign(A, {
   },
   scan: () => openScanner(),
   bclookup: () => { stopScanner(); scan.busy = true; lookupBarcode($("#bc").value); },
+  adapt: t => {
+    const pr = D().profile, snap = St.snapshot();
+    pr.tdeeAdj = {tdee: +t.dataset.v, date: dkey(), days: +t.dataset.n}; pr.manual = false;
+    persist(); rerender(); toast(`Neues Ziel: ${r0(targets().kcal)} kcal pro Tag.`, () => { St.restore(snap); rerender(); });
+  },
+  adaptoff: () => { const snap = St.snapshot(); delete D().profile.tdeeAdj; persist(); openGoals(); rerender(); toast("Ziel wieder nach Formel.", () => { St.restore(snap); rerender(); }); },
   goals: () => { ui.gwarned = false; ui.gwarned2 = false; openGoals(); },
   gmode: t => { D().profile.manual = t.dataset.v === "1"; persist(); openGoals(); rerender(); const b = dlg.querySelector(`[data-act="gmode"][data-v="${t.dataset.v}"]`); if (b) b.focus(); },
   goalsave: () => saveGoals(),

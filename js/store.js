@@ -1,5 +1,6 @@
 // Zustand, Speicherung, Progression und Volumen.
-import {EXERCISES, TEMPLATES, MUSCLES, isCompound, defaultRest} from "./data.js";
+import {EXERCISES, TEMPLATES, MUSCLES, MEASURES, isCompound, defaultRest} from "./data.js";
+const MEASURE_IDS = new Set(MEASURES.map(m => m.id));
 
 const KEY = "satz-data";
 export const VERSION = 1;
@@ -60,6 +61,10 @@ function migrate() {
   S.weights = S.weights || [];
   S.foods = S.foods || {};
   S.food = S.food || [];
+  // Ab 0.9: Körpermaße und Entlastungsrhythmus. Bestehende Pläne starten ihren Zyklus am Tag des Updates,
+  // damit kein laufender Plan plötzlich mitten in einer Entlastungswoche steht.
+  S.measures = S.measures || [];
+  S.plans.forEach(p => { if (!p.cycle) p.cycle = {weeks: DEFAULT_CYCLE, start: today()}; });
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
   if (S.settings.sound == null) S.settings.sound = true;
   if (!S.settings.accentSet) { S.settings.accent = "gruen"; S.settings.accentSet = true; }
@@ -79,9 +84,21 @@ export function snapshot() { return JSON.stringify(S); }
 export function restore(snap) { S = JSON.parse(snap); migrate(); save(); }
 
 /* ---------- Pläne ---------- */
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+// Entlastungsrhythmus: (weeks − 1) Aufbauwochen, dann 1 Entlastungswoche. 0 = aus.
+// Bell et al. (2023, Delphi-Konsens): Deloads meist alle 4–8 Wochen, vor allem weniger Volumen, Last etwas niedriger.
+export const DEFAULT_CYCLE = 6, CYCLES = [0, 4, 5, 6, 8];
+export function cycleWeek(p, on = today()) {
+  const c = p && p.cycle; if (!c || !c.weeks) return null;
+  const d = Math.floor((new Date(on + "T12:00:00") - new Date(c.start + "T12:00:00")) / 864e5);
+  const n = Math.max(0, Math.floor(d / 7)) % c.weeks;
+  return {week: n + 1, weeks: c.weeks, deload: n === c.weeks - 1, inDays: (7 - (((d % 7) + 7) % 7))};
+}
+export const deloadNow = p => !!(cycleWeek(p) || {}).deload;
+export const deloadSets = n => Math.max(1, Math.ceil(n / 2));
 export function instantiate(t) {
   return {
-    id: uid(), name: t.name, perWeek: t.perWeek, template: t.id, goal: t.goal || "kraft",
+    id: uid(), name: t.name, perWeek: t.perWeek, template: t.id, goal: t.goal || "kraft", cycle: {weeks: DEFAULT_CYCLE, start: today()},
     days: t.days.map(d => ({
       id: uid(), name: d.name,
       slots: d.slots.map(([exId, sets, min, max, rest]) => ({id: uid(), exId, sets, min, max, rest: rest || 0})),
@@ -144,8 +161,10 @@ export const e1rm = (kg, reps) => reps > 0 ? kg * (1 + reps / 30) : 0;   // Eple
 export const daysSince = iso => Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
 export const lastSession = () => S.sessions[S.sessions.length - 1] || null;
 
-export function lastSetsFor(exId) {
+// Entlastungstrainings zählen nicht als Grundlage für die nächste Steigerung: danach geht es vom Stand davor weiter.
+export function lastSetsFor(exId, withDeload = false) {
   for (let i = S.sessions.length - 1; i >= 0; i--) {
+    if (S.sessions[i].deload && !withDeload) continue;
     const sets = S.sessions[i].sets.filter(x => x.exId === exId && isWork(x));
     if (sets.length) return {session: S.sessions[i], sets};
   }
@@ -153,7 +172,9 @@ export function lastSetsFor(exId) {
 }
 // Anzahl der letzten Trainings ohne neuen Bestwert beim geschätzten 1RM (ab 3 zählt es als Plateau)
 export function plateau(exId) {
-  let hist = S.sessions.map(s => s.sets.filter(x => x.exId === exId && isWork(x))).filter(x => x.length);
+  // Nach einer geplanten Entlastungswoche neu zählen
+  const lastDl = S.sessions.map(s => !!s.deload).lastIndexOf(true);
+  let hist = S.sessions.slice(lastDl + 1).map(s => s.sets.filter(x => x.exId === exId && isWork(x))).filter(x => x.length);
   const top = sets => Math.max(...sets.map(x => x.kg)), best = sets => Math.max(...sets.map(x => e1rm(x.kg, x.reps)));
   // Nach einer Entlastung (Training mit unter 95 % des vorherigen Gewichts) neu zählen
   for (let k = hist.length - 1; k > 0; k--) if (top(hist[k]) < top(hist[k - 1]) * 0.95) { hist = hist.slice(k + 1); break; }
@@ -191,6 +212,12 @@ export function suggest(slot) {
   const top = last.sets.filter(x => x.kg === kg);
   const prev = `Letztes Mal: ${fmtW(e, kg)}, ${last.sets.map(x => x.reps).join(" + ")} Wdh.`;
   const pl = plateau(slot.exId);
+  // Geplante Entlastungswoche: halbe Satzzahl, etwa 90 % der Last, Wiederholungen am unteren Ende mit Luft.
+  if (slot.deload) {
+    const lighter = kg > 0 ? roundTo(kg * 0.9, e.step) : 0;
+    return {kind: "deload", kg: lighter, reps: slot.min,
+      text: `${prev} Entlastungswoche: ${slot.sets} ${slot.sets === 1 ? "Satz" : "Sätze"} mit ${fmtW(e, lighter)} und ${slot.min} Wdh., 3 oder mehr in Reserve. Nächste Woche geht es vom alten Stand weiter.`};
+  }
   const gap = daysSince(last.session.date);
   // Nach über 14 Tagen Pause 90 %: vorsichtige Faustregel. Kraft lässt nach Trainingspausen messbar nach,
   // umso mehr, je länger die Pause (Bosquet et al. 2013). Der genaue Wert ist nicht belegt.
@@ -226,10 +253,11 @@ export function suggest(slot) {
 
 /* ---------- Training ---------- */
 export function startSession(p, dayIdx) {
-  const d = p.days[dayIdx];
+  const d = p.days[dayIdx], dl = deloadNow(p);
   S.active = {
     id: uid(), start: new Date().toISOString(), planId: p.id, planName: p.name, dayId: d.id, dayName: d.name,
-    queue: d.slots.map(sl => ({slotId: sl.id, exId: sl.exId, sets: sl.sets, min: sl.min, max: sl.max, rest: restFor(sl), skipped: false, extra: 0})),
+    queue: d.slots.map(sl => ({slotId: sl.id, exId: sl.exId, sets: dl ? deloadSets(sl.sets) : sl.sets, min: sl.min, max: sl.max, rest: restFor(sl), skipped: false, extra: 0, ...(dl ? {deload: true} : {})})),
+    ...(dl ? {deload: true} : {}),
     idx: 0, sets: [], restEnd: 0,
   };
   save();
@@ -251,6 +279,7 @@ export function finishSession() {
     dayId: a.dayId, dayName: a.dayName,
     sets: a.sets.map(({exId, kg, reps, rir, type}) => ({exId, kg, reps, rir, ...(type && type !== "work" ? {type} : {})})),
     ...(a.notes && Object.keys(a.notes).length ? {notes: a.notes} : {}),
+    ...(a.deload ? {deload: true} : {}),
   };
   if (session.sets.length) S.sessions.push(session);
   S.active = null;
@@ -283,6 +312,7 @@ export function sanitizeImport(d) {
     if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
   }
   const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik"].includes(p.goal) ? p.goal : "kraft",
+    ...(p.cycle && typeof p.cycle === "object" ? {cycle: {weeks: CYCLES.includes(p.cycle.weeks) ? p.cycle.weeks : DEFAULT_CYCLE, start: day(p.cycle.start)}} : {}),
     days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
       slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
         min: Math.round(num(s.min, 1, 100, "Wdh.")), max: Math.round(num(s.max, 1, 100, "Wdh.")), rest: Math.round(optNum(s.rest, 0, 900, 0))}))}))}));
@@ -290,6 +320,7 @@ export function sanitizeImport(d) {
     planId: optId(x.planId, "Training"), planName: str(x.planName, 80), dayId: optId(x.dayId, "Training"), dayName: str(x.dayName, 80),
     sets: arr(x.sets, "Sätze").map(y => ({exId: id(y.exId, "Satz"), kg: num(y.kg, 0, 1000, "Gewicht"), reps: Math.round(num(y.reps, 0, 100, "Wdh.")),
       rir: y.rir == null ? null : Math.round(num(y.rir, 0, 4, "RIR")), ...(y.type === "warm" || y.type === "drop" ? {type: y.type} : {})})),
+    ...(x.deload ? {deload: true} : {}),
     ...(x.notes && typeof x.notes === "object" ? {notes: Object.fromEntries(Object.entries(x.notes).filter(([k]) => ID.test(k)).map(([k, v]) => [k, str(v, 500)]))} : {})}));
   const s = d.settings || {};
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
@@ -299,12 +330,15 @@ export function sanitizeImport(d) {
   const pr = d.profile || {};
   const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",
     height: optNum(pr.height, 0, 250, 0), pal: [1.4, 1.55, 1.7, 1.9].includes(pr.pal) ? pr.pal : 1.55, goal: ["lose", "maintain", "gain"].includes(pr.goal) ? pr.goal : "maintain",
-    manual: !!pr.manual, kcal: optNum(pr.kcal, 0, 8000, 0), p: optNum(pr.p, 0, 1000, 0), c: optNum(pr.c, 0, 2000, 0), f: optNum(pr.f, 0, 1000, 0)};
+    manual: !!pr.manual, kcal: optNum(pr.kcal, 0, 8000, 0), p: optNum(pr.p, 0, 1000, 0), c: optNum(pr.c, 0, 2000, 0), f: optNum(pr.f, 0, 1000, 0),
+    ...(pr.tdeeAdj && typeof pr.tdeeAdj === "object" ? {tdeeAdj: {tdee: num(pr.tdeeAdj.tdee, 800, 8000, "Verbrauch"), date: day(pr.tdeeAdj.date), days: Math.round(optNum(pr.tdeeAdj.days, 0, 60, 0))}} : {})};
   const weights = arr(d.weights || [], "Gewicht").map(w => ({date: day(w.date), kg: num(w.kg, 20, 400, "Gewicht")}));
+  const measures = arr(d.measures || [], "Körpermaße").map(m => ({date: day(m.date),
+    m: Object.fromEntries(Object.entries(m.m || {}).filter(([k, v]) => MEASURE_IDS.has(k) && typeof v === "number" && isFinite(v) && v >= 10 && v <= 250))}));
   const foods = {};
   for (const [k, f] of Object.entries(d.foods || {})) { id(k, "Lebensmittel"); foods[k] = {id: k, name: str(f.name, 120) || "Lebensmittel", brand: str(f.brand, 80), barcode: /^\d{0,14}$/.test(f.barcode || "") ? f.barcode || "" : "", per100: per100(f.per100), serving: optNum(f.serving, 0, 5000, 0), source: f.source === "off" ? "off" : "own", ...(f.fav ? {fav: true} : {})}; }
   const food = arr(d.food || [], "Tagebuch").map(e => ({id: id(e.id, "Eintrag"), date: day(e.date), meal: ["fruehstueck", "mittag", "abend", "snack"].includes(e.meal) ? e.meal : "snack",
     foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge"), ...(e.quick ? {quick: true} : {})}));
   const activePlanId = d.activePlanId && plans.some(p => p.id === d.activePlanId) ? d.activePlanId : plans[0]?.id || null;
-  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, foods, food};
+  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food};
 }

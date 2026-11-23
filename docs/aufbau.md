@@ -233,3 +233,9 @@ Gespeicherte Trainings dürfen durch ein App-Update nie verloren gehen oder ver�
 - `migrate()` ergänzt nur Felder und fasst `sessions` nicht an. Ändert sich die Trainingsliste beim Laden trotzdem, schreibt `load()` die geladenen Trainings unverändert zurück.
 - Unter Mehr → Deine Daten lässt sich der Stand vor dem letzten Update wiederherstellen (mit Rückgängig).
 - Für jede künftige Änderung gilt: Datenformat nur verlustfrei erweitern, nie Felder in Trainings umbenennen oder löschen.
+
+## Neu in 0.9
+
+- **Entlastungsrhythmus** (`store.js`: `cycleWeek`, `deloadNow`): Jeder Plan hat `cycle = {weeks, start}`. Standard 6 Wochen (5 Aufbau + 1 Entlastung), wählbar 4/5/6/8 oder aus, im Plan-Editor unter „Rhythmus“. In der Entlastungswoche halbiert `startSession` die Sätze, `suggest` schlägt ca. 90 % Last vor, das Training wird mit `deload: true` gespeichert und zählt nicht als Grundlage für die nächste Steigerung. Heute-Ansicht zeigt Woche x von n.
+- **Adaptiver Bedarf** (`nutrition.js`: `adaptiveTdee`): Energiebilanz aus 14–28 Tagen Tagebuch (mind. 80 % der Tage eingetragen) und Gewichtstrend (Regression, mind. 5 Wiegungen über 10+ Tage). Übernommen landet er in `profile.tdeeAdj` und ersetzt Grundumsatz × PAL. Karte in Ernährung (heute), Rückweg im Ziel-Dialog.
+- **Körpermaße** (`data.js`: `MEASURES`, Verlauf): `measures = [{date, m: {taille: 82, …}}]`, Eingabe von Hand in cm, Figur mit Messlinie und Anleitung zum fokussierten Feld, Verlauf als Liste und Diagramm, Taille ÷ Größe. Keine Fotos.

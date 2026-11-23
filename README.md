@@ -1,4 +1,4 @@
-# SATZ – Trainingsheft (Version 0.8)
+# SATZ – Trainingsheft (Version 0.9)
 
 Installierbare Web-App (PWA) fürs Krafttraining mit Ernährungstagebuch. Live: https://lucafrey24-beep.github.io/satz/ Läuft im Browser, offline, ohne Konto. Alle Daten bleiben auf dem Gerät (localStorage), Sicherung als JSON-Datei unter „Mehr“.
 
