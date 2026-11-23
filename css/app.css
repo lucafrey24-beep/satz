@@ -328,3 +328,10 @@ input[type="date"]{min-width:0; max-width:100%; text-align:left}
 input[type="date"]::-webkit-date-and-time-value{text-align:left}
 .exlist .t,.fbtn b,.plist b{overflow-wrap:anywhere}
 .exsel{min-width:0; overflow-wrap:anywhere}
+
+/* Haupt-Button schwebt fest über der Tab-Bar (nicht sticky: Sticky rechnet in Safari und Chrome unterschiedlich mit dem Innenabstand).
+   Der Inhalt bekommt genug Abstand nach unten, damit die letzte Zeile ganz über dem Button liegt. */
+main:not(.modal) .actionbar{position:fixed; z-index:14; left:50%; transform:translateX(-50%); bottom:calc(84px + env(safe-area-inset-bottom));
+  width:min(568px, calc(100vw - 32px)); margin:0; padding:0; background:none}
+main:not(.modal) .actionbar .btn{box-shadow:0 6px 20px rgba(0,0,0,.18)}
+main:not(.modal):has(.actionbar){padding-bottom:calc(160px + env(safe-area-inset-bottom))}
