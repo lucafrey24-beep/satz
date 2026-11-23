@@ -1,12 +1,12 @@
 /* SATZ – iOS-Look nach Apple Human Interface Guidelines.
    Systemschrift (SF Pro) mit Dynamic Type, gruppierte Listen, große Titel, schwebende Tab-Bar.
-   Eigenständig bleiben: Wortmarke, Akzentfarbe „Signal“, tabellarische Zahlen. */
+   Eigenständig bleiben: Wortmarke, Akzentfarbe Grün, tabellarische Zahlen. */
 @font-face{font-family:"Archivo";src:url(../fonts/archivo.woff2) format("woff2");font-weight:400 900;font-stretch:62% 125%;font-display:swap}
 
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --card-2:#F2F2F7; --fill:rgba(120,120,128,.16); --fill-2:rgba(120,120,128,.08);
   --label:#000000; --label-2:#6C6C70; --sep:rgba(60,60,67,.29);
-  --tint:#B5340F; --on-tint:#FFFFFF; --tint-soft:rgba(181,52,15,.12); --fill-btn:rgba(120,120,128,.12);
+  --tint:#0B6B46; --on-tint:#FFFFFF; --tint-soft:rgba(11,107,70,.12); --fill-btn:rgba(120,120,128,.12);
   --red:#C00013; --green:#1F7A35; --orange:#C93400; --focus:#0A60FF;
   --glass:rgba(255,255,255,.72); --glass-border:rgba(0,0,0,.08); --shadow:0 8px 32px rgba(0,0,0,.12);
   --r:12px; --r-lg:16px;
@@ -16,7 +16,7 @@
   :root:not([data-theme="light"]){
     --bg:#000000; --card:#1C1C1E; --card-2:#2C2C2E; --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.2);
     --label:#FFFFFF; --label-2:#AEAEB2; --sep:rgba(84,84,88,.65);
-    --tint:#FF8A64; --on-tint:#000000; --tint-soft:rgba(255,138,100,.18); --fill-btn:rgba(120,120,128,.28);
+    --tint:#3DDC97; --on-tint:#000000; --tint-soft:rgba(61,220,151,.16); --fill-btn:rgba(120,120,128,.28);
     --red:#FF8078; --green:#30D158; --orange:#FFB340; --focus:#64A0FF;
     --glass:rgba(30,30,32,.72); --glass-border:rgba(255,255,255,.1); --shadow:0 8px 32px rgba(0,0,0,.5);
     color-scheme:dark;
@@ -25,7 +25,7 @@
 :root[data-theme="dark"]{
   --bg:#000000; --card:#1C1C1E; --card-2:#2C2C2E; --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.2);
   --label:#FFFFFF; --label-2:#AEAEB2; --sep:rgba(84,84,88,.65);
-  --tint:#FF8A64; --on-tint:#000000; --tint-soft:rgba(255,138,100,.18); --fill-btn:rgba(120,120,128,.28);
+  --tint:#3DDC97; --on-tint:#000000; --tint-soft:rgba(61,220,151,.16); --fill-btn:rgba(120,120,128,.28);
   --red:#FF8078; --green:#30D158; --orange:#FFB340; --focus:#64A0FF;
   --glass:rgba(30,30,32,.72); --glass-border:rgba(255,255,255,.1); --shadow:0 8px 32px rgba(0,0,0,.5);
   color-scheme:dark;

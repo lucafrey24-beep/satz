@@ -49,7 +49,7 @@ function applySettings() {
   r.style.setProperty("--scale", s.scale);
   if (s.scale && s.scale !== 1) r.dataset.scale = ""; else delete r.dataset.scale;
   if (s.theme === "auto") delete r.dataset.theme; else r.dataset.theme = s.theme;
-  r.dataset.accent = s.accent || "graphit";
+  r.dataset.accent = s.accent || "gruen";
   if (s.contrast) r.dataset.contrast = "high"; else delete r.dataset.contrast;
   const dark = s.theme === "dark" || (s.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.querySelector('meta[name="theme-color"]').content = dark ? "#000000" : "#F2F2F7";
@@ -528,7 +528,7 @@ function viewMore() {
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen von 90–120 s (Singer et al. 2024), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
-    <p class="meta">Version 0.3 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+    <p class="meta">Version 0.3.1 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
 /* ============ Aktionen ============ */
@@ -746,7 +746,7 @@ function dayLabel(k) {
   if (k === shiftDay(t, -1)) return "Gestern";
   return new Date(k + "T12:00:00").toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "long"});
 }
-const ACCENTS = [["graphit", "Graphit", "#1C1C1E", "#F2F2F7"], ["gruen", "Grün", "#0B6B46", "#3DDC97"], ["kobalt", "Kobalt", "#1D4ED8", "#7AA2FF"], ["signal", "Signal", "#C8102E", "#FF8585"]];
+const ACCENTS = [["gruen", "Grün", "#0B6B46", "#3DDC97"], ["graphit", "Graphit", "#1C1C1E", "#F2F2F7"], ["kobalt", "Kobalt", "#1D4ED8", "#7AA2FF"], ["signal", "Signal", "#C8102E", "#FF8585"]];
 const isDark = () => { const s = D().settings; return s.theme === "dark" || (s.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches); };
 const targets = () => N.activeTargets(D().profile, St.currentWeight());
 const foodLine = f => [f.brand, `${r0(f.per100.kcal)} kcal / 100 g`].filter(Boolean).join(" · ");

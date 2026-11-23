@@ -30,7 +30,8 @@ function migrate() {
   S.weights = S.weights || [];
   S.foods = S.foods || {};
   S.food = S.food || [];
-  S.settings.accent = S.settings.accent || "graphit";
+  // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
+  if (!S.settings.accentSet) { S.settings.accent = "gruen"; S.settings.accentSet = true; }
 }
 export const currentWeight = () => S.weights.length ? S.weights[S.weights.length - 1].kg : 0;
 
