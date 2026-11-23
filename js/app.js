@@ -7,6 +7,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
+export const APP_VERSION = "0.6";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -660,7 +661,7 @@ function viewMore() {
     </div>
     <p class="foot">Der Ton kommt auch bei stummgeschaltetem iPhone nur, wenn der Klingelschalter nicht auf lautlos steht. Während des Trainings bleibt der Bildschirm an.</p>
     <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
-      <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (Grundübungen 120 s, sonst 90 s)</option>
+      <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (schwere Grundübungen 180 s, andere 120 s, Isolation 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
     <h2 class="sec">Deine Daten</h2>
     ${recoveredNote()}
@@ -673,8 +674,8 @@ function viewMore() {
     <button class="btn destructive" data-act="reset">Alle Daten löschen</button>
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
-    <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen von 90–120 s (Singer et al. 2024), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
-    <p class="meta">Version 0.5 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+    <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
+    <p class="meta">Version ${APP_VERSION} · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
 function recoveredNote() {
@@ -1301,6 +1302,19 @@ function sayLater(t) { clearTimeout(sayT); sayT = setTimeout(() => say(t), 350);
 /* ============ Start ============ */
 St.load();
 applySettings();
+// Ladebildschirm: 2 s mit Balken und Version, nur beim ersten Start nach dem Schließen der App.
+// Zurückkehren aus dem Hintergrund lädt die Seite nicht neu; Neuladen in derselben Sitzung (Update) merkt sich sessionStorage.
+(() => {
+  const sp = $("#splash"); if (!sp) return;
+  let seen = false; try { seen = sessionStorage.getItem("satz-splash") === "1"; sessionStorage.setItem("satz-splash", "1"); } catch (e) {}
+  if (seen) { sp.remove(); return; }
+  $("#splashVer").textContent = `Version ${APP_VERSION}`;
+  sp.setAttribute("aria-label", `SATZ wird geladen, Version ${APP_VERSION}`);
+  const hide = () => { if (sp.classList.contains("out")) return; sp.classList.add("out"); setTimeout(() => sp.remove(), 350); };
+  if (D().active) { sp.remove(); return; }
+  sp.addEventListener("click", hide);
+  setTimeout(hide, 2000);
+})();
 // Speicher dauerhaft anfordern, damit Safari ihn nicht nach Wochen ohne Nutzung räumt
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);

@@ -11,8 +11,8 @@ export const PAL = [
 // Wochenrate in % des Körpergewichts, Protein in g pro kg Körpergewicht
 export const GOALS = {
   lose: {l: "Abbauen", rate: -0.005, protein: 2.0, why: "−0,5 % Körpergewicht pro Woche erhält Muskulatur besser als schnelles Abnehmen (Helms et al. 2014). Höheres Protein im Defizit schützt die Muskelmasse (Helms et al. 2014; Jäger et al. 2017)."},
-  maintain: {l: "Halten", rate: 0, protein: 1.6, why: "Gewicht halten. 1,6 g Protein pro kg ist der Wert, ab dem zusätzliche Mengen den Muskelaufbau kaum noch steigern (Morton et al. 2018)."},
-  gain: {l: "Aufbauen", rate: 0.0025, protein: 1.6, why: "+0,25 % Körpergewicht pro Woche hält den Fettzuwachs bei Trainierten gering (Iraki et al. 2019). 1,6 g Protein pro kg nach Morton et al. 2018."},
+  maintain: {l: "Halten", rate: 0, protein: 1.6, why: "Gewicht halten. 1,6 g Protein pro kg ist die Untergrenze: Ab hier steigern zusätzliche Mengen den Muskelaufbau im Mittel kaum noch, bei manchen lohnt es sich bis 2,2 g (Morton et al. 2018)."},
+  gain: {l: "Aufbauen", rate: 0.0025, protein: 1.8, why: "+0,25 % Körpergewicht pro Woche hält den Fettzuwachs bei Trainierten gering (Iraki et al. 2019). 1,8 g Protein pro kg liegt sicher über dem Mittelwert von 1,6 g, das Vertrauensintervall reicht bis 2,2 g (Morton et al. 2018)."},
 };
 export const FAT_SHARE = 0.25;        // 25 % der Energie, innerhalb von 20–35 % (IOM 2005, DGE)
 export const KCAL_PER_KG = 7700;      // Faustregel Energie pro kg Körpermasse (Näherung, Hall 2008)
@@ -20,7 +20,7 @@ export const SOURCES = [
   ["Mifflin et al. (1990)", "A new predictive equation for resting energy expenditure in healthy individuals. Am J Clin Nutr 51(2)", "https://pubmed.ncbi.nlm.nih.gov/2305711/"],
   ["Frankenfield et al. (2005)", "Comparison of predictive equations for resting metabolic rate in healthy adults. J Am Diet Assoc 105(5): Mifflin-St Jeor am genauesten", "https://pubmed.ncbi.nlm.nih.gov/15883556/"],
   ["FAO/WHO/UNU (2004)", "Human energy requirements: PAL-Werte 1,40–2,40", "https://www.fao.org/4/y5686e/y5686e00.htm"],
-  ["Morton et al. (2018)", "Protein supplementation and resistance training: meta-analysis. Br J Sports Med 52(6): Plateau bei ca. 1,6 g/kg", "https://pubmed.ncbi.nlm.nih.gov/28698222/"],
+  ["Morton et al. (2018)", "Protein supplementation and resistance training: meta-analysis. Br J Sports Med 52(6): Plateau bei ca. 1,6 g/kg, 95-%-Intervall bis 2,2 g/kg", "https://pubmed.ncbi.nlm.nih.gov/28698222/"],
   ["Jäger et al. (2017)", "ISSN Position Stand: protein and exercise. J Int Soc Sports Nutr 14: 1,4–2,0 g/kg", "https://pubmed.ncbi.nlm.nih.gov/28642676/"],
   ["Helms et al. (2014)", "Evidence-based recommendations for natural bodybuilding contest preparation. J Int Soc Sports Nutr 11: 0,5–1 %/Woche, mehr Protein im Defizit", "https://pubmed.ncbi.nlm.nih.gov/24864135/"],
   ["Iraki et al. (2019)", "Nutrition recommendations for bodybuilders in the off-season. Sports 7(7): 0,25–0,5 %/Woche Zunahme", "https://pubmed.ncbi.nlm.nih.gov/31247944/"],

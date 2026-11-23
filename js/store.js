@@ -1,5 +1,5 @@
 // Zustand, Speicherung, Progression und Volumen.
-import {EXERCISES, TEMPLATES, MUSCLES, isCompound} from "./data.js";
+import {EXERCISES, TEMPLATES, MUSCLES, isCompound, defaultRest} from "./data.js";
 
 const KEY = "satz-data";
 export const VERSION = 1;
@@ -75,7 +75,7 @@ export const ex = id => S.exercises[id] || {id, name: "Unbekannte Übung", prima
 export function restFor(slot) {
   if (slot.rest) return slot.rest;
   if (S.settings.rest) return S.settings.rest;
-  return isCompound(ex(slot.exId)) ? 120 : 90;
+  return defaultRest(ex(slot.exId), slot.max);
 }
 
 export function nextDayIndex(p) {
@@ -131,6 +131,16 @@ export function lastSetsFor(exId) {
   }
   return null;
 }
+// Anzahl der letzten Trainings ohne neuen Bestwert beim geschätzten 1RM (ab 3 zählt es als Plateau)
+export function plateau(exId) {
+  let hist = S.sessions.map(s => s.sets.filter(x => x.exId === exId && isWork(x))).filter(x => x.length);
+  const top = sets => Math.max(...sets.map(x => x.kg)), best = sets => Math.max(...sets.map(x => e1rm(x.kg, x.reps)));
+  // Nach einer Entlastung (Training mit unter 95 % des vorherigen Gewichts) neu zählen
+  for (let k = hist.length - 1; k > 0; k--) if (top(hist[k]) < top(hist[k - 1]) * 0.95) { hist = hist.slice(k + 1); break; }
+  if (hist.length < 4) return 0;
+  const vals = hist.map(best), peak = Math.max(...vals.slice(0, -3));
+  return vals.slice(-3).every(v => v <= peak + 0.01) ? 3 : 0;
+}
 export function setCount(exId) {
   return S.sessions.reduce((a, s) => a + s.sets.filter(x => x.exId === exId).length, 0);
 }
@@ -160,7 +170,10 @@ export function suggest(slot) {
   const kg = Math.max(...last.sets.map(x => x.kg));
   const top = last.sets.filter(x => x.kg === kg);
   const prev = `Letztes Mal: ${fmtW(e, kg)}, ${last.sets.map(x => x.reps).join(" + ")} Wdh.`;
+  const pl = plateau(slot.exId);
   const gap = daysSince(last.session.date);
+  // Nach über 14 Tagen Pause 90 %: vorsichtige Faustregel. Kraft lässt nach Trainingspausen messbar nach,
+  // umso mehr, je länger die Pause (Bosquet et al. 2013). Der genaue Wert ist nicht belegt.
   if (gap > 14) {
     const lighter = roundTo(kg * 0.9, e.step);
     return {kind: "return", kg: lighter, reps: slot.min,
@@ -172,6 +185,13 @@ export function suggest(slot) {
     const up = kg + e.step * (easy ? 2 : 1);
     return {kind: "up", kg: up, reps: slot.min,
       text: `${prev} Ziel erreicht${easy ? " und es war noch viel Luft" : ""}. Heute ${fmtW(e, up)} versuchen, Ziel ab ${slot.min} Wdh.`};
+  }
+  // Plateau: dreimal in Folge kein Fortschritt beim geschätzten 1RM → kurz entlasten und neu aufbauen.
+  // Eine Entlastung (Deload) ist eine kurze Phase mit weniger Last zur Erholung (Bell et al. 2023, Delphi-Konsens).
+  if (pl && kg > 0) {
+    const lighter = roundTo(kg * 0.9, e.step);
+    return {kind: "plateau", kg: lighter, reps: slot.max,
+      text: `${prev} Seit ${pl} Trainings kein Fortschritt. Heute entlasten: ${fmtW(e, lighter)} und ${slot.max} saubere Wdh., danach wieder steigern. Bleibt es hängen, tausch die Übung.`};
   }
   if (kg > 0 && last.sets.every(x => x.reps < slot.min)) {
     const down = roundTo(kg - e.step, e.step);

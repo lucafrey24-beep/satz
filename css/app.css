@@ -373,3 +373,15 @@ button,a,input,select,label,summary{touch-action:manipulation}
   bottom:0; line-height:52px}
 .appbar.titled #barTitle{opacity:1}
 .appbar{position:sticky}
+
+/* ---------- Ladebildschirm (2 s, Tippen überspringt) ---------- */
+.splash{position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:var(--bg); transition:opacity .3s ease}
+.splash.out{opacity:0; pointer-events:none}
+.splash-in{width:min(260px, 70vw); text-align:center}
+.splash-mark{display:block; font-size:3.4rem; min-height:0; margin-bottom:28px}
+.splash-bar{height:6px; border-radius:3px; background:var(--fill); overflow:hidden}
+.splash-bar i{display:block; height:100%; width:0; border-radius:3px; background:var(--tint); animation:splashfill 1.9s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes splashfill{to{width:100%}}
+.splash-ver{margin:14px 0 0; color:var(--label-2); font-size:.88rem; font-variant-numeric:tabular-nums}
+.splash-skip{margin:40px 0 0; color:var(--label-2); font-size:.765rem; opacity:.8}
+@media (prefers-reduced-motion: reduce){ .splash-bar i{width:100%!important} }

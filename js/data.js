@@ -1,5 +1,6 @@
 // Stammdaten: Muskeln, Übungsbibliothek, fertige Pläne.
-// Volumen-Zählung nach Pelland et al. (2026): Hauptmuskel = 1 Satz, mitarbeitender Muskel = 0,5 Satz.
+// Volumen-Zählung nach Pelland et al. (2026, Sports Med 56(2): 481–505, „fractional“-Methode): Hauptmuskel = 1 Satz, mitarbeitender Muskel = 0,5 Satz.
+// Hauptmuskeln sind nur die Muskeln, die die Bewegung tragen. Darum hat jede Übung höchstens zwei Hauptmuskeln.
 
 export const MUSCLES = [
   {id: "brust", major: true, name: "Brust"},
@@ -46,7 +47,7 @@ const RAW = [
   ["ausfallschritte", "Ausfallschritte", ["quads", "gluteus"], ["hamstrings"], 2, "kg"],
   ["beinstrecker", "Beinstrecker", ["quads"], [], 2.5, "kg"],
   ["rdl", "Rumänisches Kreuzheben", ["hamstrings", "gluteus"], ["lrs"], 2.5, "kg"],
-  ["kreuzheben", "Kreuzheben", ["gluteus", "hamstrings", "lrs"], ["ruecken", "quads"], 5, "kg"],
+  ["kreuzheben", "Kreuzheben", ["gluteus", "hamstrings"], ["lrs", "ruecken", "quads"], 5, "kg"],
   ["beinbeuger", "Beinbeuger", ["hamstrings"], [], 2.5, "kg"],
   ["hip_thrust", "Hip Thrust", ["gluteus"], ["hamstrings"], 5, "kg"],
   ["wadenheben", "Wadenheben", ["waden"], [], 5, "kg"],
@@ -57,14 +58,19 @@ const RAW = [
 export const EXERCISES = RAW.map(([id, name, primary, secondary, step, unit]) =>
   ({id, name, primary, secondary, step, unit, custom: false}));
 
-// Pausenstandard: Grundübungen 120 s, Isolationsübungen 90 s (Singer et al. 2024: ab 90 s kaum Unterschied)
-export const isCompound = e => e.primary.length + e.secondary.length > 1;
+// Grundübungen (mehrgelenkig) als festes Merkmal. Eigene Übungen: mehrgelenkig, wenn mehr als ein Muskel beteiligt ist.
+export const COMPOUND = new Set(["bankdruecken", "schraegbank", "kh_bank", "dips", "liegestuetze", "latziehen", "klimmzuege", "tbar", "lh_rudern",
+  "enges_rudern", "kh_rudern", "schulterdruecken", "kniebeugen", "beinpresse", "ausfallschritte", "rdl", "kreuzheben", "hip_thrust"]);
+export const isCompound = e => e.custom ? (e.compound ?? e.primary.length + e.secondary.length > 1) : COMPOUND.has(e.id);
+// Pausenstandard (Schoenfeld et al. 2016: 3 min > 1 min bei schweren Grundübungen; Grgic et al. 2018; Singer et al. 2024: ab ~90 s kaum Unterschied):
+// schwere Grundübung (bis 8 Wdh.) 180 s, andere Grundübung 120 s, Isolationsübung 90 s.
+export function defaultRest(e, maxReps) { return isCompound(e) ? (maxReps <= 8 ? 180 : 120) : 90; }
 
 // Slot: [Übungs-ID, Sätze, Wdh. von, Wdh. bis]
 export const TEMPLATES = [
   {
     id: "arnold", name: "Arnold Split", perWeek: 3, level: "Fortgeschritten",
-    desc: "Dein Plan: Brust & Rücken, Schultern & Arme, Beine & Bauch, je 2 × 6–8. Bei 3 Trainings pro Woche ist das Volumen pro Muskel niedrig. Mit 6 Trainings pro Woche (Split zweimal) liegt es im empfohlenen Bereich.",
+    desc: "Klassischer Dreier-Split: Brust & Rücken, Schultern & Arme, Beine & Bauch, je 2 × 6–8. Bei 3 Trainings pro Woche ist das Volumen pro Muskel niedrig. Mit 6 Trainings pro Woche (Split zweimal) liegt es im empfohlenen Bereich.",
     days: [
       {name: "Brust & Rücken", slots: [["bankdruecken",2,6,8],["schraegbank",2,6,8],["latziehen",2,6,8],["tbar",2,6,8],["enges_rudern",2,6,8],["rueckenstrecker",2,6,8]]},
       {name: "Schultern & Arme", slots: [["schulterdruecken",2,6,8],["seitheben",2,6,8],["butterfly_reverse",2,6,8],["bizepscurls",2,6,8],["hammercurls",2,6,8],["trizeps_pushdown",2,6,8],["trizeps_overhead",2,6,8]]},
