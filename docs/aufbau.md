@@ -224,3 +224,12 @@ Alle Farben sind als Variablen definiert (`:root` in `css/app.css`) und gelten i
 2. Nach `main` pushen. GitHub Pages veröffentlicht automatisch in etwa einer Minute.
 3. Installierte Apps holen sich die neue Version beim nächsten Öffnen von selbst.
 4. Ausnahme App-Icon: iOS übernimmt ein neues Icon erst, wenn man die App vom Home-Bildschirm entfernt und neu hinzufügt.
+
+## Datenschutz bei Updates (feste Regel ab 0.8.2)
+
+Gespeicherte Trainings dürfen durch ein App-Update nie verloren gehen oder verändert werden.
+
+- Vor dem ersten Start einer neuen App-Version legt `store.js` den kompletten alten Stand unter `satz-data-vor-update-<Zeit>` ab. Die letzten drei Kopien bleiben.
+- `migrate()` ergänzt nur Felder und fasst `sessions` nicht an. Ändert sich die Trainingsliste beim Laden trotzdem, schreibt `load()` die geladenen Trainings unverändert zurück.
+- Unter Mehr → Deine Daten lässt sich der Stand vor dem letzten Update wiederherstellen (mit Rückgängig).
+- Für jede künftige Änderung gilt: Datenformat nur verlustfrei erweitern, nie Felder in Trainings umbenennen oder löschen.

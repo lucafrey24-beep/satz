@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.8.1";
+export const APP_VERSION = "0.8.2";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -884,6 +884,7 @@ function viewMore() {
     <button class="btn" data-act="import">Sicherung laden</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
     <p class="err" id="importErr" role="alert" hidden></p>
+    ${updateBackupRow()}
     <button class="btn destructive" data-act="reset">Alle Daten löschen</button>
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
@@ -892,6 +893,14 @@ function viewMore() {
     <p class="meta">Version ${APP_VERSION} · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
+// Vor jedem App-Update legt SATZ den alten Stand automatisch beiseite (die letzten 3).
+function updateBackupRow() {
+  const keys = St.updateBackups(); if (!keys.length) return "";
+  const k = keys[0]; let b = {}; try { b = JSON.parse(localStorage.getItem(k)); } catch (e) {}
+  let n = 0; try { n = JSON.parse(b.raw).sessions.length; } catch (e) {}
+  return `<p class="meta">Automatisch gesichert vor dem Update auf ${esc(b.to || "")}: ${n} ${n === 1 ? "Training" : "Trainings"} vom ${new Date(k.slice(-19)).toLocaleDateString("de-DE")}. Falls nach einem Update etwas fehlt, holst du hier den alten Stand zurück.</p>
+    <button class="btn" data-act="updrestore" data-k="${esc(k)}">Stand vor dem Update wiederherstellen</button>`;
+}
 function recoveredNote() {
   const keys = St.corruptKeys();
   if (!keys.length && !St.recovered) return "";
@@ -1088,6 +1097,12 @@ const A = {
     <label class="field" style="margin-top:16px">Zum Bestätigen LÖSCHEN eintippen <input id="resetIn" autocomplete="off" autocapitalize="characters"></label>
     <p class="err" role="alert" hidden></p>
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn destructive" data-act="resetgo">Endgültig löschen</button></div>`, "h2"),
+  updrestore: t => {
+    const snap = St.snapshot();
+    try { St.restoreUpdateBackup(t.dataset.k); } catch (e) { return toast("Diese Sicherung ließ sich nicht lesen. Deine aktuellen Daten sind unverändert."); }
+    applySettings(); rerender();
+    toast(`Stand vor dem Update geladen: ${D().sessions.length} Trainings.`, () => { St.restore(snap); applySettings(); rerender(); });
+  },
   resetgo: () => {
     if ($("#resetIn").value.trim().toUpperCase() !== "LÖSCHEN") return dlgError("Bitte LÖSCHEN eintippen.");
     closeDialog();
@@ -1624,7 +1639,7 @@ function sayLater(t) { clearTimeout(sayT); sayT = setTimeout(() => say(t), 350);
 })();
 
 /* ============ Start ============ */
-St.load();
+St.load(APP_VERSION);
 applySettings();
 // Ladebildschirm: 2 s mit Balken und Version, nur beim ersten Start nach dem Schließen der App.
 // Zurückkehren aus dem Hintergrund lädt die Seite nicht neu; Neuladen in derselben Sitzung (Update) merkt sich sessionStorage.

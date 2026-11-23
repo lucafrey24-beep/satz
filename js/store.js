@@ -18,7 +18,22 @@ function fresh() {
 
 // Beim Laden nie stillschweigend überschreiben: Unlesbare oder fremde Daten werden vorher beiseitegelegt.
 export let recovered = null;   // {key, reason} wenn Altdaten gesichert wurden
-export function load() {
+// Lucas Regel: Gespeicherte Trainings überstehen jedes App-Update unverändert.
+// 1. Vor dem ersten Start einer neuen App-Version wird der komplette alte Stand als Kopie abgelegt (die letzten 3 bleiben).
+// 2. migrate() darf Trainings nie verändern. Passiert es doch, werden die Trainings aus dem geladenen Stand zurückgeschrieben.
+const UPD = KEY + "-vor-update-";
+export const updateBackups = () => Object.keys(localStorage).filter(k => k.startsWith(UPD)).sort().reverse();
+function backupBeforeUpdate(raw, from, to) {
+  const key = `${UPD}${new Date().toISOString().slice(0, 19)}`;
+  try { localStorage.setItem(key, JSON.stringify({from: from || "vor 0.8.2", to, raw})); } catch (e) { return; }
+  updateBackups().slice(3).forEach(k => localStorage.removeItem(k));
+}
+export function restoreUpdateBackup(key) {
+  const b = JSON.parse(localStorage.getItem(key)); const d = JSON.parse(b.raw);
+  if (!valid(d)) throw new Error("Sicherung unlesbar");
+  S = d; migrate(); save();
+}
+export function load(appVersion) {
   const raw = localStorage.getItem(KEY);
   let d = null, reason = "";
   if (raw) { try { d = JSON.parse(raw); } catch (e) { reason = "unlesbar"; } }
@@ -28,7 +43,11 @@ export function load() {
     try { localStorage.setItem(key, raw); recovered = {key, reason}; } catch (e) { recovered = {key: null, reason, raw}; }
   }
   S = reason || !d ? fresh() : d;
+  const before = d && !reason ? JSON.stringify(d.sessions) : null;
+  if (before && appVersion && d.appVersion !== appVersion) backupBeforeUpdate(raw, d.appVersion, appVersion);
   migrate();
+  if (before && JSON.stringify(S.sessions) !== before) S.sessions = JSON.parse(before);
+  if (appVersion && S.appVersion !== appVersion) { S.appVersion = appVersion; if (before) save(); }
 }
 export const corruptKeys = () => Object.keys(localStorage).filter(k => k.startsWith(KEY + "-gesichert-"));
 // Ergänzt fehlende Felder (auch nach dem Laden einer älteren Sicherung)
