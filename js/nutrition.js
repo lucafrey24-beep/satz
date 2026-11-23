@@ -96,12 +96,25 @@ export const MEALS = [["fruehstueck", "Frühstück"], ["mittag", "Mittagessen"],
 /* ---------- Open Food Facts ----------
    Die Textsuche ist bei Open Food Facts auf etwa 10 Anfragen pro Minute begrenzt, darum nur auf Knopfdruck. */
 const OFF = "https://world.openfoodfacts.org";
+/* Open Food Facts wird von Freiwilligen gepflegt. Häufigster Fehler: kJ im kcal-Feld (Wert etwa 4,2-mal zu hoch).
+   Passt der kcal-Wert nicht zu den Makros (Atwater 4/4/9), der kJ-Umrechnung aber schon, wird umgerechnet.
+   Über 900 kcal pro 100 g ist unmöglich (reines Fett hat etwa 900); dann zählen die Makros. */
+export function fixKcal(kcal, m) {
+  const at = atwater(m), tol = v => Math.max(40, v * 0.3);
+  if (!(kcal >= 0)) return null;
+  if (at >= 50 && Math.abs(kcal - at) > tol(at) && Math.abs(kcal / 4.184 - at) <= tol(at)) return Math.round(kcal / 4.184);
+  if (kcal > 900) return at > 0 && at <= 900 ? Math.round(at) : null;
+  return kcal;
+}
 function fromOff(p) {
   const n = p.nutriments || {};
-  const kcal = n["energy-kcal_100g"] ?? (n["energy_100g"] != null ? n["energy_100g"] / 4.184 : null);
+  let kcal = n["energy-kcal_100g"] ?? (n["energy_100g"] != null ? n["energy_100g"] / 4.184 : null);
+  if (kcal == null) return null;
+  const m = {p: +(n.proteins_100g || 0), c: +(n.carbohydrates_100g || 0), f: +(n.fat_100g || 0)};
+  kcal = fixKcal(+kcal, m);
   if (kcal == null) return null;
   return {name: p.product_name_de || p.product_name || "Unbenanntes Produkt", brand: (p.brands || "").split(",")[0].trim(), barcode: p.code || "",
-    per100: {kcal: +kcal, p: +(n.proteins_100g || 0), c: +(n.carbohydrates_100g || 0), f: +(n.fat_100g || 0)},
+    per100: {kcal, ...m},
     serving: +p.serving_quantity || 0, source: "off"};
 }
 const FIELDS = "code,product_name,product_name_de,brands,nutriments,serving_quantity";

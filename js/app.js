@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.8";
+export const APP_VERSION = "0.8.1";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -1332,7 +1332,7 @@ function saveAmount() {
   const {food, entry} = ui.famount, meal = $("#fmealsel").value;
   if (!food.id) { food.id = "f_" + St.uid(); }
   if (!D().foods[food.id]) D().foods[food.id] = {...food};          // Online-Treffer lokal merken, damit sie offline wieder auftauchen
-  if (entry) Object.assign(entry, {grams: g, meal});
+  if (entry) Object.assign(entry, {grams: g, meal, name: food.name, brand: food.brand || "", per100: {...food.per100}});
   else D().food.push({id: St.uid(), date: ui.fday || dkey(), meal, foodId: food.id, name: food.name, brand: food.brand || "", per100: {...food.per100}, grams: g});
   persist(); ui.fmeal = meal; closeDialog(); if (location.hash.startsWith("#/ernaehrung")) rerender(); else go("#/ernaehrung");
   say(`${food.name}, ${r0(g)} g ${entry ? "geändert" : "eingetragen"}.`);
@@ -1340,6 +1340,7 @@ function saveAmount() {
 
 /* ---------- Eigenes Lebensmittel ---------- */
 function openFoodForm(pre = {}, note = "") {
+  ui.fentry = null;
   ui.fedit = pre.id && D().foods[pre.id] ? pre.id : null; ui.fwarned = false; ui.fbarcode = pre.barcode || "";
   const v = k => pre.per100 && pre.per100[k] != null ? fmt(Math.round(pre.per100[k] * 10) / 10) : "";
   const fld = (id, label, val) => `<label class="field">${label} <input id="${id}" inputmode="decimal" autocomplete="off" value="${val}"></label>`;
@@ -1370,7 +1371,8 @@ function saveFood() {
   }
   const food = {id: ui.fedit || "f_" + St.uid(), name, brand: $("#fn-brand").value.trim(), barcode: ui.fbarcode, per100, serving: num($("#fn-serv").value), source: "own"};
   D().foods[food.id] = food; persist(); say(`${name} gespeichert.`);
-  openAmount(food);
+  // Kam die Bearbeitung aus einem Tagebuch-Eintrag, wird genau dieser Eintrag korrigiert statt ein zweiter angelegt.
+  openAmount(food, ui.fentry || undefined); ui.fentry = null;
 }
 
 /* ---------- Ziele & Quellen ---------- */
@@ -1557,7 +1559,7 @@ Object.assign(A, {
   quicksave: () => saveQuick(),
   amountsave: () => saveAmount(),
   newfood: () => openFoodForm({name: (ui.fq || "").trim()}),
-  foodedit: () => openFoodForm(D().foods[ui.famount.food.id]),
+  foodedit: () => { const en = ui.famount.entry; openFoodForm(D().foods[ui.famount.food.id]); ui.fentry = en || null; },
   foodsave: () => saveFood(),
   fooddel: () => {
     const f = D().foods[ui.fedit], snap = St.snapshot();
