@@ -46,10 +46,11 @@ function dlgError(msg) { const e = dlg.querySelector(".err"); e.textContent = ms
 function applySettings() {
   const s = D().settings, r = document.documentElement;
   r.style.setProperty("--scale", s.scale);
+  if (s.scale && s.scale !== 1) r.dataset.scale = ""; else delete r.dataset.scale;
   if (s.theme === "auto") delete r.dataset.theme; else r.dataset.theme = s.theme;
   if (s.contrast) r.dataset.contrast = "high"; else delete r.dataset.contrast;
   const dark = s.theme === "dark" || (s.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.querySelector('meta[name="theme-color"]').content = dark ? "#14120E" : "#F2EDE3";
+  document.querySelector('meta[name="theme-color"]').content = dark ? "#000000" : "#F2F2F7";
 }
 
 /* ============ Router ============ */
@@ -62,6 +63,7 @@ function route() {
   if (!ROUTES[name]) name = "heute";
   const training = name === "training";
   tabs.hidden = training;
+  view.classList.toggle("modal", training);
   tabs.querySelectorAll("a").forEach(a => a.dataset.tab === tabFor(name) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   renderBar(training);
   if (dlg.open) dlg.close();
@@ -83,9 +85,8 @@ function rerender(focusSel) {
 function renderBar(training) {
   const a = D().active;
   bar.innerHTML = training && a
-    ? `<span class="ctx">${esc(a.dayName)}</span>
-       <div style="display:flex;gap:8px"><button class="btn small" data-act="overview" aria-haspopup="dialog">Übersicht</button>
-       <button class="btn small" data-act="end">Beenden</button></div>`
+    ? `<button class="navbtn" data-act="end">Beenden</button><span class="ctx">${esc(a.dayName)}</span>
+       <button class="navbtn strong" data-act="overview" aria-haspopup="dialog">Übersicht</button>`
     : `<a class="wordmark" href="#/heute" aria-label="SATZ, zur Startseite">SATZ<span aria-hidden="true">.</span></a>`;
 }
 
@@ -98,12 +99,12 @@ function dayBar(p, sel, act, label, add) {
 }
 const stLabel = {low: "unter 10", ok: "10–20", high: "über 20", "": ""};
 function volumeTable(v, caption, compare) {
-  return `<table><caption class="sr">${esc(caption)}</caption>
+  return `<div class="table-wrap"><table><caption class="sr">${esc(caption)}</caption>
     <thead><tr><th scope="col">Muskel</th>${compare ? `<th scope="col" class="n">Ist</th>` : ""}<th scope="col" class="n">${compare ? "Plan" : "Sätze/Wo."}</th><th scope="col">${compare ? "Plan-Bereich" : "Bereich"}</th></tr></thead>
     <tbody>${MUSCLES.map(m => { const x = compare ? compare[m.id] : v[m.id], st = St.volStatus(m, x); return `<tr><th scope="row" style="font-size:.95rem;letter-spacing:0;text-transform:none;color:inherit">${m.name}</th>
       ${compare ? `<td class="n">${fmt(Math.round(v[m.id] * 10) / 10)}</td>` : ""}<td class="n">${fmt(Math.round(x * 10) / 10)}</td>
-      <td class="st-${st || "none"}">${st ? (st === "ok" ? "✓ " : "! ") + stLabel[st] : "–"}</td></tr>`; }).join("")}</tbody></table>
-    <p class="meta" style="margin-top:8px">Mitarbeitende Muskeln zählen als halber Satz. Für Muskelaufbau gelten etwa 10–20 harte Sätze pro Muskel und Woche als guter Bereich.</p>`;
+      <td class="st-${st || "none"}">${st ? (st === "ok" ? "✓ " : "! ") + stLabel[st] : "–"}</td></tr>`; }).join("")}</tbody></table></div>
+    <p class="foot">Mitarbeitende Muskeln zählen als halber Satz. Für Muskelaufbau gelten etwa 10–20 harte Sätze pro Muskel und Woche als guter Bereich.</p>`;
 }
 function lowMuscles(v) { return MUSCLES.filter(m => St.volStatus(m, v[m.id]) === "low").map(m => m.name); }
 function templateCard(t, compact) {
@@ -166,7 +167,7 @@ function viewPlans() {
         ${p.id !== s.activePlanId ? `<button class="btn small primary" data-act="activate" data-id="${p.id}">Aktivieren</button>` : ""}
         <a class="btn small" href="#/plan/${p.id}" aria-label="${esc(p.name)} bearbeiten">Bearbeiten</a>
         <button class="btn small" data-act="copyplan" data-id="${p.id}" aria-label="${esc(p.name)} kopieren">Kopieren</button>
-        <button class="btn small" data-act="delplan" data-id="${p.id}" aria-label="${esc(p.name)} löschen">Löschen</button>
+        <button class="btn small destructive" data-act="delplan" data-id="${p.id}" aria-label="${esc(p.name)} löschen">Löschen</button>
       </div></article>`).join("") : `<p>Noch kein eigener Plan.</p>`}
     ${emptyPlanBtn()}
     <h2 class="sec">Fertige Pläne</h2>
@@ -217,7 +218,7 @@ function viewEditor(id) {
         </div></li>`; }).join("")}
     </ol>
     <button class="btn" data-act="addslot" id="addslot">+ Übung hinzufügen</button>
-    ${p.days.length > 1 ? `<button class="btn" data-act="delday">Tag ${ui.eday + 1} löschen</button>` : ""}` : `<p>Dieser Plan hat noch keine Tage.</p>`}
+    ${p.days.length > 1 ? `<button class="btn destructive" data-act="delday">Tag ${ui.eday + 1} löschen</button>` : ""}` : `<p>Dieser Plan hat noch keine Tage.</p>`}
     <h2 class="sec">Wochenvolumen</h2>
     <p>${low.length ? `Unter 10 Sätzen pro Woche: <b>${low.join(", ")}</b>. Mehr Sätze, mehr Trainings pro Woche oder eine zusätzliche Übung heben das an.` : "Alle großen Muskelgruppen liegen bei mindestens 10 Sätzen pro Woche."}</p>
     <details><summary>Tabelle: Sätze pro Muskel und Woche</summary>${volumeTable(v, "Sätze pro Muskel und Woche")}</details>
@@ -300,7 +301,7 @@ function openExForm(exId, name, after) {
     </div>
     ${exId ? `<p class="meta">Umbenennen ändert nichts am Verlauf: ${St.setCount(exId)} gespeicherte Sätze bleiben dieser Übung zugeordnet.</p>` : ""}
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="exsave">Speichern</button></div>
-    ${exId && e.custom && !used ? `<button class="btn" data-act="exdel" style="margin-top:10px">Übung archivieren</button>` : ""}`, "#x-name");
+    ${exId && e.custom && !used ? `<button class="btn destructive" data-act="exdel" style="margin-top:10px">Übung archivieren</button>` : ""}`, "#x-name");
 }
 function saveEx() {
   const name = $("#x-name").value.trim();
@@ -436,7 +437,7 @@ function viewSummary() {
     <div class="actionbar">
       <button class="btn primary" data-act="finish">${a.sets.length ? "Training speichern" : "Ohne Speichern beenden"}</button>
       ${open ? `<button class="btn" data-act="resume">Weiter trainieren</button>` : ""}
-      ${a.sets.length ? `<button class="btn" data-act="discard">Training verwerfen</button>` : ""}
+      ${a.sets.length ? `<button class="btn destructive" data-act="discard">Training verwerfen</button>` : ""}
     </div>`;
   ui.devs = devs;
 }
@@ -469,7 +470,7 @@ function viewHistory() {
     <h2 class="sec">Trainings</h2>
     ${ses.map(x => `<details><summary>${dateDe(x.date)} · ${esc(x.dayName)} · ${x.sets.length} Sätze</summary>
       <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(St.ex(g.exId).name)}</span><span class="num">${g.sets.map(y => `${fmt(y.kg)}×${y.reps}`).join(", ")}</span></li>`).join("")}</ul>
-      <button class="btn small" data-act="delsession" data-id="${x.id}" style="margin:10px 0">Training löschen</button></details>`).join("")}
+      <button class="btn small destructive" data-act="delsession" data-id="${x.id}" style="margin:10px 0">Training löschen</button></details>`).join("")}
     <div style="height:24px"></div>`;
 }
 function groupSets(sets) {
@@ -489,8 +490,8 @@ function exDetail(id) {
     const xy = pts.map((h, k) => [8 + k * (284 / (pts.length - 1)), 56 - ((h.kg - lo) / span) * 48]);
     svg = `<svg class="spark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true"><path d="M${xy.map(c => c.join(",")).join(" L")}" vector-effect="non-scaling-stroke"/>${xy.map(c => `<circle cx="${c[0]}" cy="${c[1]}" r="3.5"/>`).join("")}</svg>`;
   }
-  return `${svg}<table><caption class="sr">Schwerster Satz pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col" class="n">Gewicht</th><th scope="col" class="n">Wdh.</th></tr></thead>
-    <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="n">${fmt(h.kg)} kg</td><td class="n">${h.reps.join(" + ")}</td></tr>`).join("")}</tbody></table>`;
+  return `${svg}<div class="table-wrap"><table><caption class="sr">Schwerster Satz pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col" class="n">Gewicht</th><th scope="col" class="n">Wdh.</th></tr></thead>
+    <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="n">${fmt(h.kg)} kg</td><td class="n">${h.reps.join(" + ")}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 /* ============ Mehr ============ */
@@ -499,12 +500,17 @@ function viewMore() {
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, l, aria]) => `<button type="button" data-act="set" data-k="${key}" data-v="${v}" aria-pressed="${String(s[key]) === String(v)}" ${aria ? `aria-label="${aria}"` : ""}>${l}</button>`).join("")}</div>`;
   view.innerHTML = `<h1 class="big">Mehr</h1>
     <h2 class="sec" style="margin-top:4px">Anzeige</h2>
-    <div class="toggle-row"><span id="l-scale">Textgröße</span>${seg("scale", [[1, "A", "Normal"], [1.15, "A+", "Groß"], [1.3, "A++", "Sehr groß"], [1.5, "A+++", "Riesig"]]).replace('role="group"', 'role="group" aria-labelledby="l-scale"')}</div>
-    <div class="toggle-row"><span id="l-theme">Farbschema</span>${seg("theme", [["auto", "Auto"], ["light", "Hell"], ["dark", "Dunkel"]]).replace('role="group"', 'role="group" aria-labelledby="l-theme"')}</div>
-    <label class="toggle-row check" for="s-contrast"><span>Hoher Kontrast</span><input id="s-contrast" type="checkbox" data-on="contrast" ${s.contrast ? "checked" : ""}></label>
+    <div class="group">
+      <div class="row stack"><span id="l-scale">Textgröße</span>${seg("scale", [[1, "iPhone", "Wie in den iPhone-Einstellungen"], [1.15, "A+", "Groß"], [1.3, "A++", "Sehr groß"], [1.5, "A+++", "Riesig"]]).replace('role="group"', 'role="group" aria-labelledby="l-scale"')}</div>
+      <div class="row stack"><span id="l-theme">Erscheinungsbild</span>${seg("theme", [["auto", "Automatisch"], ["light", "Hell"], ["dark", "Dunkel"]]).replace('role="group"', 'role="group" aria-labelledby="l-theme"')}</div>
+      <label class="row" for="s-contrast"><span>Kontrast erhöhen</span><input id="s-contrast" class="switch" type="checkbox" role="switch" data-on="contrast" ${s.contrast ? "checked" : ""}></label>
+    </div>
+    <p class="foot">„iPhone“ übernimmt die Textgröße aus Einstellungen → Anzeige &amp; Helligkeit.</p>
     <h2 class="sec">Training</h2>
-    <label class="toggle-row check" for="s-rir"><span>„Wdh. in Reserve“ abfragen</span><input id="s-rir" type="checkbox" data-on="rir" ${s.rir ? "checked" : ""}></label>
-    <label class="field" style="margin-top:12px">Standardpause <select data-on="rest">
+    <div class="group">
+      <label class="row" for="s-rir"><span>„Wdh. in Reserve“ abfragen</span><input id="s-rir" class="switch" type="checkbox" role="switch" data-on="rir" ${s.rir ? "checked" : ""}></label>
+    </div>
+    <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
       <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (Grundübungen 120 s, sonst 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
     <h2 class="sec">Deine Daten</h2>
@@ -513,10 +519,10 @@ function viewMore() {
     <button class="btn" data-act="import">Sicherung laden</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
     <p class="err" id="importErr" role="alert" hidden></p>
-    <button class="btn" data-act="reset">Alle Daten löschen</button>
+    <button class="btn destructive" data-act="reset">Alle Daten löschen</button>
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen von 90–120 s (Singer et al. 2024), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
-    <p class="meta">Version 0.1 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+    <p class="meta">Version 0.2 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
 /* ============ Aktionen ============ */

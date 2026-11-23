@@ -1,4 +1,4 @@
-# SATZ – Trainingsheft (Version 0.1)
+# SATZ – Trainingsheft (Version 0.2)
 
 Installierbare Web-App (PWA) fürs Krafttraining. Läuft im Browser, offline, ohne Konto. Alle Daten bleiben auf dem Gerät (localStorage), Sicherung als JSON-Datei unter „Mehr“.
 
@@ -14,11 +14,11 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 
 ## Aufbau
 - `index.html` – Gerüst mit Navigation
-- `css/app.css` – Design-Tokens (Papier, Tinte, Signalrot), hell/dunkel/hoher Kontrast
+- `css/app.css` – iOS-Look nach Apple Human Interface Guidelines (Systemschrift mit Dynamic Type, gruppierte Listen, schwebende Tab-Bar), hell/dunkel/erhöhter Kontrast
 - `js/data.js` – Muskeln, 34 Übungen, 5 fertige Pläne
 - `js/store.js` – Speicherung, Volumen pro Muskel, doppelte Progression
 - `js/app.js` – Screens und Bedienung
-- `sw.js`, `manifest.webmanifest`, `icons/`, `fonts/` – Offline-Betrieb und Installation (Schriften selbst gehostet, keine Anfragen an Google)
+- `sw.js`, `manifest.webmanifest`, `icons/`, `fonts/` – Offline-Betrieb und Installation (Wortmarken-Schrift selbst gehostet, keine Anfragen an Google)
 
 ## Regeln hinter der App
 - Doppelte Progression pro Übung: alle Sätze am oberen Ende der Spanne, dann Gewicht um den Steigerungsschritt erhöhen. Alle Sätze unter der Spanne: einen Schritt leichter. Über 14 Tage Pause: Start mit ca. 90 %.
