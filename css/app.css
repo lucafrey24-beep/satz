@@ -357,3 +357,19 @@ textarea{display:block; width:100%; margin-top:6px; min-height:96px; padding:12p
 .chart text{fill:var(--label-2); font-size:11px; font-variant-numeric:tabular-nums}
 .chart figcaption{margin:4px 4px 0; font-size:.765rem}
 .note .row-btns{margin-top:10px}
+
+/* ---------- Version 0.5: HIG ---------- */
+/* Tab-Labels mindestens 11 pt, wachsen mit der Textgröße bis 13 pt */
+.tabs a{font-size:clamp(11px,.65rem,13px); overflow:hidden}
+.tabs a > :not(svg){max-width:100%}
+.tabs a{white-space:nowrap; text-overflow:ellipsis}
+.toast button{min-height:44px; border-radius:22px}
+button,a,input,select,label,summary{touch-action:manipulation}
+/* Zurück-Button und eingeklappter Titel */
+.navbtn.back{display:inline-flex; align-items:center; gap:2px; font-size:1rem; white-space:nowrap}
+.navbtn.back span[aria-hidden]{font-size:1.6rem; line-height:1; margin-top:-3px}
+.appbar .navspace{min-width:44px; flex:0 0 auto}
+.appbar #barTitle{opacity:0; transition:opacity .2s; position:absolute; left:50%; transform:translateX(-50%); max-width:55%; pointer-events:none;
+  bottom:0; line-height:52px}
+.appbar.titled #barTitle{opacity:1}
+.appbar{position:sticky}

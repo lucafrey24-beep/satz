@@ -24,7 +24,8 @@ function toast(msg, undo) {
   if (undo) $("#toastUndo").onclick = () => { undo(); hideToast(); say("Rückgängig gemacht."); };
   clearTimeout(toastTimer);
   const hide = () => { if (t.contains(document.activeElement)) toastTimer = setTimeout(hide, 4000); else hideToast(); };
-  toastTimer = setTimeout(hide, 8000);
+  // Mit „Rückgängig“ bleibt der Hinweis 30 s (WCAG 2.2.1: genug Zeit), sonst 6 s
+  toastTimer = setTimeout(hide, undo ? 30000 : 6000);
 }
 function hideToast() { $("#toast").hidden = true; }
 
@@ -41,6 +42,34 @@ function openDialog(html, focusSel) {
 }
 function closeDialog() { dlg.close(); }
 dlg.addEventListener("close", () => { if (opener && document.contains(opener)) opener.focus(); opener = null; });
+// Tippen neben das Sheet schließt es
+dlg.addEventListener("click", ev => {
+  if (ev.target !== dlg) return;
+  const r = dlg.getBoundingClientRect();
+  if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX < r.left || ev.clientX > r.right) closeDialog();
+});
+// Nach unten wischen schließt das Sheet (wenn es ganz oben ist), wie in iOS. Touch-Ereignisse, weil der Browser
+// Pointer-Ereignisse beim Scrollen abbricht.
+(() => {
+  let y0 = null, dy = 0;
+  const start = y => { y0 = y; dy = 0; };
+  const move = (y, ev) => {
+    if (y0 == null) return;
+    dy = y - y0;
+    if (dy > 0 && dlg.scrollTop <= 0) { if (ev.cancelable) ev.preventDefault(); dlg.style.transition = "none"; dlg.style.transform = `translateY(${dy}px)`; }
+    else if (dy < 0) y0 = null;
+  };
+  const end = () => {
+    if (y0 == null) { dlg.style.transform = ""; return; }
+    const close = dy > 90; y0 = null;
+    dlg.style.transition = "transform .25s ease"; dlg.style.transform = close ? "translateY(100%)" : "";
+    if (close) setTimeout(() => { closeDialog(); dlg.style.transform = ""; dlg.style.transition = ""; }, 200);
+  };
+  const ok = t => !t.closest("input,select,textarea,video,.plist");
+  dlg.addEventListener("touchstart", ev => { if (dlg.scrollTop <= 0 && ok(ev.target)) start(ev.touches[0].clientY); else y0 = null; }, {passive: true});
+  dlg.addEventListener("touchmove", ev => move(ev.touches[0].clientY, ev), {passive: false});
+  dlg.addEventListener("touchend", end); dlg.addEventListener("touchcancel", end);
+})();
 function dlgError(msg) { const e = dlg.querySelector(".err"); e.textContent = msg; e.hidden = false; }
 
 /* ============ Einstellungen anwenden ============ */
@@ -69,7 +98,7 @@ function route() {
   tabs.querySelectorAll("a").forEach(a => a.dataset.tab === tabFor(name) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
   placePill(tabFor(name));
   updateWakeLock();
-  renderBar(training);
+  renderBar(training, name);
   if (dlg.open) dlg.close();
   ROUTES[name](parts[1]);
   view.scrollTop = 0;
@@ -86,13 +115,25 @@ function rerender(focusSel) {
   view.scrollTop = top;
   if (focusSel) { const f = view.querySelector(focusSel); if (f) f.focus({preventScroll: false}); }
 }
-function renderBar(training) {
-  const a = D().active;
+const BACK = {vorlage: ["#/plaene", "Pläne"], plan: ["#/plaene", "Pläne"], uebungen: ["#/plaene", "Pläne"]};
+function renderBar(training, name) {
+  const a = D().active, back = BACK[name];
+  bar.classList.remove("titled");
   bar.innerHTML = training && a
     ? `<button class="navbtn" data-act="end">Beenden</button><span class="ctx">${esc(a.dayName)}</span>
        <button class="navbtn strong" data-act="overview" aria-haspopup="dialog">Übersicht</button>`
-    : `<a class="wordmark" href="#/heute" aria-label="SATZ, zur Startseite">SATZ<span aria-hidden="true">.</span></a>`;
+    : back
+      ? `<a class="navbtn back" href="${back[0]}"><span aria-hidden="true">‹</span> ${back[1]}<span class="sr"> (zurück)</span></a><span class="ctx" id="barTitle" aria-hidden="true"></span><span class="navspace" aria-hidden="true"></span>`
+      : `<a class="wordmark" href="#/heute" aria-label="SATZ, zur Startseite">SATZ<span aria-hidden="true">.</span></a><span class="ctx" id="barTitle" aria-hidden="true"></span><span class="navspace" aria-hidden="true"></span>`;
 }
+// Großer Titel klappt beim Scrollen in die Leiste (wie in iOS)
+view.addEventListener("scroll", () => {
+  const h = view.querySelector("h1.big"), t = $("#barTitle");
+  if (!h || !t) return;
+  const gone = h.getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom + 4;
+  if (gone && !t.textContent) t.textContent = h.textContent.replace(/\s+/g, " ").trim();
+  bar.classList.toggle("titled", gone);
+}, {passive: true});
 
 /* ============ Bausteine ============ */
 function dayBar(p, sel, act, label, add) {
@@ -633,7 +674,7 @@ function viewMore() {
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen von 90–120 s (Singer et al. 2024), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
-    <p class="meta">Version 0.4 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+    <p class="meta">Version 0.5 · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
 }
 
 function recoveredNote() {
@@ -829,8 +870,8 @@ document.addEventListener("change", ev => {
     const r = new FileReader();
     r.onload = () => {
       const err = $("#importErr");
-      let data; try { data = JSON.parse(r.result); } catch (e) { data = null; }
-      if (!St.valid(data)) { err.textContent = "Diese Datei ist keine gültige SATZ-Sicherung."; err.hidden = false; return; }
+      let data;
+      try { data = St.sanitizeImport(JSON.parse(r.result)); } catch (e) { err.textContent = `Diese Datei ist keine gültige SATZ-Sicherung. ${e instanceof SyntaxError ? "" : e.message}`; err.hidden = false; return; }
       const snap = St.snapshot(); St.replaceAll(data); applySettings(); ui.day = null;
       go("#/heute"); toast(`Sicherung geladen: ${data.sessions.length} Trainings.`, () => { St.restore(snap); applySettings(); go("#/mehr"); });
     };

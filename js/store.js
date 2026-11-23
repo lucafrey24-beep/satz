@@ -217,3 +217,54 @@ export function finishSession() {
   save();
   return session;
 }
+
+/* ---------- Import-Prüfung ----------
+   Eine Sicherungsdatei kann von irgendwoher kommen. Alles wird auf Typ und Wertebereich geprüft und neu aufgebaut,
+   IDs dürfen nur aus Buchstaben, Ziffern, _ und - bestehen. Unbekannte Felder fallen weg. Wirft bei Fehlern. */
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const MUSCLE_IDS = new Set(MUSCLES.map(m => m.id));
+function bad(msg) { throw new Error(msg); }
+const id = (v, what) => typeof v === "string" && ID.test(v) ? v : bad(`Ungültige ID bei ${what}.`);
+const optId = (v, what) => v == null ? null : id(v, what);
+const str = (v, max = 200) => typeof v === "string" ? v.slice(0, max) : "";
+const num = (v, lo, hi, what) => typeof v === "number" && isFinite(v) && v >= lo && v <= hi ? v : bad(`Ungültige Zahl bei ${what}.`);
+const optNum = (v, lo, hi, def) => typeof v === "number" && isFinite(v) && v >= lo && v <= hi ? v : def;
+const arr = (v, what) => Array.isArray(v) ? v : bad(`${what} fehlt.`);
+const iso = (v, what) => typeof v === "string" && !isNaN(new Date(v)) ? v : bad(`Ungültiges Datum bei ${what}.`);
+const day = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : bad("Ungültiges Datum.");
+const per100 = v => ({kcal: num(v && v.kcal, 0, 900, "kcal"), p: num(v.p, 0, 100, "Protein"), c: num(v.c, 0, 100, "Kohlenhydrate"), f: num(v.f, 0, 100, "Fett")});
+export function sanitizeImport(d) {
+  if (!d || typeof d !== "object" || d.version !== VERSION) bad("Keine SATZ-Sicherung dieser Version.");
+  const exercises = {};
+  for (const [k, e] of Object.entries(d.exercises || bad("Übungen fehlen."))) {
+    id(k, "Übung");
+    exercises[k] = {id: k, name: str(e.name, 80) || "Übung", primary: arr(e.primary, "Muskeln").filter(m => MUSCLE_IDS.has(m)), secondary: arr(e.secondary || [], "Muskeln").filter(m => MUSCLE_IDS.has(m)),
+      step: optNum(e.step, 0.1, 50, 2.5), unit: e.unit === "bw" ? "bw" : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
+    if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
+  }
+  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined,
+    days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
+      slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
+        min: Math.round(num(s.min, 1, 100, "Wdh.")), max: Math.round(num(s.max, 1, 100, "Wdh.")), rest: Math.round(optNum(s.rest, 0, 900, 0))}))}))}));
+  const sessions = arr(d.sessions, "Trainings").map(x => ({id: id(x.id, "Training"), date: iso(x.date, "Training"), ...(x.end ? {end: iso(x.end, "Training")} : {}),
+    planId: optId(x.planId, "Training"), planName: str(x.planName, 80), dayId: optId(x.dayId, "Training"), dayName: str(x.dayName, 80),
+    sets: arr(x.sets, "Sätze").map(y => ({exId: id(y.exId, "Satz"), kg: num(y.kg, 0, 1000, "Gewicht"), reps: Math.round(num(y.reps, 0, 100, "Wdh.")),
+      rir: y.rir == null ? null : Math.round(num(y.rir, 0, 4, "RIR")), ...(y.type === "warm" || y.type === "drop" ? {type: y.type} : {})})),
+    ...(x.notes && typeof x.notes === "object" ? {notes: Object.fromEntries(Object.entries(x.notes).filter(([k]) => ID.test(k)).map(([k, v]) => [k, str(v, 500)]))} : {})}));
+  const s = d.settings || {};
+  const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
+    contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false,
+    accent: ["graphit", "gruen", "kobalt", "signal"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
+    ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
+  const pr = d.profile || {};
+  const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",
+    height: optNum(pr.height, 0, 250, 0), pal: [1.4, 1.55, 1.7, 1.9].includes(pr.pal) ? pr.pal : 1.55, goal: ["lose", "maintain", "gain"].includes(pr.goal) ? pr.goal : "maintain",
+    manual: !!pr.manual, kcal: optNum(pr.kcal, 0, 8000, 0), p: optNum(pr.p, 0, 1000, 0), c: optNum(pr.c, 0, 2000, 0), f: optNum(pr.f, 0, 1000, 0)};
+  const weights = arr(d.weights || [], "Gewicht").map(w => ({date: day(w.date), kg: num(w.kg, 20, 400, "Gewicht")}));
+  const foods = {};
+  for (const [k, f] of Object.entries(d.foods || {})) { id(k, "Lebensmittel"); foods[k] = {id: k, name: str(f.name, 120) || "Lebensmittel", brand: str(f.brand, 80), barcode: /^\d{0,14}$/.test(f.barcode || "") ? f.barcode || "" : "", per100: per100(f.per100), serving: optNum(f.serving, 0, 5000, 0), source: f.source === "off" ? "off" : "own"}; }
+  const food = arr(d.food || [], "Tagebuch").map(e => ({id: id(e.id, "Eintrag"), date: day(e.date), meal: ["fruehstueck", "mittag", "abend", "snack"].includes(e.meal) ? e.meal : "snack",
+    foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge")}));
+  const activePlanId = d.activePlanId && plans.some(p => p.id === d.activePlanId) ? d.activePlanId : plans[0]?.id || null;
+  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, foods, food};
+}
