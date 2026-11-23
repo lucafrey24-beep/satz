@@ -1,8 +1,9 @@
-// Offline-Betrieb. Strategie: zuerst Netzwerk (immer die neueste Version), bei fehlendem Netz der Zwischenspeicher.
+// Offline-Betrieb. Strategie: zuerst Netzwerk (immer die neueste Version). Antwortet das Netz nicht binnen 3 s
+// (schlechter Empfang im Studio), kommt sofort die gespeicherte Version; das Netz aktualisiert im Hintergrund weiter.
 // Bei jeder Veröffentlichung CACHE erhöhen, damit installierte Apps die alten Dateien verwerfen.
-const CACHE = "satz-v0.3.3";
+const CACHE = "satz-v0.4.0";
 const FILES = ["./", "index.html", "css/app.css", "js/app.js", "js/store.js", "js/data.js", "js/nutrition.js", "manifest.webmanifest",
-  "fonts/archivo.woff2", "icons/icon-192.png", "icons/icon-180.png"];
+  "fonts/archivo.woff2", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "js/vendor/zxing.min.js"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, {cache: "reload"})))));
   self.skipWaiting();
@@ -14,12 +15,16 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith((async () => {
     const c = await caches.open(CACHE);
+    const net = fetch(e.request, {cache: "no-cache"}).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; });
+    const cached = () => c.match(e.request, {ignoreSearch: true}).then(r => r || (e.request.mode === "navigate" ? c.match("index.html") : null));
+    const timeout = new Promise(res => setTimeout(res, 3000, "timeout"));
     try {
-      const r = await fetch(e.request, {cache: "no-cache"});
-      if (r.ok) c.put(e.request, r.clone());
-      return r;
+      const first = await Promise.race([net, timeout]);
+      if (first !== "timeout") return first;
+      e.waitUntil(net.catch(() => {}));
+      return (await cached()) || await net;
     } catch (err) {
-      return (await c.match(e.request, {ignoreSearch: true})) || (e.request.mode === "navigate" ? c.match("index.html") : Response.error());
+      return (await cached()) || Response.error();
     }
   })());
 });

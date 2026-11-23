@@ -16,11 +16,21 @@ function fresh() {
   };
 }
 
+// Beim Laden nie stillschweigend überschreiben: Unlesbare oder fremde Daten werden vorher beiseitegelegt.
+export let recovered = null;   // {key, reason} wenn Altdaten gesichert wurden
 export function load() {
-  try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
-  if (!valid(S)) S = fresh();
+  const raw = localStorage.getItem(KEY);
+  let d = null, reason = "";
+  if (raw) { try { d = JSON.parse(raw); } catch (e) { reason = "unlesbar"; } }
+  if (raw && !reason && !valid(d)) reason = d && d.version > VERSION ? "neuere Version" : "unbekanntes Format";
+  if (reason) {
+    const key = `${KEY}-gesichert-${new Date().toISOString().slice(0, 19)}`;
+    try { localStorage.setItem(key, raw); recovered = {key, reason}; } catch (e) { recovered = {key: null, reason, raw}; }
+  }
+  S = reason || !d ? fresh() : d;
   migrate();
 }
+export const corruptKeys = () => Object.keys(localStorage).filter(k => k.startsWith(KEY + "-gesichert-"));
 // Ergänzt fehlende Felder (auch nach dem Laden einer älteren Sicherung)
 function migrate() {
   // neue Bibliotheksübungen nachrüsten, ohne eigene Umbenennungen zu überschreiben
@@ -31,6 +41,7 @@ function migrate() {
   S.foods = S.foods || {};
   S.food = S.food || [];
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
+  if (S.settings.sound == null) S.settings.sound = true;
   if (!S.settings.accentSet) { S.settings.accent = "gruen"; S.settings.accentSet = true; }
 }
 export const currentWeight = () => S.weights.length ? S.weights[S.weights.length - 1].kg : 0;
@@ -91,7 +102,7 @@ export function planVolume(p) {
 }
 export function recentVolume(days = 7) {
   const v = zero(), since = Date.now() - days * 864e5;
-  S.sessions.filter(s => new Date(s.date).getTime() >= since).forEach(s => s.sets.forEach(x => addSets(v, x.exId, 1)));
+  S.sessions.filter(s => new Date(s.date).getTime() >= since).forEach(s => s.sets.filter(isHard).forEach(x => addSets(v, x.exId, 1)));
   return v;
 }
 export function volStatus(m, x) {
@@ -101,19 +112,33 @@ export function volStatus(m, x) {
   return "high";
 }
 
+/* ---------- Satztypen ----------
+   work = Arbeitssatz, warm = Aufwärmsatz, drop = Drop-Satz.
+   „Harter Satz“ (Schoenfeld et al. 2017; Refalo et al. 2023): Arbeits- oder Drop-Satz mit höchstens 3 Wdh. in Reserve.
+   Ohne RIR-Angabe zählt ein Arbeitssatz als hart. RIR „4+“ (gespeichert als 4) zählt nicht. */
+export const isWork = x => !x.type || x.type === "work";
+export const isHard = x => x.type !== "warm" && (x.rir == null || x.rir < 4);
+export const e1rm = (kg, reps) => reps > 0 ? kg * (1 + reps / 30) : 0;   // Epley (1985)
+
 /* ---------- Verlauf & Progression ---------- */
 export const daysSince = iso => Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
 export const lastSession = () => S.sessions[S.sessions.length - 1] || null;
 
 export function lastSetsFor(exId) {
   for (let i = S.sessions.length - 1; i >= 0; i--) {
-    const sets = S.sessions[i].sets.filter(x => x.exId === exId);
+    const sets = S.sessions[i].sets.filter(x => x.exId === exId && isWork(x));
     if (sets.length) return {session: S.sessions[i], sets};
   }
   return null;
 }
 export function setCount(exId) {
   return S.sessions.reduce((a, s) => a + s.sets.filter(x => x.exId === exId).length, 0);
+}
+// Sinnvoller Startwert beim ersten Mal: Langhantel 20 kg, sonst ein leichtes Gewicht (danach direkt eintippen)
+export function startWeight(e) {
+  if (e.unit === "bw") return 0;
+  if (/langhantel|bankdr|kniebeug|kreuzheb|rudern|schulterdr|sz/i.test(e.name) && !/kurzhantel/i.test(e.name)) return 20;
+  return isCompound(e) ? 20 : 10;
 }
 
 const roundTo = (x, step) => step ? Math.max(0, Math.round(x / step) * step) : x;
@@ -127,7 +152,7 @@ export function fmtW(e, kg) {
 export function suggest(slot) {
   const e = ex(slot.exId), last = lastSetsFor(slot.exId);
   if (!last) {
-    return {kind: "new", kg: 0, reps: slot.max,
+    return {kind: "new", kg: startWeight(e), reps: slot.max,
       text: e.unit === "bw"
         ? `Erstes Mal. Ziel: ${slot.sets} × ${slot.min}–${slot.max} Wiederholungen.`
         : `Erstes Mal. Wähle ein Gewicht, mit dem du ${slot.max} saubere Wiederholungen schaffst.`};
@@ -141,16 +166,20 @@ export function suggest(slot) {
     return {kind: "return", kg: lighter, reps: slot.min,
       text: `${prev} Das ist ${gap} Tage her. Starte heute etwas leichter mit ${fmtW(e, lighter)} und finde wieder rein.`};
   }
+  // RIR fließt ein: Ziel erreicht und alle Sätze mit 3+ Wdh. in Reserve → zwei Schritte; Ziel erreicht → ein Schritt.
+  const rirs = top.map(x => x.rir).filter(r => r != null), easy = rirs.length === top.length && rirs.length && rirs.every(r => r >= 3);
   if (top.length >= slot.sets && top.every(x => x.reps >= slot.max)) {
-    const up = kg + e.step;
+    const up = kg + e.step * (easy ? 2 : 1);
     return {kind: "up", kg: up, reps: slot.min,
-      text: `${prev} Ziel erreicht. Heute ${fmtW(e, up)} versuchen, Ziel ab ${slot.min} Wdh.`};
+      text: `${prev} Ziel erreicht${easy ? " und es war noch viel Luft" : ""}. Heute ${fmtW(e, up)} versuchen, Ziel ab ${slot.min} Wdh.`};
   }
   if (kg > 0 && last.sets.every(x => x.reps < slot.min)) {
     const down = roundTo(kg - e.step, e.step);
     return {kind: "down", kg: down, reps: slot.min,
       text: `${prev} Alle Sätze unter ${slot.min} Wdh. Heute leichter: ${fmtW(e, down)}.`};
   }
+  if (easy) return {kind: "hold", kg, reps: Math.min(slot.max, top[0].reps + 2),
+    text: `${prev} Du hattest 3+ Wdh. in Reserve. Geh heute näher ans Limit, Ziel: ${slot.sets} × ${slot.max}.`};
   return {kind: "hold", kg, reps: Math.min(slot.max, top[0].reps + 1),
     text: `${prev} Gewicht halten und eine Wiederholung mehr schaffen. Ziel: ${slot.sets} × ${slot.max}.`};
 }
@@ -165,7 +194,8 @@ export function startSession(p, dayIdx) {
   };
   save();
 }
-export const loggedFor = (a, i) => a.sets.filter(x => x.q === i);
+export const loggedFor = (a, i) => a.sets.filter(x => x.q === i && x.type !== "warm");
+export const warmupsFor = (a, i) => a.sets.filter(x => x.q === i && x.type === "warm");
 export const targetSets = item => item.sets + item.extra;
 export function firstOpen(a, from = 0) {
   for (let k = 0; k < a.queue.length; k++) {
@@ -179,7 +209,8 @@ export function finishSession() {
   const session = {
     id: a.id, date: a.start, end: new Date().toISOString(), planId: a.planId, planName: a.planName,
     dayId: a.dayId, dayName: a.dayName,
-    sets: a.sets.map(({exId, kg, reps, rir}) => ({exId, kg, reps, rir})),
+    sets: a.sets.map(({exId, kg, reps, rir, type}) => ({exId, kg, reps, rir, ...(type && type !== "work" ? {type} : {})})),
+    ...(a.notes && Object.keys(a.notes).length ? {notes: a.notes} : {}),
   };
   if (session.sets.length) S.sessions.push(session);
   S.active = null;

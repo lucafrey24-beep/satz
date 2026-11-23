@@ -25,6 +25,7 @@ export const SOURCES = [
   ["Helms et al. (2014)", "Evidence-based recommendations for natural bodybuilding contest preparation. J Int Soc Sports Nutr 11: 0,5–1 %/Woche, mehr Protein im Defizit", "https://pubmed.ncbi.nlm.nih.gov/24864135/"],
   ["Iraki et al. (2019)", "Nutrition recommendations for bodybuilders in the off-season. Sports 7(7): 0,25–0,5 %/Woche Zunahme", "https://pubmed.ncbi.nlm.nih.gov/31247944/"],
   ["Institute of Medicine (2005)", "Dietary Reference Intakes for Energy and Macronutrients: Fett 20–35 % der Energie", "https://nap.nationalacademies.org/catalog/10490"],
+  ["WHO", "Body mass index: Untergewicht unter 18,5 kg/m²", "https://www.who.int/data/gho/data/themes/topics/topic-details/GHO/body-mass-index"],
   ["Hall (2008)", "What is the required energy deficit per unit weight loss? Int J Obes 32(3): 7700 kcal/kg nur als Näherung", "https://pubmed.ncbi.nlm.nih.gov/17848938/"],
 ];
 
@@ -47,25 +48,38 @@ export function bmr(sex, kg, cm, years) {
   return sex === "m" ? base + 5 : sex === "w" ? base - 161 : base - 78;
 }
 
+/* Schutzgrenzen:
+   - Mifflin-St Jeor wurde an Erwachsenen von 19–78 Jahren entwickelt (Mifflin et al. 1990). Unter 18 rechnet SATZ nicht.
+   - BMI unter 18,5 gilt als Untergewicht (WHO). Dann kein Defizit, „Abbauen“ wird zu „Halten“.
+   - Energie nie unter dem Grundumsatz und nie unter 1200 kcal.
+   - Fett mindestens 0,6 g pro kg (Helms et al. 2014: Fett nicht drastisch senken; IOM: mind. 20 % der Energie). */
+export const MIN_AGE = 18, MIN_KCAL = 1200, MIN_FAT_PER_KG = 0.6;
+export const bmi = (kg, cm) => cm ? kg / (cm / 100) ** 2 : 0;
 export function computeTargets(p, kg) {
   const years = age(p.birth);
   if (missing(p, kg).length || years == null) return null;
-  const g = GOALS[p.goal] || GOALS.maintain;
-  const b = bmr(p.sex, kg, p.height, years);
+  if (years < MIN_AGE) return {blocked: "age", years};
+  const warnings = [];
+  let g = GOALS[p.goal] || GOALS.maintain;
+  const b = bmr(p.sex, kg, p.height, years), bm = bmi(kg, p.height);
+  if (bm < 18.5 && g.rate < 0) { g = GOALS.maintain; warnings.push(`Dein BMI liegt bei ${bm.toFixed(1).replace(".", ",")}, also im Untergewicht (unter 18,5). SATZ rechnet deshalb ohne Defizit.`); }
+  if (years > 78) warnings.push("Die Formel wurde nur bis 78 Jahre geprüft. Der Wert kann stärker abweichen.");
   const tdee = b * p.pal;
   const delta = kg * g.rate * KCAL_PER_KG / 7;
-  const kcal = Math.round((tdee + delta) / 10) * 10;
+  let kcal = Math.round((tdee + delta) / 10) * 10;
+  const floor = Math.max(MIN_KCAL, Math.round(b / 10) * 10);
+  if (kcal < floor) { kcal = floor; warnings.push(`Das Ziel wurde auf ${floor} kcal angehoben: nie unter dem Grundumsatz und nie unter ${MIN_KCAL} kcal.`); }
   const protein = Math.round(kg * g.protein);
-  const fat = Math.round(kcal * FAT_SHARE / 9);
+  const fat = Math.max(Math.round(kcal * FAT_SHARE / 9), Math.round(kg * MIN_FAT_PER_KG));
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
-  return {kcal, p: protein, c: carbs, f: fat,
-    steps: {years, bmr: Math.round(b), pal: p.pal, tdee: Math.round(tdee), delta: Math.round(delta), goal: g, kg}};
+  return {kcal, p: protein, c: carbs, f: fat, warnings,
+    steps: {years, bmr: Math.round(b), pal: p.pal, tdee: Math.round(tdee), delta: Math.round(delta), goal: g, kg, bmi: bm}};
 }
 
 export function activeTargets(p, kg) {
   if (p.manual && p.kcal) return {kcal: p.kcal, p: p.p || 0, c: p.c || 0, f: p.f || 0, manual: true};
   const t = computeTargets(p, kg);
-  return t ? {...t, manual: false} : null;
+  return t && !t.blocked ? {...t, manual: false} : null;
 }
 
 export const macrosFor = (per100, grams) => ({
