@@ -435,3 +435,10 @@ dialog .exfig{background:var(--card-2)}
 .exfig.small figcaption{margin:0}
 .card .field input, .card .field select{background-color:var(--card-2)}
 .mealh .linkbtn{font-size:.85rem; font-weight:600; margin:-12px -4px -12px 0}
+.wcard{display:flex; width:100%; align-items:center; justify-content:space-between; gap:12px; border:0; text-align:left; color:inherit; font:inherit; min-height:72px}
+.wcard .wl{display:flex; flex-direction:column; gap:2px; min-width:0}
+.wcard .eyebrow{margin:0}
+.wcard b{font-size:1.35rem; font-weight:700}
+.wcard small{color:var(--label-2); font-size:.82rem}
+.wcard .wbtn{flex:none; min-height:44px; padding:0 16px; border-radius:22px; background:var(--tint); color:var(--on-tint); font-weight:600; display:grid; place-items:center}
+.logged .linkbtn{margin-left:8px; color:var(--red); font-size:.85rem}

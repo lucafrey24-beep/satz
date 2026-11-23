@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.7";
+export const APP_VERSION = "0.7.1";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -640,13 +640,13 @@ function viewHistory() {
   if (!ui.histEx || !exIds.includes(ui.histEx)) ui.histEx = exIds[0];
   const p = St.activePlan();
   view.innerHTML = `<h1 class="big">Verlauf</h1>
+    ${weightSection()}
     ${changes.length ? `<h2 class="sec" style="margin-top:4px">Was sich verändert hat</h2><ul class="logged">
       ${changes.map(c => { const e = St.ex(c.id), d = c.to - c.from; return `<li><span>${esc(e.name)}</span><span class="num">${fmt(c.from)} → ${fmt(c.to)} kg <span class="sr">,</span>(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))})</span></li>`; }).join("")}
     </ul><p class="meta" style="margin-top:6px">Schwerster Satz im ersten und im letzten Training.</p>` : ""}
     <h2 class="sec">Übung im Detail</h2>
     <label class="field">Übung <select data-on="histex">${exIds.map(id => `<option value="${id}" ${id === ui.histEx ? "selected" : ""}>${esc(St.ex(id).name)}</option>`).join("")}</select></label>
     ${exDetail(ui.histEx)}
-    ${weightSection()}
     <h2 class="sec">Letzte 7 Tage</h2>
     ${volumeTable(St.recentVolume(7), "Sätze pro Muskel in den letzten 7 Tagen, verglichen mit dem Plan", p ? St.planVolume(p) : null)}
     <h2 class="sec">Trainings</h2>
@@ -692,11 +692,44 @@ function exDetail(id) {
     <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="num">${h.sets.map(y => `${fmt(y.kg)}×${y.reps}`).join(", ")}</td><td class="n">${useReps ? h.reps : fmt(Math.round(h.e1 * 10) / 10) + " kg"}</td></tr>`).join("")}</tbody></table></div>
     <p class="foot">1RM ca. = Gewicht × (1 + Wdh./30), Epley (1985). Steigt auch, wenn du bei gleichem Gewicht mehr Wiederholungen schaffst.</p>`;
 }
+// Gewicht: eine Karte, die überall gleich aussieht und das Eintragen-Sheet öffnet
+const dl = k => { const l = dayLabel(k); return l === "Gestern" || l === "Heute" ? l.toLowerCase() : "am " + l.replace(/^\w+, /, ""); };
+function weightCard() {
+  const w = D().weights, today = dkey(), last = w.at(-1), done = last && last.date === today;
+  const prev = done ? w.at(-2) : last, d = done && prev ? Math.round((last.kg - prev.kg) * 10) / 10 : null;
+  return `<button type="button" class="card wcard" data-act="wopen" aria-haspopup="dialog">
+    <span class="wl"><span class="eyebrow">Gewicht heute</span><b class="num">${done ? `${fmt(last.kg)} kg` : "Noch nicht eingetragen"}</b>
+      <small>${done ? (d != null ? `${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} kg seit ${dl(prev.date)}` : "Erster Eintrag") : last ? `Zuletzt ${fmt(last.kg)} kg, ${dl(last.date)}` : "Am besten morgens, vor dem Frühstück"}</small></span>
+    <span class="wbtn">${done ? "Ändern" : "Eintragen"}</span></button>`;
+}
+function openWeight(date) {
+  const w = D().weights, k = date || dkey(), cur = w.find(x => x.date === k), base = cur ? cur.kg : St.currentWeight() || 70;
+  ui.wkg = base; ui.wdate = k;
+  openDialog(`<h2 id="dlg-h">Gewicht eintragen</h2>
+    <p class="err" role="alert" hidden></p>
+    <div class="stepper" role="group" aria-labelledby="w-l">
+      <button type="button" data-act="wstep" data-d="-1" aria-label="100 Gramm weniger">−</button>
+      <div class="val"><input id="wIn" class="v num" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(base)}"><label id="w-l" for="wIn" class="u">kg · antippen zum Eintippen</label></div>
+      <button type="button" data-act="wstep" data-d="1" aria-label="100 Gramm mehr">+</button></div>
+    <label class="field">Datum <input id="wDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
+    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="wsave">Speichern</button></div>
+    ${w.length ? `<h3 class="meta" style="margin:16px 0 6px">Letzte Einträge</h3><ul class="logged">${w.slice(-7).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${fmt(x.kg)} kg <button type="button" class="linkbtn" data-act="wdel" data-d="${x.date}" aria-label="Eintrag ${esc(dayLabel(x.date))} löschen">Löschen</button></span></li>`).join("")}</ul>` : ""}`, "#wIn");
+}
+function saveWeight() {
+  const v = Math.round(num($("#wIn").value) * 10) / 10, k = $("#wDate").value || dkey();
+  if (!(v >= 30 && v <= 300)) return dlgError("Bitte ein Gewicht zwischen 30 und 300 kg eintragen.");
+  if (k > dkey()) return dlgError("Das Datum liegt in der Zukunft.");
+  const w = D().weights, cur = w.find(x => x.date === k);
+  if (cur) cur.kg = v; else w.push({date: k, kg: v});
+  w.sort((a, b) => a.date.localeCompare(b.date));
+  persist(); opener = null; closeDialog(); rerender(); say(`${fmt(v)} Kilo für ${dayLabel(k)} gespeichert.`);
+  const b = view.querySelector('[data-act="wopen"]'); if (b) b.focus();
+}
 function weightSection() {
   const w = D().weights.slice(-60);
   const avg = w.map((x, k) => { const from = new Date(x.date + "T12:00:00") - 6 * 864e5, win = w.slice(0, k + 1).filter(y => new Date(y.date + "T12:00:00") >= from); return win.reduce((a, y) => a + y.kg, 0) / win.length; });
-  return `<h2 class="sec">Körpergewicht</h2>
-    <div class="inline"><label class="field">Heute (kg) <input data-on="pweight" inputmode="decimal" autocomplete="off" value="${w.length && w.at(-1).date === new Date().toISOString().slice(0, 10) ? fmt(w.at(-1).kg) : ""}" placeholder="${w.length ? fmt(w.at(-1).kg) : "z. B. 80"}"></label><button class="btn" data-act="weightsave">Eintragen</button></div>
+  return `<h2 class="sec" style="margin-top:4px">Körpergewicht</h2>
+    ${weightCard()}
     ${w.length >= 2 ? chart(w.map(x => x.kg), w.map(x => shortDate(x.date + "T12:00:00")), "kg", "Körpergewicht", avg) : `<p class="meta">Wiege dich ein paar Mal pro Woche, am besten morgens. Nach zwei Einträgen erscheint hier der Verlauf mit Trend.</p>`}
     ${w.length >= 8 ? (() => { const d = avg.at(-1) - avg[Math.max(0, avg.length - 8)]; return `<p class="meta">Trend: ${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(Math.round(d * 10) / 10))} kg im Vergleich zu vor etwa einer Woche.</p>`; })() : ""}`;
 }
@@ -890,6 +923,13 @@ const A = {
   },
   sessedit: t => openSessionEdit(t.dataset.id),
   sesssave: () => saveSessionEdit(),
+  wopen: () => openWeight(),
+  wsave: () => saveWeight(),
+  wstep: t => { const i = $("#wIn"), v = Math.round((num(i.value) + 0.1 * +t.dataset.d) * 10) / 10; i.value = fmt(Math.max(30, Math.min(300, v))); sayLater(`${fmt(v)} Kilo`); },
+  wdel: t => {
+    const k = t.dataset.d, snap = St.snapshot(); D().weights = D().weights.filter(x => x.date !== k); persist(); opener = null; closeDialog(); rerender();
+    toast(`Gewicht vom ${dayLabel(k)} gelöscht.`, () => { St.restore(snap); rerender(); });
+  },
   weightsave: () => { const el = view.querySelector('[data-on="pweight"]'); el.dispatchEvent(new Event("change", {bubbles: true})); rerender(); },
   delsession: t => {
     const snap = St.snapshot(); D().sessions = D().sessions.filter(x => x.id !== t.dataset.id); persist(); rerender(); view.querySelector("h1").focus();
@@ -990,7 +1030,7 @@ document.addEventListener("change", ev => {
 dlg.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "fq") { ev.preventDefault(); const b = dlg.querySelector('[data-act="offsearch"]'); if (b) b.click(); return; }
   if (ev.key !== "Enter" || ev.target.tagName !== "INPUT" || ev.target.type === "search" || ev.target.type === "checkbox") return;
-  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"],[data-act="quicksave"]'); if (b) b.click();
+  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"],[data-act="quicksave"],[data-act="wsave"]'); if (b) b.click();
 });
 
 /* ============ Tab-Bar: Pille ziehen ============ */
@@ -1071,7 +1111,7 @@ function viewNutrition() {
     </section>
     ${t ? "" : N.computeTargets(D().profile, St.currentWeight())?.blocked ? `<p class="hint">SATZ berechnet Ernährungsziele erst ab ${N.MIN_AGE} Jahren. Du kannst trotzdem mitschreiben, was du isst.</p>`
       : `<section class="card" aria-labelledby="ob-h"><h2 id="ob-h" style="font-size:1.1rem;margin:0 0 4px">Bedarf berechnen</h2><p class="meta">Mit diesen Angaben berechnet SATZ deinen Bedarf nach anerkannten Formeln. Noch fehlt: ${esc(N.missing(D().profile, St.currentWeight()).join(", "))}. Oder leg die Werte über „Ziel festlegen“ selbst fest.</p>${profileSection().replace('<h2 class="sec" style="margin-top:4px">Persönliche Daten</h2>', "")}</section>`}
-    ${t && k === today ? `<div class="inline wline"><label class="field">Gewicht heute (kg) <input data-on="pweight" inputmode="decimal" autocomplete="off" value="${D().weights.at(-1)?.date === today ? fmt(D().weights.at(-1).kg) : ""}" placeholder="${St.currentWeight() ? fmt(St.currentWeight()) : "z. B. 70"}"></label><button class="btn" data-act="weightsave">Eintragen</button></div>` : ""}
+    ${t && k === today ? weightCard() : ""}
     ${!entries.length && prevN ? `<button class="btn" data-act="fcopyprev">Vortag übernehmen (${prevN} ${prevN === 1 ? "Eintrag" : "Einträge"})</button>` : ""}
     ${N.MEALS.map(([id, name]) => { const es = entries.filter(e => e.meal === id), ms = N.sumEntries(es); return `
       <div class="mealh"><h2 class="sec" id="m-${id}">${name}</h2>${es.length ? `<span>${r0(ms.kcal)} kcal</span>` : entries.length && prevMeal(id) ? `<button type="button" class="linkbtn" data-act="fcopymeal" data-m="${id}">Wie gestern<span class="sr"> (${name})</span></button>` : ""}</div>
