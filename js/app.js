@@ -8,7 +8,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.7.1";
+export const APP_VERSION = "0.7.2";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;

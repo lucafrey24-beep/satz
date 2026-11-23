@@ -23,6 +23,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - `js/body3d.js` – 3D-Körperkarte aus einfachen Formen, Muskeln antippbar, Drehen per Ziehen. Liste als gleichwertige Alternative
 - `js/vendor/three.module.min.js` – three.js r170 (MIT, siehe `three-LICENSE`), wird nur auf der Körperkarte geladen
 - `js/app.js` – Screens und Bedienung
+- `icons/icon.svg` – einzige Quelle für das App-Icon. Ändern: SVG bearbeiten, `node tools/make-icons.js` erzeugt alle PNGs, dann veröffentlichen
 - `sw.js`, `manifest.webmanifest`, `icons/`, `fonts/` – Offline-Betrieb und Installation (Wortmarken-Schrift selbst gehostet, keine Anfragen an Google)
 
 ## Regeln hinter der App
