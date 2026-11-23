@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.7.3";
+export const APP_VERSION = "0.7.4";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -471,10 +471,12 @@ const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? 
 /* ============ Training ============ */
 function viewTraining() {
   const a = D().active;
-  if (ui.summary || St.firstOpen(a, a.idx) < 0) return viewSummary();
-  if (a.queue[a.idx].skipped || St.loggedFor(a, a.idx).length >= St.targetSets(a.queue[a.idx])) a.idx = St.firstOpen(a, a.idx);
+  // ui.pin: Übung, die bewusst angezeigt wird (Zurück/Vor), auch wenn sie schon erledigt ist
+  if (ui.pin != null && ui.pin !== a.idx) ui.pin = null;
+  if (ui.summary || (ui.pin == null && St.firstOpen(a, a.idx) < 0)) return viewSummary();
+  if (ui.pin == null && (a.queue[a.idx].skipped || St.loggedFor(a, a.idx).length >= St.targetSets(a.queue[a.idx]))) a.idx = St.firstOpen(a, a.idx);
   const i = a.idx, it = a.queue[i], e = St.ex(it.exId), logged = St.loggedFor(a, i), target = St.targetSets(it);
-  const all = a.sets.filter(x => x.q === i);
+  const all = a.sets.filter(x => x.q === i), done = logged.length >= target;
   const sug = St.suggest(it), key = `${a.id}:${i}:${logged.length}`;
   if (ui.key !== key) {
     if (!ui.key.startsWith(`${a.id}:${i}:`)) ui.stype = "work";
@@ -488,14 +490,18 @@ function viewTraining() {
   const note = (a.notes || {})[it.exId];
   view.innerHTML = `
     <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.loggedFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
-    <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · Satz ${logged.length + 1} von ${target} · Ziel ${it.min}–${it.max} Wdh.</p>
+    <div class="exnav"><button type="button" class="linkbtn" data-act="exprev" ${i === 0 ? "disabled" : ""}><span aria-hidden="true">‹</span> Vorherige Übung</button>
+      <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>Nächste Übung <span aria-hidden="true">›</span></button></div>
+    <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · ${done ? `erledigt, ${logged.length} von ${target} Sätzen` : `Satz ${logged.length + 1} von ${target}`} · Ziel ${it.min}–${it.max} Wdh.</p>
     <h1 class="big">${esc(e.name)}</h1>
-    <p class="hint">${esc(sug.text)}${lastNote && !note ? `<br><b>Notiz vom ${dateDe(lastNote.date)}:</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>Notiz:</b> ${esc(note)}` : ""}</p>
+    <p class="hint" ${done ? "hidden" : ""}>${esc(sug.text)}${lastNote && !note ? `<br><b>Notiz vom ${dateDe(lastNote.date)}:</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>Notiz:</b> ${esc(note)}` : ""}</p>
     ${D().settings.showFig !== false ? exFigure(e, true) : ""}
-    <div class="rest ${resting ? "on" : ""}" role="group" aria-label="Pause">
+    <div class="rest ${resting ? "on" : ""}" role="group" aria-label="Pause" ${done && !resting ? "hidden" : ""}>
       <span class="eyebrow">${resting ? "Pause" : "Pause nach dem Satz"}</span>
       <div class="num" id="rt" aria-hidden="true">${resting ? restLeft() : fmtSec(st === "warm" ? 60 : st === "drop" ? 0 : it.rest)}</div>
       <div class="row-btns" ${resting ? "" : `style="visibility:hidden" aria-hidden="true"`}><button class="btn small" data-act="rest30" ${resting ? "" : "tabindex=-1"}>+30 s</button><button class="btn small" data-act="skiprest" ${resting ? "" : "tabindex=-1"}>Pause beenden</button></div></div>
+    ${done ? `<p class="note">${it.skipped ? "Diese Übung hast du ausgelassen." : "Alle Sätze dieser Übung sind eingetragen."} Tippe unten auf einen Satz, um ihn zu korrigieren.</p>
+    <div class="actionbar"><button class="btn primary" data-act="exgo" id="saveset">${St.firstOpen(a, 0) >= 0 ? "Weiter zur offenen Übung" : "Zur Zusammenfassung"}</button></div>` : `
     <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:10px">
       ${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="stype" data-v="${v}" aria-pressed="${st === v}">${l}</button>`).join("")}</div>
     <div class="stepper" role="group" aria-labelledby="kg-l">
@@ -508,10 +514,10 @@ function viewTraining() {
       <button data-act="reps" data-d="1" aria-label="Eine Wiederholung mehr">+</button></div>
     ${D().settings.rir && st !== "warm" ? `<fieldset><legend>Wie viele Wdh. wären noch gegangen? <span style="font-weight:500">(optional)</span></legend>
       <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></fieldset>` : ""}
-    <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? "Aufwärmsatz speichern" : st === "drop" ? "Drop-Satz speichern" : `Satz ${logged.length + 1} speichern`}</button></div>
-    ${all.length ? `<h2 class="sec" style="margin-top:8px">Eingetragen</h2><ul class="logged">${(() => { let n = 0; return all.map(l => { const lab = l.type === "warm" ? "Aufwärmen" : l.type === "drop" ? `Drop-Satz` : `Satz ${++n}`; return `<li><span>${lab}</span><span class="num">${St.fmtW(e, l.kg)} × ${l.reps}${l.rir != null ? ` · RIR ${l.rir === 4 ? "4+" : l.rir}` : ""}</span></li>`; }).join(""); })()}</ul>
+    <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? "Aufwärmsatz speichern" : st === "drop" ? "Drop-Satz speichern" : `Satz ${logged.length + 1} speichern`}</button></div>`}
+    ${all.length ? `<h2 class="sec" style="margin-top:8px">Eingetragen</h2><ul class="logged">${(() => { let n = 0; return all.map(l => { const lab = l.type === "warm" ? "Aufwärmen" : l.type === "drop" ? `Drop-Satz` : `Satz ${++n}`; return `<li><button type="button" class="setrow" data-act="editset" data-k="${a.sets.indexOf(l)}" aria-haspopup="dialog" aria-label="${lab}: ${St.fmtW(e, l.kg)} mal ${l.reps}, bearbeiten"><span>${lab}</span><span class="num">${St.fmtW(e, l.kg)} × ${l.reps}${l.rir != null ? ` · RIR ${l.rir === 4 ? "4+" : l.rir}` : ""} <span class="chev" aria-hidden="true">›</span></span></button></li>`; }).join(""); })()}</ul>
       <button class="btn small" data-act="undoset" style="margin-top:8px">Letzten Satz löschen</button>` : ""}
-    <div class="row-btns" style="margin-top:16px"><button class="btn small" data-act="extraset">+ Extra-Satz</button><button class="btn small" data-act="note" aria-haspopup="dialog">${note ? "Notiz ändern" : "Notiz"}</button><button class="btn small" data-act="skipex">Übung auslassen</button></div>
+    <div class="row-btns" style="margin-top:16px"><button class="btn small" data-act="extraset">+ Extra-Satz</button>${it.skipped ? `<button class="btn small" data-act="unskip" data-i="${i}">Wieder aufnehmen</button>` : ""}<button class="btn small" data-act="note" aria-haspopup="dialog">${note ? "Notiz ändern" : "Notiz"}</button>${done ? "" : `<button class="btn small" data-act="skipex">Übung auslassen</button>`}</div>
     <p class="meta" style="margin-top:12px">${next >= 0 ? `Danach: ${esc(St.ex(a.queue[next].exId).name)}` : "Das ist die letzte offene Übung."}</p>
     <div style="height:16px"></div>`;
 }
@@ -559,7 +565,7 @@ function readSetInputs() {
   if (r) { const v = parseInt(r.value, 10); if (isFinite(v) && v >= 0 && v <= 100) ui.reps = v; }
 }
 function saveSet() {
-  readSetInputs();
+  readSetInputs(); ui.pin = null;
   const a = D().active, i = a.idx, it = a.queue[i], e = St.ex(it.exId), type = ui.stype || "work";
   a.sets.push({q: i, exId: it.exId, kg: ui.kg, reps: ui.reps, rir: type === "warm" ? null : ui.rir, t: Date.now(), ...(type !== "work" ? {type} : {})});
   const n = St.loggedFor(a, i).length, target = St.targetSets(it);
@@ -576,13 +582,46 @@ function saveSet() {
   (n >= target ? view.querySelector("h1") : $("#saveset")).focus();
 }
 
+// Zwischen Übungen blättern, auch zu erledigten (zum Korrigieren)
+function moveEx(d) {
+  readSetInputs();
+  const a = D().active, n = a.idx + d;
+  if (n < 0 || n >= a.queue.length) return;
+  a.idx = n; ui.pin = n; ui.key = ""; persist(); rerender(); view.scrollTop = 0;
+  const h = view.querySelector("h1"); if (h) h.focus();
+  say(`Übung ${n + 1}: ${St.ex(a.queue[n].exId).name}.`);
+}
+function openSetEdit(k) {
+  const a = D().active, x = a.sets[k]; if (!x) return;
+  const e = St.ex(x.exId); ui.setEdit = k;
+  openDialog(`<h2 id="dlg-h">Satz korrigieren</h2><p class="meta" style="text-align:center;margin-top:-10px">${esc(e.name)}</p>
+    <p class="err" role="alert" hidden></p>
+    <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:12px">${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="setype" data-v="${v}" aria-pressed="${(x.type || "work") === v}">${l}</button>`).join("")}</div>
+    <div class="pair"><label class="field">${e.unit === "bw" ? "kg zusätzlich" : "kg"} <input id="se-kg" inputmode="decimal" autocomplete="off" value="${fmt(x.kg)}"></label>
+      <label class="field">Wiederholungen <input id="se-reps" inputmode="numeric" autocomplete="off" value="${x.reps}"></label></div>
+    ${D().settings.rir ? `<label class="field">Wdh. in Reserve <select id="se-rir"><option value="">keine Angabe</option>${[0, 1, 2, 3, 4].map(r => `<option value="${r}" ${x.rir === r ? "selected" : ""}>${r === 4 ? "4+" : r}</option>`).join("")}</select></label>` : ""}
+    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="setsave">Speichern</button></div>
+    <button class="btn destructive" data-act="setdel" style="margin-top:10px">Satz löschen</button>`, "#se-kg");
+}
+function saveSetEdit() {
+  const a = D().active, x = a.sets[ui.setEdit]; if (!x) return closeDialog();
+  const kg = num($("#se-kg").value), reps = Math.round(num($("#se-reps").value));
+  if (!(kg >= 0 && kg <= 1000) || !$("#se-kg").value.trim()) return dlgError("Bitte ein Gewicht zwischen 0 und 1000 kg eintragen.");
+  if (!(reps >= 0 && reps <= 100) || !$("#se-reps").value.trim()) return dlgError("Bitte 0 bis 100 Wiederholungen eintragen.");
+  const type = dlg.querySelector('[data-act="setype"][aria-pressed="true"]').dataset.v, r = $("#se-rir");
+  x.kg = Math.round(kg * 100) / 100; x.reps = reps;
+  if (type === "work") delete x.type; else x.type = type;
+  x.rir = type === "warm" ? null : r && r.value !== "" ? +r.value : r ? null : x.rir;
+  persist(); opener = null; closeDialog(); ui.pin = a.idx; ui.key = ""; rerender(); say(`Satz geändert: ${fmt(x.kg)} Kilo, ${reps} Wiederholungen.`);
+  const b = view.querySelector(`[data-act="editset"][data-k="${ui.setEdit}"]`); if (b) b.focus();
+}
 function openOverview() {
   const a = D().active;
   openDialog(`<h2 id="dlg-h">Übersicht</h2><ol class="edlist">
     ${a.queue.map((q, k) => { const n = St.loggedFor(a, k).length, t = St.targetSets(q), name = esc(St.ex(q.exId).name);
       return `<li><div class="edrow"><span class="t">${k + 1}. ${name}</span><span class="num">${q.skipped ? "ausgelassen" : `${n}/${t}`}</span></div>
       <div class="edtools">${q.skipped ? `<button class="push" data-act="unskip" data-i="${k}">Wieder aufnehmen</button>`
-        : n < t && k !== a.idx ? `<button class="push" data-act="jump" data-i="${k}">Jetzt machen</button>` : ""}</div></li>`; }).join("")}
+        : k === a.idx ? "" : n < t ? `<button class="push" data-act="jump" data-i="${k}">Jetzt machen</button>` : `<button class="push" data-act="jump" data-i="${k}">Ansehen &amp; korrigieren</button>`}</div></li>`; }).join("")}
     </ol><button class="btn" data-act="close">Schließen</button>`);
 }
 
@@ -895,10 +934,20 @@ const A = {
   rest30: () => { const a = D().active; a.restEnd += 30000; scheduleBeep((a.restEnd - Date.now()) / 1000); persist(); const el = $("#rt"); if (el) el.textContent = restLeft(); say(`Pause verlängert, noch ${restLeft().replace(":", " Minuten ")} Sekunden.`); },
   skiprest: () => { D().active.restEnd = 0; lastRestState = false; cancelBeep(); readSetInputs(); persist(); rerender("#saveset"); },
   overview: () => openOverview(),
-  jump: t => { const a = D().active; a.idx = +t.dataset.i; ui.key = ""; ui.summary = false; persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus(); },
-  unskip: t => { const a = D().active; a.queue[+t.dataset.i].skipped = false; a.idx = +t.dataset.i; ui.key = ""; ui.summary = false; persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus(); },
+  exprev: () => moveEx(-1),
+  exnext: () => moveEx(1),
+  exgo: () => { const a = D().active, n = St.firstOpen(a, a.idx); ui.pin = null; ui.key = ""; if (n < 0) ui.summary = true; else a.idx = n; persist(); rerender(); view.scrollTop = 0; view.querySelector("h1").focus(); },
+  setype: t => { dlg.querySelectorAll('[data-act="setype"]').forEach(b => b.setAttribute("aria-pressed", String(b === t))); },
+  editset: t => openSetEdit(+t.dataset.k),
+  setsave: () => saveSetEdit(),
+  setdel: () => {
+    const a = D().active, k = ui.setEdit, snap = St.snapshot(); a.sets.splice(k, 1); persist(); opener = null; closeDialog(); ui.pin = a.idx; ui.key = ""; rerender(); view.querySelector("h1").focus();
+    toast("Satz gelöscht.", () => { St.restore(snap); rerender(); });
+  },
+  jump: t => { const a = D().active; a.idx = +t.dataset.i; ui.pin = a.idx; ui.key = ""; ui.summary = false; persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus(); },
+  unskip: t => { const a = D().active; a.queue[+t.dataset.i].skipped = false; a.idx = +t.dataset.i; ui.pin = null; ui.key = ""; ui.summary = false; persist(); opener = null; closeDialog(); rerender(); view.querySelector("h1").focus(); },
   end: () => { ui.summary = true; rerender(); view.querySelector("h1").focus(); },
-  resume: () => { ui.summary = false; const a = D().active; a.idx = St.firstOpen(a, a.idx); persist(); rerender(); view.querySelector("h1").focus(); },
+  resume: () => { ui.summary = false; ui.pin = null; const a = D().active; a.idx = St.firstOpen(a, a.idx); persist(); rerender(); view.querySelector("h1").focus(); },
   finish: () => {
     const a = D().active, p = St.plan(a.planId), checked = [...view.querySelectorAll('input[name="dev"]:checked')].map(c => ui.devs[+c.value]);
     const day = p && p.days.find(d => d.id === a.dayId);
@@ -1026,7 +1075,7 @@ document.addEventListener("change", ev => {
 dlg.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "fq") { ev.preventDefault(); const b = dlg.querySelector('[data-act="offsearch"]'); if (b) b.click(); return; }
   if (ev.key !== "Enter" || ev.target.tagName !== "INPUT" || ev.target.type === "search" || ev.target.type === "checkbox") return;
-  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"],[data-act="quicksave"],[data-act="wsave"]'); if (b) b.click();
+  ev.preventDefault(); const b = dlg.querySelector('[data-act="slotsave"],[data-act="exsave"],[data-act="amountsave"],[data-act="foodsave"],[data-act="goalsave"],[data-act="bclookup"],[data-act="quicksave"],[data-act="wsave"],[data-act="setsave"]'); if (b) b.click();
 });
 
 /* ============ Tab-Bar: Pille ziehen ============ */

@@ -1,7 +1,7 @@
 // Offline-Betrieb. Strategie: zuerst Netzwerk (immer die neueste Version). Antwortet das Netz nicht binnen 3 s
 // (schlechter Empfang im Studio), kommt sofort die gespeicherte Version; das Netz aktualisiert im Hintergrund weiter.
 // Bei jeder Veröffentlichung CACHE erhöhen, damit installierte Apps die alten Dateien verwerfen.
-const CACHE = "satz-v0.7.3";
+const CACHE = "satz-v0.7.4";
 const FILES = ["./", "index.html", "css/app.css", "js/app.js", "js/store.js", "js/data.js", "js/nutrition.js", "js/anim.js", "js/body3d.js", "js/bell.js", "js/vendor/three.module.min.js", "manifest.webmanifest",
   "fonts/archivo.woff2", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/icon.svg", "js/vendor/zxing.min.js"];
 self.addEventListener("install", e => {

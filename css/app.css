@@ -442,3 +442,10 @@ dialog .exfig{background:var(--card-2)}
 .wcard small{color:var(--label-2); font-size:.82rem}
 .wcard .wbtn{flex:none; min-height:44px; padding:0 16px; border-radius:22px; background:var(--tint); color:var(--on-tint); font-weight:600; display:grid; place-items:center}
 .logged .linkbtn{margin-left:8px; color:var(--red); font-size:.85rem}
+.exnav{display:flex; justify-content:space-between; margin:-6px -4px 2px}
+.exnav .linkbtn{font-size:.9rem; font-weight:600}
+.exnav .linkbtn:disabled{opacity:.3}
+.logged .setrow{display:flex; width:100%; justify-content:space-between; align-items:center; gap:8px; min-height:44px; border:0; background:transparent; padding:0; font:inherit; color:inherit; text-align:left}
+.logged .setrow .chev{color:var(--label-2); margin-left:4px}
+.logged .setrow .num{color:var(--label-2); font-variant-numeric:tabular-nums; text-align:right}
+[hidden]{display:none !important}
