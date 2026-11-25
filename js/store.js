@@ -1,5 +1,6 @@
 // Zustand, Speicherung, Progression und Volumen.
 import {EXERCISES, TEMPLATES, MUSCLES, MEASURES, isCompound, defaultRest, isMobility, noLoad} from "./data.js";
+import {LANG_IDS, locale, t as tx, tn as txn} from "./i18n.js";
 const MEASURE_IDS = new Set(MEASURES.map(m => m.id));
 
 const KEY = "satz-data";
@@ -13,7 +14,7 @@ function fresh() {
   EXERCISES.forEach(e => exercises[e.id] = {...e});
   return {
     version: VERSION, exercises, plans: [], activePlanId: null, sessions: [], active: null,
-    settings: {scale: 1, theme: "auto", contrast: false, rir: true, rest: 0},
+    settings: {scale: 1, theme: "auto", contrast: false, rir: true, rest: 0, lang: ""},   // lang "" = beim ersten Start noch nicht gewählt
   };
 }
 
@@ -32,7 +33,13 @@ function backupBeforeUpdate(raw, from, to) {
 export function restoreUpdateBackup(key) {
   const b = JSON.parse(localStorage.getItem(key)); const d = JSON.parse(b.raw);
   if (!valid(d)) throw new Error("Sicherung unlesbar");
-  S = d; migrate(); save();
+  S = keepLang(d); migrate(); save();
+}
+// Ältere Sicherungen kennen keine Sprache: Dann bleibt die aktuell eingestellte, statt auf Deutsch zurückzufallen.
+function keepLang(d) {
+  const cur = S && S.settings && S.settings.lang;
+  if (d && d.settings && !d.settings.lang && cur) d.settings.lang = cur;
+  return d;
 }
 export function load(appVersion) {
   const raw = localStorage.getItem(KEY);
@@ -74,6 +81,9 @@ function migrate() {
   if (!S.settings.accentSet) { S.settings.accent = "gruen"; S.settings.accentSet = true; }
   // Oliv (bis 0.9.2) und Gras (0.9.3) gibt es nicht mehr. Wer eine davon gewählt hatte, bekommt Grün.
   if (S.settings.accent === "oliv" || S.settings.accent === "gras") S.settings.accent = "gruen";
+  // Ab 0.10: Sprache. Wer SATZ schon vorher genutzt hat, bekommt keine Sprachauswahl und behält Deutsch.
+  // Nur ein ganz neuer Start (fresh, lang "") zeigt die Auswahl.
+  if (S.settings.lang === undefined) S.settings.lang = "de";
 }
 export const currentWeight = () => S.weights.length ? S.weights[S.weights.length - 1].kg : 0;
 
@@ -85,7 +95,7 @@ export function save() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; }
 }
 
-export function replaceAll(data) { S = data; migrate(); save(); }
+export function replaceAll(data) { S = keepLang(data); migrate(); save(); }
 export function snapshot() { return JSON.stringify(S); }
 export function restore(snap) { S = JSON.parse(snap); migrate(); save(); }
 
@@ -200,33 +210,33 @@ export function startWeight(e) {
 }
 
 const roundTo = (x, step) => step ? Math.max(0, Math.round(x / step) * step) : x;
-export const fmt = n => (Math.round(n * 100) / 100).toLocaleString("de-DE");
+export const fmt = n => (Math.round(n * 100) / 100).toLocaleString(locale());
 export function fmtW(e, kg) {
-  if (e.unit === "bw") return kg ? `Körpergewicht + ${fmt(kg)} kg` : "Körpergewicht";
-  if (e.unit === "band") return "Band";
-  if (e.unit === "s") return "Halten";
+  if (e.unit === "bw") return kg ? tx("Körpergewicht + {n} kg", {n: fmt(kg)}) : tx("Körpergewicht");
+  if (e.unit === "band") return tx("Band");
+  if (e.unit === "s") return tx("Halten");
   return `${fmt(kg)} kg`;
 }
 // Einheit der „Wiederholungen“: bei Halteübungen Sekunden
-export const repWord = e => e.unit === "s" ? "Sekunden" : "Wiederholungen";
-export const repShort = e => e.unit === "s" ? "Sek." : "Wdh.";
+export const repWord = e => e.unit === "s" ? tx("Sekunden") : tx("Wiederholungen");
+export const repShort = e => e.unit === "s" ? tx("Sek.") : tx("Wdh.");
 
 // Band und Halten: kein Gewicht. Band: erst alle Sätze bis zum oberen Ende, dann stärkeres Band.
 // Halten: bis zum oberen Ende steigern, dort bleiben. Mobility hat kein Leistungsziel.
 function suggestNoLoad(slot, e, last) {
-  const u = e.unit === "s" ? "s" : "Wdh.", range = `${slot.sets} × ${slot.min}–${slot.max} ${u}`;
+  const u = e.unit === "s" ? "s" : tx("Wdh."), range = `${slot.sets} × ${slot.min}–${slot.max} ${u}`;
   if (!last) return {kind: "new", kg: 0, reps: e.unit === "s" ? slot.min : slot.max,
-    text: isMobility(e) ? `Locker in die Dehnung gehen, ruhig atmen, nicht wippen. Ziel: ${range}.`
-      : e.unit === "s" ? `Erstes Mal. Halte sauber ${slot.min} s, Ziel: ${range}.` : `Erstes Mal. Wähle ein Band, mit dem du ${slot.max} saubere Wdh. schaffst.`};
-  const prev = `Letztes Mal: ${last.sets.map(x => x.reps).join(" + ")} ${u}.`;
-  if (isMobility(e)) return {kind: "hold", kg: 0, reps: slot.max, text: `${prev} Heute wieder ${range}. Dehnen ohne Schmerz, mit dem Atem tiefer.`};
+    text: isMobility(e) ? tx("Locker in die Dehnung gehen, ruhig atmen, nicht wippen. Ziel: {range}.", {range})
+      : e.unit === "s" ? tx("Erstes Mal. Halte sauber {n} s, Ziel: {range}.", {n: slot.min, range}) : tx("Erstes Mal. Wähle ein Band, mit dem du {n} saubere Wdh. schaffst.", {n: slot.max})};
+  const prev = tx("Letztes Mal: {list} {u}.", {list: last.sets.map(x => x.reps).join(" + "), u});
+  if (isMobility(e)) return {kind: "hold", kg: 0, reps: slot.max, text: `${prev} ${tx("Heute wieder {range}. Dehnen ohne Schmerz, mit dem Atem tiefer.", {range})}`};
   const all = last.sets.length >= slot.sets && last.sets.every(x => x.reps >= slot.max);
   if (e.unit === "band") return all
-    ? {kind: "up", kg: 0, reps: slot.min, text: `${prev} Ziel erreicht. Nimm heute ein stärkeres Band, Ziel ab ${slot.min} Wdh.`}
-    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 1), text: `${prev} Gleiches Band, eine Wiederholung mehr. Ziel: ${slot.sets} × ${slot.max}.`};
+    ? {kind: "up", kg: 0, reps: slot.min, text: `${prev} ${tx("Ziel erreicht. Nimm heute ein stärkeres Band, Ziel ab {n} Wdh.", {n: slot.min})}`}
+    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 1), text: `${prev} ${tx("Gleiches Band, eine Wiederholung mehr. Ziel: {s} × {n}.", {s: slot.sets, n: slot.max})}`};
   return all
-    ? {kind: "hold", kg: 0, reps: slot.max, text: `${prev} Ziel erreicht. Halte die ${slot.max} s sauber oder wähle eine schwerere Variante.`}
-    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 5), text: `${prev} Heute etwa 5 s länger. Ziel: ${range}.`};
+    ? {kind: "hold", kg: 0, reps: slot.max, text: `${prev} ${tx("Ziel erreicht. Halte die {n} s sauber oder wähle eine schwerere Variante.", {n: slot.max})}`}
+    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 5), text: `${prev} ${tx("Heute etwa 5 s länger. Ziel: {range}.", {range})}`};
 }
 
 // Doppelte Progression pro Übung (Plotkin et al. 2022): erst alle Sätze bis zum oberen Ende der Spanne, dann Gewicht steigern.
@@ -236,18 +246,18 @@ export function suggest(slot) {
   if (!last) {
     return {kind: "new", kg: startWeight(e), reps: slot.max,
       text: e.unit === "bw"
-        ? `Erstes Mal. Ziel: ${slot.sets} × ${slot.min}–${slot.max} Wiederholungen.`
-        : `Erstes Mal. Wähle ein Gewicht, mit dem du ${slot.max} saubere Wiederholungen schaffst.`};
+        ? tx("Erstes Mal. Ziel: {s} × {a}–{b} Wiederholungen.", {s: slot.sets, a: slot.min, b: slot.max})
+        : tx("Erstes Mal. Wähle ein Gewicht, mit dem du {n} saubere Wiederholungen schaffst.", {n: slot.max})};
   }
   const kg = Math.max(...last.sets.map(x => x.kg));
   const top = last.sets.filter(x => x.kg === kg);
-  const prev = `Letztes Mal: ${fmtW(e, kg)}, ${last.sets.map(x => x.reps).join(" + ")} Wdh.`;
+  const prev = tx("Letztes Mal: {w}, {list} Wdh.", {w: fmtW(e, kg), list: last.sets.map(x => x.reps).join(" + ")});
   const pl = plateau(slot.exId);
   // Geplante Entlastungswoche: halbe Satzzahl, etwa 90 % der Last, Wiederholungen am unteren Ende mit Luft.
   if (slot.deload) {
     const lighter = kg > 0 ? roundTo(kg * 0.9, e.step) : 0;
     return {kind: "deload", kg: lighter, reps: slot.min,
-      text: `${prev} Entlastungswoche: ${slot.sets} ${slot.sets === 1 ? "Satz" : "Sätze"} mit ${fmtW(e, lighter)} und ${slot.min} Wdh., 3 oder mehr in Reserve. Nächste Woche geht es vom alten Stand weiter.`};
+      text: `${prev} ${txn(slot.sets, "Entlastungswoche: {n} Satz mit {w} und {r} Wdh., 3 oder mehr in Reserve. Nächste Woche geht es vom alten Stand weiter.", "Entlastungswoche: {n} Sätze mit {w} und {r} Wdh., 3 oder mehr in Reserve. Nächste Woche geht es vom alten Stand weiter.", {w: fmtW(e, lighter), r: slot.min})}`};
   }
   const gap = daysSince(last.session.date);
   // Nach über 14 Tagen Pause 90 %: vorsichtige Faustregel. Kraft lässt nach Trainingspausen messbar nach,
@@ -255,31 +265,31 @@ export function suggest(slot) {
   if (gap > 14) {
     const lighter = roundTo(kg * 0.9, e.step);
     return {kind: "return", kg: lighter, reps: slot.min,
-      text: `${prev} Das ist ${gap} Tage her. Starte heute etwas leichter mit ${fmtW(e, lighter)} und finde wieder rein.`};
+      text: `${prev} ${tx("Das ist {n} Tage her. Starte heute etwas leichter mit {w} und finde wieder rein.", {n: gap, w: fmtW(e, lighter)})}`};
   }
   // RIR fließt ein: Ziel erreicht und alle Sätze mit 3+ Wdh. in Reserve → zwei Schritte; Ziel erreicht → ein Schritt.
   const rirs = top.map(x => x.rir).filter(r => r != null), easy = rirs.length === top.length && rirs.length && rirs.every(r => r >= 3);
   if (top.length >= slot.sets && top.every(x => x.reps >= slot.max)) {
     const up = kg + e.step * (easy ? 2 : 1);
     return {kind: "up", kg: up, reps: slot.min,
-      text: `${prev} Ziel erreicht${easy ? " und es war noch viel Luft" : ""}. Heute ${fmtW(e, up)} versuchen, Ziel ab ${slot.min} Wdh.`};
+      text: `${prev} ${easy ? tx("Ziel erreicht und es war noch viel Luft.") : tx("Ziel erreicht.")} ${tx("Heute {w} versuchen, Ziel ab {n} Wdh.", {w: fmtW(e, up), n: slot.min})}`};
   }
   // Plateau: dreimal in Folge kein Fortschritt beim geschätzten 1RM → kurz entlasten und neu aufbauen.
   // Eine Entlastung (Deload) ist eine kurze Phase mit weniger Last zur Erholung (Bell et al. 2023, Delphi-Konsens).
   if (pl && kg > 0) {
     const lighter = roundTo(kg * 0.9, e.step);
     return {kind: "plateau", kg: lighter, reps: slot.max,
-      text: `${prev} Seit ${pl} Trainings kein Fortschritt. Heute entlasten: ${fmtW(e, lighter)} und ${slot.max} saubere Wdh., danach wieder steigern. Bleibt es hängen, tausch die Übung.`};
+      text: `${prev} ${tx("Seit {n} Trainings kein Fortschritt. Heute entlasten: {w} und {r} saubere Wdh., danach wieder steigern. Bleibt es hängen, tausch die Übung.", {n: pl, w: fmtW(e, lighter), r: slot.max})}`};
   }
   if (kg > 0 && last.sets.every(x => x.reps < slot.min)) {
     const down = roundTo(kg - e.step, e.step);
     return {kind: "down", kg: down, reps: slot.min,
-      text: `${prev} Alle Sätze unter ${slot.min} Wdh. Heute leichter: ${fmtW(e, down)}.`};
+      text: `${prev} ${tx("Alle Sätze unter {n} Wdh. Heute leichter: {w}.", {n: slot.min, w: fmtW(e, down)})}`};
   }
   if (easy) return {kind: "hold", kg, reps: Math.min(slot.max, top[0].reps + 2),
-    text: `${prev} Du hattest 3+ Wdh. in Reserve. Geh heute näher ans Limit, Ziel: ${slot.sets} × ${slot.max}.`};
+    text: `${prev} ${tx("Du hattest 3+ Wdh. in Reserve. Geh heute näher ans Limit, Ziel: {s} × {n}.", {s: slot.sets, n: slot.max})}`};
   return {kind: "hold", kg, reps: Math.min(slot.max, top[0].reps + 1),
-    text: `${prev} Gewicht halten und eine Wiederholung mehr schaffen. Ziel: ${slot.sets} × ${slot.max}.`};
+    text: `${prev} ${tx("Gewicht halten und eine Wiederholung mehr schaffen. Ziel: {s} × {n}.", {s: slot.sets, n: slot.max})}`};
 }
 
 /* ---------- Motivation: Wochenziel statt Tagesserie ----------
@@ -373,10 +383,10 @@ export function newRecords(sets) {
     const weighted = e.unit === "kg" || (e.unit === "bw" && (mine.some(y => y.kg > 0) || old.some(y => y.kg > 0)));
     if (weighted) {
       const now = Math.max(...mine.map(y => e1rm(y.kg, y.reps))), before = Math.max(...old.map(y => e1rm(y.kg, y.reps)));
-      if (now > before + 0.01) { const b = mine.find(y => e1rm(y.kg, y.reps) === now); out.push({exId: x.exId, name: e.name, text: `${fmtW(e, b.kg)} × ${b.reps}, 1RM ca. ${fmt(Math.round(now * 10) / 10)} kg (vorher ${fmt(Math.round(before * 10) / 10)})`}); }
+      if (now > before + 0.01) { const b = mine.find(y => e1rm(y.kg, y.reps) === now); out.push({exId: x.exId, name: e.name, text: tx("{w} × {r}, 1RM ca. {now} kg (vorher {before})", {w: fmtW(e, b.kg), r: b.reps, now: fmt(Math.round(now * 10) / 10), before: fmt(Math.round(before * 10) / 10)})}); }
     } else {
       const now = Math.max(...mine.map(y => y.reps)), before = Math.max(...old.map(y => y.reps));
-      if (now > before) out.push({exId: x.exId, name: e.name, text: e.unit === "s" ? `${now} s gehalten (vorher ${before} s)` : `${now} Wdh. in einem Satz (vorher ${before})`});
+      if (now > before) out.push({exId: x.exId, name: e.name, text: e.unit === "s" ? tx("{n} s gehalten (vorher {m} s)", {n: now, m: before}) : tx("{n} Wdh. in einem Satz (vorher {m})", {n: now, m: before})});
     }
   }
   return out;
@@ -416,7 +426,7 @@ export function icsFor({days, time, before, minutes, title, url}) {
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SATZ//Trainingsheft//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
     "BEGIN:VEVENT", `UID:satz-${uid()}@satz`, `DTSTAMP:${utc}`, `DTSTART:${loc(start)}`, `DURATION:PT${Math.max(15, Math.round(minutes))}M`,
     `RRULE:FREQ=WEEKLY;BYDAY=${days.sort((a, b) => a - b).map(d => ICS_DAYS[d]).join(",")}`,
-    `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc("Öffne SATZ und starte dein Training: " + url)}`, `URL:${url}`,
+    `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc(tx("Öffne SATZ und starte dein Training:") + " " + url)}`, `URL:${url}`,
     ...(before >= 0 ? ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(title)}`, `TRIGGER:-PT${before}M`, "END:VALARM"] : []),
     "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
 }
@@ -502,7 +512,7 @@ export function sanitizeImport(d) {
     ...(s.onboarded ? {onboarded: true} : {}),
     ...(Array.isArray(s.trainDays) ? {trainDays: [...new Set(s.trainDays.filter(v => Number.isInteger(v) && v >= 0 && v <= 6))].sort()} : {}),
     ...(s.remind && typeof s.remind === "object" ? {remind: {days: arr(s.remind.days || [], "Erinnerung").filter(v => Number.isInteger(v) && v >= 0 && v <= 6),
-      time: typeof s.remind.time === "string" && /^\d{2}:\d{2}$/.test(s.remind.time) ? s.remind.time : "18:00", before: [0, 15, 30, 60].includes(s.remind.before) ? s.remind.before : 15}} : {})};
+      time: typeof s.remind.time === "string" && /^\d{2}:\d{2}$/.test(s.remind.time) ? s.remind.time : "18:00", before: [0, 15, 30, 60].includes(s.remind.before) ? s.remind.before : 15}} : {}), ...(LANG_IDS.includes(s.lang) ? {lang: s.lang} : {})};
   const pr = d.profile || {};
   const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",
     height: optNum(pr.height, 0, 250, 0), pal: [1.4, 1.55, 1.7, 1.9].includes(pr.pal) ? pr.pal : 1.55, goal: ["lose", "maintain", "gain"].includes(pr.goal) ? pr.goal : "maintain",

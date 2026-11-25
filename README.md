@@ -25,6 +25,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - `js/body3d.js` – 3D-Körperkarte aus einfachen Formen, Muskeln antippbar, Drehen per Ziehen. Liste als gleichwertige Alternative
 - `js/vendor/three.module.min.js` – three.js r170 (MIT, siehe `three-LICENSE`), wird nur auf der Körperkarte geladen
 - `js/app.js` – Screens und Bedienung
+- `js/i18n.js`, `js/lang/*.js` – Sprachen (Deutsch als Ausgangssprache, Englisch). Anleitung für eine neue Sprache steht oben in `js/i18n.js`; `node tools/i18n-check.js` meldet fehlende Übersetzungen
 - `icons/icon.svg` – einzige Quelle für das App-Icon. Ändern: SVG bearbeiten, `node tools/make-icons.js` erzeugt alle PNGs, dann veröffentlichen
 - `sw.js`, `manifest.webmanifest`, `icons/` – Offline-Betrieb und Installation; `icons/splash/` iOS-Startbilder (`node tools/make-splash.js`), `icons/screens/` Screenshots fürs Manifest (`node tools/make-screens.js`)
 - `fonts/archivo-satz.woff2` – Wortmarken-Schrift Archivo (SIL OFL), auf „SATZ.“ reduziert (1 KB), selbst gehostet
@@ -41,6 +42,11 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - Ernährung: Grundumsatz nach Mifflin-St Jeor, Aktivitätsfaktor nach FAO/WHO/UNU 2004, Ziel −0,5 % / 0 / +0,25 % Körpergewicht pro Woche, Protein 2,0 / 1,6 / 1,8 g/kg (Abnehmen / Halten / Aufbauen), Fett 25 % der Energie, Rest Kohlenhydrate. Quellen in der App unter Ernährung → Ziel.
 - Trainingsziele nach ACSM Position Stand 2009: Kraft & Muskeln 6–12 Wdh. und 2–3 min Pause, Kraftausdauer 15–25 Wdh. und unter 1 min Pause, Athletik explosive Übungen mit 3–6 Wdh. und langen Pausen. Übungen aus der Körperkarte starten mit dem Satzschema des Plan-Ziels.
 - Datenschutz Ernährung: An Open Food Facts gehen nur Barcode oder Suchbegriff. Profil, Gewicht und Tagebuch bleiben auf dem Gerät.
+
+## Sprachen
+- Deutscher Text im Code ist zugleich der Schlüssel: `tx("Training starten")`, Mehrzahl mit `txn(n, "{n} Satz", "{n} Sätze")`. Fehlt eine Übersetzung, erscheint Deutsch.
+- Beim allerersten Start (noch keine Daten auf dem Gerät) zeigt der Ladebildschirm die Sprachauswahl, vorbelegt nach Gerätesprache. Bestehende Nutzer behalten Deutsch ohne Auswahl. Ändern unter Mehr → Anzeige → Sprache.
+- Gespeicherte Namen (Pläne, Tage, eigene Übungen, Trainings) werden nie übersetzt.
 
 ## Veröffentlichen
 1. Änderung machen, in `sw.js` die `CACHE`-Version und in `js/app.js` `APP_VERSION` erhöhen.

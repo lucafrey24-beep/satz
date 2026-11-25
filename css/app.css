@@ -609,3 +609,26 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .calgrid .ovr .cnum{text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px; color:var(--label)}
 .wklegend .ovmark{display:inline-block; width:14px; height:2px; background:var(--label)}
 .calcard p .linkbtn{min-height:44px}
+
+/* ---------- Sprachauswahl beim ersten Start (im Ladebildschirm) ---------- */
+.tabs a > span{overflow:hidden; text-overflow:ellipsis}
+.splash.pick .splash-bar, .splash.pick .splash-skip{display:none}
+.splash.pick .splash-in{width:min(340px, calc(100vw - 32px))}
+.splash.pick .splash-mark{margin-bottom:20px}
+.splash-lang{text-align:left; margin-top:8px; animation:langin .35s ease both}
+@keyframes langin{from{opacity:0; transform:translateY(8px)}}
+@media (prefers-reduced-motion: reduce){ .splash-lang{animation:none} }
+.splash-lang h2{font-size:1.25rem; text-align:center; margin:0 0 4px}
+.splash-lang > p{text-align:center; color:var(--label-2); font-size:.88rem; margin:0 0 16px}
+.langlist{list-style:none; margin:0 0 20px; padding:0 0 0 16px; background:var(--card); border-radius:var(--r); overflow:hidden; max-height:46vh; overflow-y:auto}
+.langlist li + li button{border-top:.5px solid var(--sep)}
+.langlist button{display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:50px; padding:0 16px 0 0; border:0; background:none; color:var(--label); font:inherit; font-size:1.06rem; text-align:left; cursor:pointer}
+.langlist button small{display:block; color:var(--label-2); font-size:.76rem}
+.langlist .chk{flex:none; width:22px; height:22px; color:var(--tint); visibility:hidden}
+.langlist button[aria-checked="true"] .chk{visibility:visible}
+.langlist button[aria-checked="true"]{font-weight:600}
+.langlist button:focus-visible{outline:2px solid var(--tint); outline-offset:-2px; border-radius:8px}
+/* Sprache unter Mehr: Auswahl rechts in der Zeile, wie ein iOS-Popup-Menü */
+.row select.inline-select{-webkit-appearance:none; appearance:none; border:0; background:transparent; color:var(--label-2); font-size:1rem; min-height:44px; padding:0 22px 0 8px; text-align:right; max-width:60%;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14'%3E%3Cpath d='M1.5 5l3.5-3.5L8.5 5M1.5 9l3.5 3.5L8.5 9' fill='none' stroke='%238E8E93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 4px center; cursor:pointer}
+.row select.inline-select:focus-visible{outline:2px solid var(--tint); outline-offset:2px; border-radius:8px}
