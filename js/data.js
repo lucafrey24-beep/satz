@@ -104,25 +104,56 @@ const RAW = [
   ["tischrudern", "Rudern unter dem Tisch", ["ruecken"], ["bizeps"], 2.5, "bw"],
   ["superman", "Superman", ["lrs"], ["gluteus"], 2.5, "bw"],
   ["reverse_crunch", "Reverse Crunches", ["bauch"], [], 2.5, "bw"],
+  // ab 0.10: Widerstandsband. Einheit "band": kein Gewicht, Fortschritt über Wiederholungen und ein stärkeres Band.
+  ["band_rudern", "Rudern mit Band", ["ruecken"], ["bizeps"], 1, "band"],
+  ["band_pull_apart", "Band auseinanderziehen", ["schultern"], ["ruecken"], 1, "band"],
+  ["band_face_pull", "Face Pulls mit Band", ["schultern"], ["ruecken"], 1, "band"],
+  ["band_schulterdruecken", "Schulterdrücken mit Band", ["schultern"], ["trizeps"], 1, "band"],
+  ["band_pushdown", "Trizeps-Pushdown mit Band", ["trizeps"], [], 1, "band"],
+  ["band_curls", "Bizepscurls mit Band", ["bizeps"], [], 1, "band"],
+  ["band_seitschritte", "Seitschritte mit Miniband", ["gluteus"], [], 1, "band"],
+  // ab 0.10: Halteübungen in Sekunden (Einheit "s": „Wiederholungen“ sind Sekunden)
+  ["plank", "Unterarmstütz", ["bauch"], ["schultern"], 1, "s"],
+  ["seitstuetz", "Seitstütz", ["bauch"], [], 1, "s"],
+  ["wandsitzen", "Wandsitzen", ["quads"], ["gluteus"], 1, "s"],
+  // ab 0.10: Mobility und Dehnen (Sekunden, zählen nicht zum Trainingsvolumen)
+  ["dehn_hueftbeuger", "Hüftbeuger-Dehnung kniend", ["quads"], [], 1, "s"],
+  ["dehn_taube", "Taube (Hüftöffner)", ["gluteus"], [], 1, "s"],
+  ["dehn_beinbeuger", "Beinbeuger-Dehnung", ["hamstrings"], ["lrs"], 1, "s"],
+  ["dehn_brust", "Brustdehnung an der Wand", ["brust"], ["schultern"], 1, "s"],
+  ["dehn_kind", "Kindhaltung mit Lat-Dehnung", ["ruecken"], ["lrs"], 1, "s"],
+  ["mob_katze_kuh", "Katze und Kuh", ["lrs"], [], 1, "s"],
+  ["mob_bws_rotation", "Brustwirbel-Rotation im Vierfüßlerstand", ["ruecken"], [], 1, "s"],
+  ["dehn_wade", "Wadendehnung an der Wand", ["waden"], [], 1, "s"],
+  ["mob_tiefe_hocke", "Tiefe Hocke halten", ["quads", "gluteus"], [], 1, "s"],
+  ["dehn_schulter", "Schulterdehnung quer vor der Brust", ["schultern"], [], 1, "s"],
+  ["mob_weltbeste", "Ausfallschritt mit Rotation", ["gluteus", "hamstrings"], [], 1, "s"],
 ];
+// Mobility-Übungen: zählen nicht zum Volumen pro Muskel und brauchen keine Pause zwischen den Seiten.
+export const MOBILITY = new Set(["dehn_hueftbeuger", "dehn_taube", "dehn_beinbeuger", "dehn_brust", "dehn_kind", "mob_katze_kuh", "mob_bws_rotation", "dehn_wade", "mob_tiefe_hocke", "dehn_schulter", "mob_weltbeste"]);
+export const isMobility = e => !e.custom && MOBILITY.has(e.id);
+// Einheiten ohne Gewicht: Band (Fortschritt über Wdh. und Bandstärke) und Sekunden (Halten)
+export const noLoad = e => e.unit === "band" || e.unit === "s";
 // Wo geht die Übung? studio = braucht Studio-Geräte, kh = Kurzhanteln oder Kettlebell (zu Hause möglich),
 // stange = Klimmzugstange, ohne = ohne Gerät (Boden, Stufe, Stuhl). Eigene Übungen haben kein Merkmal.
 // Nur ein Filter beim Suchen: gespeicherte Übungen bekommen dafür kein neues Feld.
-export const KIT_LABEL = {studio: "Studio", kh: "Kurzhanteln", stange: "Klimmzugstange", ohne: "Ohne Gerät"};
+export const KIT_LABEL = {studio: "Studio", kh: "Kurzhanteln", stange: "Klimmzugstange", ohne: "Ohne Gerät", band: "Widerstandsband"};
 export const KIT_FILTERS = [
   {id: "", l: "Alle Geräte"}, {id: "studio", l: "Studio"}, {id: "zuhause", l: "Zu Hause"},
-  {id: "kh", l: "Kurzhanteln"}, {id: "ohne", l: "Ohne Gerät"},
+  {id: "kh", l: "Kurzhanteln"}, {id: "band", l: "Widerstandsband"}, {id: "ohne", l: "Ohne Gerät"}, {id: "mobil", l: "Mobility & Dehnen"},
 ];
 const KIT_GROUPS = {
   kh: "kh_bank seitheben kh_rudern bizepscurls hammercurls trizeps_overhead ausfallschritte bulgarian goblet step_ups kb_swing kh_schraegbank kh_floorpress kh_fliegende kh_pullover kh_rudern_beid kh_schulterdruecken arnold_press kh_reverse_fly kh_rdl kh_rdl_einbeinig rueckw_ausfall",
   stange: "klimmzuege leg_raises chinups",
-  ohne: "liegestuetze wadenheben crunches glute_bridge box_jump sprung_kb kniebeuge_kg split_squat bridge_einbeinig waden_einbeinig liegestuetze_eng liegestuetze_erhoeht pike_liegestuetze bank_dips tischrudern superman reverse_crunch",
+  band: "band_rudern band_pull_apart band_face_pull band_schulterdruecken band_pushdown band_curls band_seitschritte",
+  ohne: "plank seitstuetz wandsitzen dehn_hueftbeuger dehn_taube dehn_beinbeuger dehn_brust dehn_kind mob_katze_kuh mob_bws_rotation dehn_wade mob_tiefe_hocke dehn_schulter mob_weltbeste liegestuetze wadenheben crunches glute_bridge box_jump sprung_kb kniebeuge_kg split_squat bridge_einbeinig waden_einbeinig liegestuetze_eng liegestuetze_erhoeht pike_liegestuetze bank_dips tischrudern superman reverse_crunch",
 };
 export const KIT = {};
 for (const [k, ids] of Object.entries(KIT_GROUPS)) ids.split(" ").forEach(id => KIT[id] = k);
 RAW.forEach(r => { if (!KIT[r[0]]) KIT[r[0]] = "studio"; });
 export function kitMatch(e, f) {
   if (!f) return true;
+  if (f === "mobil") return isMobility(e);
   const k = e.custom ? "" : KIT[e.id];
   if (!k) return false;
   return f === "zuhause" ? k !== "studio" : k === f;
@@ -209,6 +240,27 @@ export const INFO = {
   tischrudern: ["invrow", "Stabiler Tisch oder tiefe Stange", "Körper gerade unter der Kante, Brust zur Kante ziehen."],
   superman: ["superman", "Matte", "Auf dem Bauch, Arme und Beine gleichzeitig leicht anheben, kurz halten."],
   reverse_crunch: ["revcrunch", "Matte", "Knie zur Brust ziehen, Becken vom Boden einrollen, langsam ablassen."],
+  band_rudern: ["row_band", "Widerstandsband um die Füße", "Aufrecht sitzen, Band zum Bauch ziehen, Schulterblätter zusammen."],
+  band_pull_apart: ["pullapart", "Widerstandsband", "Arme gestreckt vor der Brust, Band bis zur Brust auseinanderziehen."],
+  band_face_pull: ["facepull_band", "Band an Tür oder Pfosten, Kopfhöhe", "Band zum Gesicht ziehen, Ellbogen hoch, Hände außen."],
+  band_schulterdruecken: ["press_band", "Band unter den Füßen", "Hände auf Schulterhöhe, senkrecht nach oben drücken, Rumpf fest."],
+  band_pushdown: ["pushdown_band", "Band oben an der Tür", "Ellbogen fest an der Seite, Arme ganz strecken."],
+  band_curls: ["curl_band", "Band unter den Füßen", "Ellbogen am Körper, Hände hochrollen, langsam ablassen."],
+  band_seitschritte: ["sidestep_band", "Miniband über den Knien", "Leicht in der Hocke, kleine Schritte zur Seite, Knie nach außen drücken."],
+  plank: ["plank", "Matte", "Unterarme unter den Schultern, Körper gerade wie ein Brett, Bauch und Gesäß fest."],
+  seitstuetz: ["plank", "Matte", "Auf einem Unterarm, Körper seitlich gerade, Hüfte nicht absinken lassen. Seiten wechseln."],
+  wandsitzen: ["wallsit", "Wand", "Rücken an der Wand, Knie etwa 90°, Gewicht auf den Fersen."],
+  dehn_hueftbeuger: ["kneelstretch", "Matte unter dem Knie", "Hinteres Knie am Boden, Becken nach vorn schieben, Gesäß anspannen. Seiten wechseln."],
+  dehn_taube: ["pigeon", "Matte", "Vorderes Bein quer angewinkelt, hinteres gestreckt. Oberkörper langsam nach vorn sinken lassen. Seiten wechseln."],
+  dehn_beinbeuger: ["fold", "Ohne Gerät", "Knie leicht gebeugt, mit geradem Rücken aus der Hüfte nach vorn beugen."],
+  dehn_brust: ["chestwall", "Wand oder Türrahmen", "Unterarm an der Wand auf Schulterhöhe, Oberkörper langsam wegdrehen. Seiten wechseln."],
+  dehn_kind: ["child", "Matte", "Auf die Fersen setzen, Arme weit nach vorn, Brust Richtung Boden sinken lassen."],
+  mob_katze_kuh: ["catcow", "Matte", "Im Vierfüßlerstand langsam abwechselnd Rücken rund machen und durchhängen lassen. Mit dem Atem."],
+  mob_bws_rotation: ["quadrot", "Matte", "Im Vierfüßlerstand eine Hand hinter den Kopf, Ellbogen zur Decke drehen. Blick folgt. Seiten wechseln."],
+  dehn_wade: ["calfwall", "Wand", "Hinteres Bein gestreckt, Ferse am Boden, Hüfte Richtung Wand schieben. Seiten wechseln."],
+  mob_tiefe_hocke: ["deepsquat", "Ohne Gerät, optional festhalten", "So tief wie möglich hocken, Fersen am Boden, Brust aufrecht, ruhig atmen."],
+  dehn_schulter: ["crossarm", "Ohne Gerät", "Arm gestreckt vor der Brust zur anderen Seite ziehen, Schulter tief. Seiten wechseln."],
+  mob_weltbeste: ["kneelstretch", "Matte", "Großer Ausfallschritt, Hand neben den vorderen Fuß, anderen Arm zur Decke drehen. Seiten wechseln."],
 };
 // Fallback für eigene Übungen: Vorlage nach Hauptmuskel
 export const PATTERN_BY_MUSCLE = {brust: "bench", ruecken: "row_bb", schultern: "press", bizeps: "curl", trizeps: "pushdown", quads: "squat",
@@ -225,7 +277,7 @@ export const COMPOUND = new Set(["brustpresse", "schulterpresse", "rudermaschine
 export const isCompound = e => e.custom ? (e.compound ?? e.primary.length + e.secondary.length > 1) : COMPOUND.has(e.id);
 // Pausenstandard (Schoenfeld et al. 2016: 3 min > 1 min bei schweren Grundübungen; Grgic et al. 2018; Singer et al. 2024: ab ~90 s kaum Unterschied):
 // schwere Grundübung (bis 8 Wdh.) 180 s, andere Grundübung 120 s, Isolationsübung 90 s.
-export function defaultRest(e, maxReps) { return isCompound(e) ? (maxReps <= 8 ? 180 : 120) : 90; }
+export function defaultRest(e, maxReps) { return isMobility(e) ? 15 : e.unit === "s" ? 60 : isCompound(e) ? (maxReps <= 8 ? 180 : 120) : 90; }
 
 // Trainingsziele (ACSM Position Stand 2009, Ratamess et al.):
 // Kraft/Muskelaufbau: 6–12 Wdh., 2–3 min Pause. Kraftausdauer: 15–25 Wdh., Pausen unter 1 min.

@@ -1,5 +1,5 @@
 // Zustand, Speicherung, Progression und Volumen.
-import {EXERCISES, TEMPLATES, MUSCLES, MEASURES, isCompound, defaultRest} from "./data.js";
+import {EXERCISES, TEMPLATES, MUSCLES, MEASURES, isCompound, defaultRest, isMobility, noLoad} from "./data.js";
 const MEASURE_IDS = new Set(MEASURES.map(m => m.id));
 
 const KEY = "satz-data";
@@ -129,6 +129,7 @@ export function nextDayIndex(p) {
 const zero = () => Object.fromEntries(MUSCLES.map(m => [m.id, 0]));
 function addSets(v, exId, n) {
   const e = ex(exId);
+  if (isMobility(e)) return;   // Dehnen und Mobility zählen nicht als Trainingsvolumen
   e.primary.forEach(m => v[m] = (v[m] || 0) + n);
   e.secondary.forEach(m => v[m] = (v[m] || 0) + n * 0.5);
 }
@@ -189,7 +190,7 @@ export function setCount(exId) {
 }
 // Sinnvoller Startwert beim ersten Mal: Langhantel 20 kg, sonst ein leichtes Gewicht (danach direkt eintippen)
 export function startWeight(e) {
-  if (e.unit === "bw") return 0;
+  if (e.unit === "bw" || noLoad(e)) return 0;
   if (/langhantel|bankdr|kniebeug|kreuzheb|rudern|schulterdr|sz/i.test(e.name) && !/kurzhantel/i.test(e.name)) return 20;
   return isCompound(e) ? 20 : 10;
 }
@@ -198,12 +199,36 @@ const roundTo = (x, step) => step ? Math.max(0, Math.round(x / step) * step) : x
 export const fmt = n => (Math.round(n * 100) / 100).toLocaleString("de-DE");
 export function fmtW(e, kg) {
   if (e.unit === "bw") return kg ? `Körpergewicht + ${fmt(kg)} kg` : "Körpergewicht";
+  if (e.unit === "band") return "Band";
+  if (e.unit === "s") return "Halten";
   return `${fmt(kg)} kg`;
+}
+// Einheit der „Wiederholungen“: bei Halteübungen Sekunden
+export const repWord = e => e.unit === "s" ? "Sekunden" : "Wiederholungen";
+export const repShort = e => e.unit === "s" ? "Sek." : "Wdh.";
+
+// Band und Halten: kein Gewicht. Band: erst alle Sätze bis zum oberen Ende, dann stärkeres Band.
+// Halten: bis zum oberen Ende steigern, dort bleiben. Mobility hat kein Leistungsziel.
+function suggestNoLoad(slot, e, last) {
+  const u = e.unit === "s" ? "s" : "Wdh.", range = `${slot.sets} × ${slot.min}–${slot.max} ${u}`;
+  if (!last) return {kind: "new", kg: 0, reps: e.unit === "s" ? slot.min : slot.max,
+    text: isMobility(e) ? `Locker in die Dehnung gehen, ruhig atmen, nicht wippen. Ziel: ${range}.`
+      : e.unit === "s" ? `Erstes Mal. Halte sauber ${slot.min} s, Ziel: ${range}.` : `Erstes Mal. Wähle ein Band, mit dem du ${slot.max} saubere Wdh. schaffst.`};
+  const prev = `Letztes Mal: ${last.sets.map(x => x.reps).join(" + ")} ${u}.`;
+  if (isMobility(e)) return {kind: "hold", kg: 0, reps: slot.max, text: `${prev} Heute wieder ${range}. Dehnen ohne Schmerz, mit dem Atem tiefer.`};
+  const all = last.sets.length >= slot.sets && last.sets.every(x => x.reps >= slot.max);
+  if (e.unit === "band") return all
+    ? {kind: "up", kg: 0, reps: slot.min, text: `${prev} Ziel erreicht. Nimm heute ein stärkeres Band, Ziel ab ${slot.min} Wdh.`}
+    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 1), text: `${prev} Gleiches Band, eine Wiederholung mehr. Ziel: ${slot.sets} × ${slot.max}.`};
+  return all
+    ? {kind: "hold", kg: 0, reps: slot.max, text: `${prev} Ziel erreicht. Halte die ${slot.max} s sauber oder wähle eine schwerere Variante.`}
+    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 5), text: `${prev} Heute etwa 5 s länger. Ziel: ${range}.`};
 }
 
 // Doppelte Progression pro Übung (Plotkin et al. 2022): erst alle Sätze bis zum oberen Ende der Spanne, dann Gewicht steigern.
 export function suggest(slot) {
   const e = ex(slot.exId), last = lastSetsFor(slot.exId);
+  if (noLoad(e)) return suggestNoLoad(slot, e, last);
   if (!last) {
     return {kind: "new", kg: startWeight(e), reps: slot.max,
       text: e.unit === "bw"
@@ -312,7 +337,7 @@ export function sanitizeImport(d) {
   for (const [k, e] of Object.entries(d.exercises || bad("Übungen fehlen."))) {
     id(k, "Übung");
     exercises[k] = {id: k, name: str(e.name, 80) || "Übung", primary: arr(e.primary, "Muskeln").filter(m => MUSCLE_IDS.has(m)), secondary: arr(e.secondary || [], "Muskeln").filter(m => MUSCLE_IDS.has(m)),
-      step: optNum(e.step, 0.1, 50, 2.5), unit: e.unit === "bw" ? "bw" : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
+      step: optNum(e.step, 0.1, 50, 2.5), unit: ["bw", "band", "s"].includes(e.unit) ? e.unit : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
     if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
   }
   const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik"].includes(p.goal) ? p.goal : "kraft",

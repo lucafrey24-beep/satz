@@ -88,7 +88,7 @@ main:focus{outline:none}
 .eyebrow{font-size:.765rem; font-weight:400; color:var(--label-2); margin:12px 0 2px; text-transform:uppercase; letter-spacing:.02em}
 h1.big{font-size:2rem; font-weight:700; letter-spacing:.01em; line-height:1.15; margin:4px 0 12px; overflow-wrap:anywhere; hyphens:auto}
 h1.big:focus{outline:none}
-h2.sec{font-size:.765rem; font-weight:400; color:var(--label-2); text-transform:uppercase; letter-spacing:.02em; margin:28px 16px 6px}
+h2.sec, h3.sec{font-size:.765rem; font-weight:400; color:var(--label-2); text-transform:uppercase; letter-spacing:.02em; margin:28px 16px 6px}
 h3{font-size:1rem; font-weight:600; margin:0}
 p{margin:0 0 12px}
 .meta{color:var(--label-2); font-size:.88rem}
@@ -427,6 +427,7 @@ svg.exanim{display:block; width:100%; height:auto; max-height:200px}
 .exanim .eql{stroke:var(--label-2); stroke-width:2; stroke-linecap:round}
 .exanim .eqt{stroke:var(--label-2); stroke-width:3.4; stroke-linecap:round}
 .exanim .cbl{stroke:var(--label-2); stroke-width:1; stroke-dasharray:3 2}
+.exanim .bnd{stroke:var(--tint); stroke-width:1.8; stroke-linecap:round; opacity:.8}
 .exanim .ld{fill:var(--label-2)}
 .exanim .hub{fill:var(--card)}
 .exanim .fl{stroke:var(--sep); stroke-width:1.5}

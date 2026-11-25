@@ -1,5 +1,5 @@
 import * as St from "./store.js";
-import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch} from "./data.js";
+import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch, noLoad, isMobility} from "./data.js";
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
@@ -12,8 +12,8 @@ const D = () => St.S;
 export const APP_VERSION = "0.9.8";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
-const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
-const schemeSr = sl => `${sl.sets} ${sl.sets === 1 ? "Satz" : "Sätze"}, ${sl.min} bis ${sl.max} Wiederholungen`;
+const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
+const schemeSr = sl => `${sl.sets} ${sl.sets === 1 ? "Satz" : "Sätze"}, ${sl.min} bis ${sl.max} ${St.repWord(St.ex(sl.exId))}`;
 const dateDe = iso => new Date(iso).toLocaleDateString("de-DE", {weekday: "short", day: "numeric", month: "numeric"});
 const muscleList = e => [...e.primary.map(m => MUSCLE_NAME[m]), ...e.secondary.map(m => MUSCLE_NAME[m] + " (mit)")].join(", ");
 // Gerät der Übung (nur Bibliothek) und Auswahlfeld für den Gerätefilter. Der Filter gilt für Auswahl und Übungsliste gemeinsam.
@@ -227,7 +227,7 @@ function viewToday() {
     <ol class="exlist" aria-label="Übungen">
       ${d.slots.map(sl => { const e = St.ex(sl.exId), l = St.lastSetsFor(sl.exId);
         return `<li><span class="t">${esc(e.name)}</span><span class="s"><span aria-hidden="true">${scheme(dsl(sl))}</span><span class="sr">${schemeSr(dsl(sl))}</span></span>
-        ${l ? `<span class="l">Zuletzt: ${St.fmtW(e, Math.max(...l.sets.map(x => x.kg)))}, ${l.sets.map(x => x.reps).join(" + ")} Wdh.</span>` : ""}</li>`; }).join("")}
+        ${l ? `<span class="l">Zuletzt: ${noLoad(e) ? "" : St.fmtW(e, Math.max(...l.sets.map(x => x.kg))) + ", "}${l.sets.map(x => x.reps).join(" + ")} ${St.repShort(e)}</span>` : ""}</li>`; }).join("")}
     </ol>
     ${d.slots.length ? `<div class="actionbar"><button class="btn primary" data-act="start" data-i="${di}">${D().active ? "Training fortsetzen" : "Training starten"}</button></div>`
       : `<p class="meta">Dieser Tag hat noch keine Übungen.</p><a class="btn" href="#/plan/${p.id}">Plan bearbeiten</a>`}`;
@@ -325,6 +325,10 @@ function viewEditor(id) {
 const curPlan = () => St.plan(location.hash.split("/")[2]);
 
 /* ---------- Slot-Dialog ---------- */
+// Halteübungen bis 100 s (so groß darf ein gespeicherter Satz sein), sonst bis 50 Wdh.
+const maxReps = e => e.unit === "s" ? 100 : 50;
+// Satzschema, wenn eine Übung neu in den Plan kommt: Halten und Mobility in Sekunden, sonst 3 × 8–12
+const slotDefault = e => isMobility(e) ? {sets: 2, min: 30, max: 45, rest: 15} : e.unit === "s" ? {sets: 3, min: 20, max: 45, rest: 60} : {sets: 3, min: 8, max: 12, rest: 0};
 function openSlot() {
   const sl = ui.draft, e = St.ex(sl.exId);
   openDialog(`<h2 id="dlg-h">${ui.draftNew ? "Übung hinzufügen" : "Übung im Plan"}</h2>
@@ -335,18 +339,19 @@ function openSlot() {
     <div class="pair">
       <label class="field">Sätze <input id="f-sets" type="number" inputmode="numeric" min="1" max="10" value="${sl.sets}"></label>
       <label class="field">Pause <select id="f-rest">
-        ${[0, 60, 90, 120, 150, 180, 240].map(r => `<option value="${r}" ${sl.rest === r ? "selected" : ""}>${r ? r + " s" : "Standard"}</option>`).join("")}
+        ${[...new Set([0, 15, 30, 45, 60, 90, 120, 150, 180, 240, sl.rest || 0])].sort((a, b) => a - b).map(r => `<option value="${r}" ${sl.rest === r ? "selected" : ""}>${r ? r + " s" : "Standard"}</option>`).join("")}
       </select></label></div>
-    <fieldset><legend>Wiederholungen</legend><div class="pair">
-      <label class="field">von <input id="f-min" type="number" inputmode="numeric" min="1" max="50" value="${sl.min}"></label>
-      <label class="field">bis <input id="f-max" type="number" inputmode="numeric" min="1" max="50" value="${sl.max}"></label></div></fieldset>
+    <fieldset><legend>${St.repWord(e)}</legend><div class="pair">
+      <label class="field">von <input id="f-min" type="number" inputmode="numeric" min="1" max="${maxReps(e)}" value="${sl.min}"></label>
+      <label class="field">bis <input id="f-max" type="number" inputmode="numeric" min="1" max="${maxReps(e)}" value="${sl.max}"></label></div></fieldset>
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="slotsave">Speichern</button></div>`,
     ui.draftNew ? "#f-sets" : "#dlg-h");
 }
 function saveSlot() {
   const sets = +$("#f-sets").value, min = +$("#f-min").value, max = +$("#f-max").value, rest = +$("#f-rest").value;
   if (!(sets >= 1 && sets <= 10)) return dlgError("Sätze: bitte eine Zahl von 1 bis 10.");
-  if (!(min >= 1 && max <= 50 && min <= max)) return dlgError("Wiederholungen: „von“ muss zwischen 1 und „bis“ liegen, „bis“ höchstens 50.");
+  const mx = maxReps(St.ex(ui.draft.exId));
+  if (!(min >= 1 && max <= mx && min <= max)) return dlgError(`${St.repWord(St.ex(ui.draft.exId))}: „von“ muss zwischen 1 und „bis“ liegen, „bis“ höchstens ${mx}.`);
   const p = curPlan(), d = p.days[ui.eday];
   Object.assign(ui.draft, {sets, min, max, rest});
   if (ui.draftNew) d.slots.push(ui.draft); else d.slots[d.slots.findIndex(s => s.id === ui.draft.id)] = ui.draft;
@@ -358,8 +363,8 @@ function saveSlot() {
 
 /* ---------- Übungsauswahl ---------- */
 let pickCb = null;
-function openPicker(cb) {
-  pickCb = cb; ui.pq = ""; ui.pm = "";
+function openPicker(cb, swapFrom) {
+  pickCb = cb; ui.pq = ""; ui.pm = ""; ui.swapFrom = swapFrom || null;
   openDialog(`<h2 id="dlg-h">Übung wählen</h2>
     <label class="field">Suchen oder eigenen Namen eingeben <input id="pq" type="search" data-on="pq" autocomplete="off" enterkeyhint="search"></label>
     <div class="pair"><label class="field">Muskel <select data-on="pm"><option value="">Alle Muskeln</option>${MUSCLES.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></label>
@@ -374,8 +379,13 @@ function renderPickList() {
     .filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)) && kitMatch(e, ui.kit))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
   const exact = list.some(e => e.name.toLowerCase() === q);
+  // Beim Tauschen: Alternativen für denselben Hauptmuskel zuerst, im gewählten Gerätefilter
+  const from = ui.swapFrom && St.ex(ui.swapFrom);
+  const alts = from && !q && !ui.pm ? Object.values(D().exercises).filter(e => !e.archived && e.id !== from.id && e.primary[0] === from.primary[0] && isMobility(e) === isMobility(from) && kitMatch(e, ui.kit))
+    .sort((a, b) => (St.setCount(b.id) - St.setCount(a.id)) || a.name.localeCompare(b.name, "de")).slice(0, 6) : [];
   $("#pres").innerHTML = `
     ${q && !exact ? `<button class="btn primary" data-act="newex" style="margin-bottom:12px">„${esc(ui.pq.trim())}“ als eigene Übung anlegen</button>` : ""}
+    ${alts.length ? `<h3 class="sec" id="alt-h">Alternativen für ${esc(from.name)}</h3><ul class="plist" aria-labelledby="alt-h">${alts.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}</b><small>${esc(exMeta(e))}</small></button></li>`).join("")}</ul><h3 class="sec">Alle Übungen</h3>` : ""}
     <p class="meta" aria-live="polite">${list.length} Treffer${ui.kit ? ". Eigene Übungen erscheinen nur bei „Alle Geräte“." : ""}</p>
     <ul class="plist">${list.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b><small>${esc(exMeta(e))}</small></button></li>`).join("")}</ul>`;
 }
@@ -396,7 +406,7 @@ function openExForm(exId, name, after) {
       ${MUSCLES.map(m => `<label class="check"><input type="checkbox" name="x-sec" value="${m.id}" ${e.secondary.includes(m.id) ? "checked" : ""}>${m.name}</label>`).join("")}
     </div></fieldset>`}
     <div class="pair">
-      <label class="field">Einheit <select id="x-unit"><option value="kg" ${e.unit === "kg" ? "selected" : ""}>Gewicht</option><option value="bw" ${e.unit === "bw" ? "selected" : ""}>Körpergewicht</option></select></label>
+      <label class="field">Einheit <select id="x-unit"><option value="kg" ${e.unit === "kg" ? "selected" : ""}>Gewicht</option><option value="bw" ${e.unit === "bw" ? "selected" : ""}>Körpergewicht</option><option value="band" ${e.unit === "band" ? "selected" : ""}>Widerstandsband</option><option value="s" ${e.unit === "s" ? "selected" : ""}>Halten (Sekunden)</option></select></label>
       <label class="field">Steigerung <select id="x-step">${[1, 1.25, 2, 2.5, 5, 10].map(s => `<option value="${s}" ${e.step === s ? "selected" : ""}>${fmt(s)} kg</option>`).join("")}</select></label>
     </div>
     ${exId ? `<p class="meta">Umbenennen ändert nichts am Verlauf: ${St.setCount(exId)} gespeicherte Sätze bleiben dieser Übung zugeordnet.</p>` : ""}
@@ -526,7 +536,7 @@ function viewTraining() {
     <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.workFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
     <div class="exnav"><button type="button" class="linkbtn" data-act="exprev" ${i === 0 ? "disabled" : ""}><span aria-hidden="true">‹</span> Vorherige Übung</button>
       <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>Nächste Übung <span aria-hidden="true">›</span></button></div>
-    <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · ${done ? `erledigt, ${logged.length} von ${target} Sätzen` : `Satz ${logged.length + 1} von ${target}`} · Ziel ${it.min}–${it.max} Wdh.</p>
+    <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · ${done ? `erledigt, ${logged.length} von ${target} Sätzen` : `Satz ${logged.length + 1} von ${target}`} · Ziel ${it.min}–${it.max} ${St.repShort(e)}</p>
     <h1 class="big">${esc(e.name)}</h1>
     <p class="hint" ${done ? "hidden" : ""}>${esc(sug.text)}${lastNote && !note ? `<br><b>Notiz vom ${dateDe(lastNote.date)}:</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>Notiz:</b> ${esc(note)}` : ""}</p>
     ${D().settings.showFig !== false ? exFigure(e, true) : ""}
@@ -538,15 +548,16 @@ function viewTraining() {
     <div class="actionbar"><button class="btn primary" data-act="exgo" id="saveset">${St.firstOpen(a, 0) >= 0 ? "Weiter zur offenen Übung" : "Zur Zusammenfassung"}</button></div>` : `
     <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:10px">
       ${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="stype" data-v="${v}" aria-pressed="${st === v}">${l}</button>`).join("")}</div>
-    <div class="stepper" role="group" aria-labelledby="kg-l">
+    ${noLoad(e) ? "" : `<div class="stepper" role="group" aria-labelledby="kg-l">
       <button data-act="kg" data-d="-1" aria-label="Gewicht um ${fmt(e.step)} Kilo verringern">−</button>
       <div class="val"><input id="kgIn" class="v num" data-on="kgin" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(ui.kg)}" aria-describedby="kg-l"><label id="kg-l" for="kgIn" class="u">${bw ? "kg zusätzlich" : "kg"} · antippen zum Eintippen</label></div>
-      <button data-act="kg" data-d="1" aria-label="Gewicht um ${fmt(e.step)} Kilo erhöhen">+</button></div>
+      <button data-act="kg" data-d="1" aria-label="Gewicht um ${fmt(e.step)} Kilo erhöhen">+</button></div>`}
+    ${e.unit === "band" ? `<p class="meta">Bandstärke: schreib sie in die Notiz, dann steht sie beim nächsten Mal hier.</p>` : ""}
     <div class="stepper" role="group" aria-labelledby="reps-l">
-      <button data-act="reps" data-d="-1" aria-label="Eine Wiederholung weniger">−</button>
-      <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">Wiederholungen</label></div>
-      <button data-act="reps" data-d="1" aria-label="Eine Wiederholung mehr">+</button></div>
-    ${D().settings.rir && st !== "warm" ? `<fieldset><legend>Wie viele Wdh. wären noch gegangen? <span style="font-weight:500">(optional)</span></legend>
+      <button data-act="reps" data-d="-1" aria-label="${e.unit === "s" ? "5 Sekunden weniger" : "Eine Wiederholung weniger"}">−</button>
+      <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">${St.repWord(e)}</label></div>
+      <button data-act="reps" data-d="1" aria-label="${e.unit === "s" ? "5 Sekunden mehr" : "Eine Wiederholung mehr"}">+</button></div>
+    ${D().settings.rir && st !== "warm" && !isMobility(e) ? `<fieldset><legend>Wie viele Wdh. wären noch gegangen? <span style="font-weight:500">(optional)</span></legend>
       <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></fieldset>` : ""}
     <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? "Aufwärmsatz speichern" : st === "drop" ? "Drop-Satz speichern" : `Satz ${logged.length + 1} speichern`}</button></div>`}
     ${setTable(a, i, it, e, all, logged, target, done, st, sug, form)}
@@ -575,8 +586,8 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
     else rows.push({open: true, lab: `Satz ${k + 1}`, kind: "work", extra: k >= it.sets});
   }
   if (!rows.length) return "";
-  const kgTxt = v => e.unit === "bw" ? (v ? `+${fmt(v)}` : "KG") : fmt(v);
-  const kgSay = v => e.unit === "bw" ? (v ? `Körpergewicht plus ${fmt(v)} Kilo` : "Körpergewicht") : `${fmt(v)} Kilo`;
+  const kgTxt = v => e.unit === "band" ? "Band" : e.unit === "s" ? "–" : e.unit === "bw" ? (v ? `+${fmt(v)}` : "KG") : fmt(v);
+  const kgSay = v => e.unit === "band" ? "Band" : e.unit === "s" ? "Halten" : e.unit === "bw" ? (v ? `Körpergewicht plus ${fmt(v)} Kilo` : "Körpergewicht") : `${fmt(v)} Kilo`;
   const showRir = D().settings.rir !== false;
   const rirCell = v => showRir ? `<span class="c-n c-rir">${v}</span>` : "";
   const lab = r => r.kind === "drop" ? `<span aria-hidden="true">↳ </span>${r.lab}` : r.lab;
@@ -592,7 +603,7 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
   }).join("");
   const wDone = logged.length, summary = done ? `${wDone} von ${target} Sätzen erledigt` : `Satz ${Math.min(wDone + 1, target)} von ${target}${target - wDone - 1 > 0 ? `, danach noch ${target - wDone - 1} offen` : ", der letzte"}`;
   return `<h2 class="sec" id="sets-h" style="margin-top:8px">Sätze <span class="sec-sub">${summary}</span></h2>
-    <div class="sethead ${D().settings.rir !== false ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">Wdh.</span>${D().settings.rir !== false ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
+    <div class="sethead ${D().settings.rir !== false ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${noLoad(e) ? "" : e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">${St.repShort(e)}</span>${D().settings.rir !== false ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
     <ol class="setlist ${D().settings.rir !== false ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
 }
 const fmtSec = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
@@ -699,7 +710,7 @@ function readSetInputs() {
 function syncCur() {
   const k = $("#curKg"), r = $("#curReps"), a = D() && D().active; if (!a || (!k && !r)) return;
   const e = St.ex(a.queue[a.idx].exId);
-  if (k) k.textContent = e.unit === "bw" ? (ui.kg ? `+${fmt(ui.kg)}` : "KG") : fmt(ui.kg);
+  if (k) k.textContent = e.unit === "band" ? "Band" : e.unit === "s" ? "–" : e.unit === "bw" ? (ui.kg ? `+${fmt(ui.kg)}` : "KG") : fmt(ui.kg);
   if (r) r.textContent = ui.reps;
 }
 function saveSet() {
@@ -707,7 +718,7 @@ function saveSet() {
   const a = D().active, i = a.idx, it = a.queue[i], e = St.ex(it.exId), type = ui.stype || "work";
   a.sets.push({q: i, exId: it.exId, kg: ui.kg, reps: ui.reps, rir: type === "warm" ? null : ui.rir, t: Date.now(), ...(type !== "work" ? {type} : {})});
   const n = St.workFor(a, i).length, target = St.targetSets(it);
-  let msg = `Gespeichert: ${type === "warm" ? "Aufwärmsatz, " : type === "drop" ? "Drop-Satz, " : ""}${St.fmtW(e, ui.kg)}, ${ui.reps} Wiederholungen.`;
+  let msg = `Gespeichert: ${type === "warm" ? "Aufwärmsatz, " : type === "drop" ? "Drop-Satz, " : ""}${noLoad(e) ? "" : St.fmtW(e, ui.kg) + ", "}${ui.reps} ${St.repWord(e)}.`;
   if (type === "work" && ui.reps < it.min) msg += ` Unter dem Ziel von ${it.min}.`;
   if (type === "drop") { ui.stype = "work"; ui.addAfter = false; }
   const nextIdx = St.firstOpen(a, i);
@@ -735,11 +746,11 @@ function openSetEdit(k) {
   openDialog(`<h2 id="dlg-h">Satz korrigieren</h2><p class="meta" style="text-align:center;margin-top:-10px">${esc(e.name)}</p>
     <p class="err" role="alert" hidden></p>
     <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:12px">${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="setype" data-v="${v}" aria-pressed="${(x.type || "work") === v}">${l}</button>`).join("")}</div>
-    <div class="pair"><label class="field">${e.unit === "bw" ? "kg zusätzlich" : "kg"} <input id="se-kg" inputmode="decimal" autocomplete="off" value="${fmt(x.kg)}"></label>
-      <label class="field">Wiederholungen <input id="se-reps" inputmode="numeric" autocomplete="off" value="${x.reps}"></label></div>
+    <div class="pair"><label class="field" ${noLoad(e) ? "hidden" : ""}>${e.unit === "bw" ? "kg zusätzlich" : "kg"} <input id="se-kg" inputmode="decimal" autocomplete="off" value="${fmt(x.kg)}"></label>
+      <label class="field">${St.repWord(e)} <input id="se-reps" inputmode="numeric" autocomplete="off" value="${x.reps}"></label></div>
     ${D().settings.rir ? `<label class="field">Wdh. in Reserve <select id="se-rir"><option value="">keine Angabe</option>${[0, 1, 2, 3, 4].map(r => `<option value="${r}" ${x.rir === r ? "selected" : ""}>${r === 4 ? "4+" : r}</option>`).join("")}</select></label>` : ""}
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="setsave">Speichern</button></div>
-    <button class="btn destructive" data-act="setdel" style="margin-top:10px">Satz löschen</button>`, "#se-kg");
+    <button class="btn destructive" data-act="setdel" style="margin-top:10px">Satz löschen</button>`, noLoad(e) ? "#se-reps" : "#se-kg");
 }
 function saveSetEdit() {
   const a = D().active, x = a.sets[ui.setEdit]; if (!x) return closeDialog();
@@ -859,11 +870,11 @@ function exDetail(id) {
   });
   const pts = hist.slice(-12);
   // Bei Körpergewichtsübungen ohne Zusatzlast zählen die Wiederholungen, sonst das geschätzte 1RM (Epley)
-  const useReps = bw && pts.every(h => h.best.kg === 0);
-  const svg = chart(pts.map(h => useReps ? h.reps : h.e1), pts.map(h => shortDate(h.date)), useReps ? "Wdh." : "kg",
-    useReps ? "Wiederholungen gesamt pro Training" : "Geschätztes 1RM (Epley) aus dem besten Satz");
-  return `${svg}<div class="table-wrap"><table><caption class="sr">Arbeitssätze pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col">Sätze</th><th scope="col" class="n">${useReps ? "Wdh." : "1RM ca."}</th></tr></thead>
-    <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="num">${h.sets.map(y => `${fmt(y.kg)}×${y.reps}`).join(", ")}</td><td class="n">${useReps ? h.reps : fmt(Math.round(h.e1 * 10) / 10) + " kg"}</td></tr>`).join("")}</tbody></table></div>
+  const useReps = noLoad(e) || (bw && pts.every(h => h.best.kg === 0)), rs = St.repShort(e);
+  const svg = chart(pts.map(h => useReps ? h.reps : h.e1), pts.map(h => shortDate(h.date)), useReps ? rs : "kg",
+    useReps ? `${St.repWord(e)} gesamt pro Training` : "Geschätztes 1RM (Epley) aus dem besten Satz");
+  return `${svg}<div class="table-wrap"><table><caption class="sr">Arbeitssätze pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col">Sätze</th><th scope="col" class="n">${useReps ? rs : "1RM ca."}</th></tr></thead>
+    <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="num">${h.sets.map(y => noLoad(e) ? `${y.reps}` : `${fmt(y.kg)}×${y.reps}`).join(", ")}</td><td class="n">${useReps ? h.reps : fmt(Math.round(h.e1 * 10) / 10) + " kg"}</td></tr>`).join("")}</tbody></table></div>
     <p class="foot">1RM ca. = Gewicht × (1 + Wdh./30), Epley (1985). Steigt auch, wenn du bei gleichem Gewicht mehr Wiederholungen schaffst.</p>`;
 }
 // Gewicht: eine Karte, die überall gleich aussieht und das Eintragen-Sheet öffnet
@@ -1122,8 +1133,10 @@ const A = {
   },
   slot: t => { ui.draft = {...curPlan().days[ui.eday].slots[+t.dataset.i]}; ui.draftNew = false; openSlot(); },
   slotsave: () => saveSlot(),
-  addslot: () => openPicker(exId => { ui.draft = {id: St.uid(), exId, sets: 3, min: 8, max: 12, rest: 0}; ui.draftNew = true; openSlot(); }),
-  swap: () => { const keep = ui.draft; openPicker(exId => { ui.draft = {...keep, exId}; openSlot(); }); },
+  addslot: () => openPicker(exId => { ui.draft = {id: St.uid(), exId, ...slotDefault(St.ex(exId))}; ui.draftNew = true; openSlot(); }),
+  // Beim Tausch in eine andere Einheit (z. B. Wdh. → Sekunden) passt das Satzschema nicht mehr: dann das Standardschema der neuen Übung
+  swap: () => { const keep = ui.draft, from = St.ex(keep.exId); openPicker(exId => { const to = St.ex(exId);
+    ui.draft = (to.unit === "s") === (from.unit === "s") && isMobility(to) === isMobility(from) ? {...keep, exId} : {...keep, exId, ...slotDefault(to)}; openSlot(); }, keep.exId); },
   pick: t => { const cb = pickCb; pickCb = null; cb(t.dataset.id); },
   newex: () => { const cb = pickCb; openExForm(null, ui.pq.trim(), id => { pickCb = null; cb(id); }); },
   newexlist: () => openExForm(null, ""),
@@ -1136,7 +1149,8 @@ const A = {
   },
   /* Training */
   kg: t => { readSetInputs(); const a = D().active, e = St.ex(a.queue[a.idx].exId); ui.kg = Math.max(0, Math.round((ui.kg + e.step * +t.dataset.d) * 100) / 100); $("#kgIn").value = fmt(ui.kg); syncCur(); sayLater(`${fmt(ui.kg)} Kilo`); },
-  reps: t => { readSetInputs(); ui.reps = Math.max(0, Math.min(100, ui.reps + +t.dataset.d)); $("#repsIn").value = ui.reps; syncCur(); sayLater(`${ui.reps} Wiederholungen`); },
+  reps: t => { readSetInputs(); const e = St.ex(D().active.queue[D().active.idx].exId), d = e.unit === "s" ? 5 : 1;
+    ui.reps = Math.max(0, Math.min(100, ui.reps + d * +t.dataset.d)); $("#repsIn").value = ui.reps; syncCur(); sayLater(`${ui.reps} ${St.repWord(e)}`); },
   stype: t => { readSetInputs(); ui.stype = t.dataset.v; rerender(`[data-act="stype"][data-v="${t.dataset.v}"]`); },
   note: () => {
     const a = D().active, exId = a.queue[a.idx].exId, cur = (a.notes || {})[exId] || "";
