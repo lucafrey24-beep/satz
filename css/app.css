@@ -276,10 +276,10 @@ dialog h2:focus{outline:none}
 :root[data-accent="signal"]{--tint:#C8102E; --on-tint:#FFFFFF; --tint-soft:rgba(200,16,46,.10)}
 :root[data-accent="signal"][data-theme="dark"]{--tint:#FF8585; --on-tint:#000000; --tint-soft:rgba(255,133,133,.18)}
 @media (prefers-color-scheme: dark){ :root[data-accent="signal"]:not([data-theme="light"]){--tint:#FF8585; --on-tint:#000000; --tint-soft:rgba(255,133,133,.18)} }
-/* Ab 0.9.1: sechs weitere Akzente, alle mit AA-Kontrast (Text auf Hintergrund und Schrift auf Akzent, hell und dunkel) */
-:root[data-accent="oliv"]{--tint:#55660F; --on-tint:#FFFFFF; --tint-soft:rgba(85,102,15,.12)}
-:root[data-accent="oliv"][data-theme="dark"]{--tint:#B8D45A; --on-tint:#000000; --tint-soft:rgba(184,212,90,.16)}
-@media (prefers-color-scheme: dark){ :root[data-accent="oliv"]:not([data-theme="light"]){--tint:#B8D45A; --on-tint:#000000; --tint-soft:rgba(184,212,90,.16)} }
+/* Ab 0.9.1: sechs weitere Akzente (0.9.3: Oliv durch Gras ersetzt), alle mit AA-Kontrast (Text auf Hintergrund und Schrift auf Akzent, hell und dunkel) */
+:root[data-accent="gras"]{--tint:#1A7F1F; --on-tint:#FFFFFF; --tint-soft:rgba(26,127,31,.12)}
+:root[data-accent="gras"][data-theme="dark"]{--tint:#4ADE5A; --on-tint:#000000; --tint-soft:rgba(74,222,90,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="gras"]:not([data-theme="light"]){--tint:#4ADE5A; --on-tint:#000000; --tint-soft:rgba(74,222,90,.16)} }
 :root[data-accent="petrol"]{--tint:#0B6E7F; --on-tint:#FFFFFF; --tint-soft:rgba(11,110,127,.12)}
 :root[data-accent="petrol"][data-theme="dark"]{--tint:#4CD3E3; --on-tint:#000000; --tint-soft:rgba(76,211,227,.16)}
 @media (prefers-color-scheme: dark){ :root[data-accent="petrol"]:not([data-theme="light"]){--tint:#4CD3E3; --on-tint:#000000; --tint-soft:rgba(76,211,227,.16)} }
