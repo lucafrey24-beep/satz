@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.1";
+export const APP_VERSION = "0.9.2";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -499,22 +499,24 @@ function viewTraining() {
   // ui.pin: Übung, die bewusst angezeigt wird (Zurück/Vor), auch wenn sie schon erledigt ist
   if (ui.pin != null && ui.pin !== a.idx) ui.pin = null;
   if (ui.summary || (ui.pin == null && St.firstOpen(a, a.idx) < 0)) return viewSummary();
-  if (ui.pin == null && (a.queue[a.idx].skipped || St.loggedFor(a, a.idx).length >= St.targetSets(a.queue[a.idx]))) a.idx = St.firstOpen(a, a.idx);
-  const i = a.idx, it = a.queue[i], e = St.ex(it.exId), logged = St.loggedFor(a, i), target = St.targetSets(it);
+  if (ui.pin == null && (a.queue[a.idx].skipped || St.workFor(a, a.idx).length >= St.targetSets(a.queue[a.idx]))) a.idx = St.firstOpen(a, a.idx);
+  const i = a.idx, it = a.queue[i], e = St.ex(it.exId), logged = St.workFor(a, i), target = St.targetSets(it);
   const all = a.sets.filter(x => x.q === i), done = logged.length >= target;
   const sug = St.suggest(it), key = `${a.id}:${i}:${logged.length}`;
   if (ui.key !== key) {
-    if (!ui.key.startsWith(`${a.id}:${i}:`)) ui.stype = "work";
+    if (!ui.key.startsWith(`${a.id}:${i}:`)) { ui.stype = "work"; ui.addAfter = false; }
     ui.key = key; ui.rir = null;
     const l = all[all.length - 1];
     if (l) { ui.kg = l.kg; ui.reps = l.reps; } else { ui.kg = sug.kg; ui.reps = sug.reps; }
   }
+  // Erledigte Übung: Formular nur, wenn bewusst ein Drop-Satz angehängt wird
+  const form = !done || ui.addAfter;
   const bw = e.unit === "bw", resting = a.restEnd > Date.now(), st = ui.stype || "work";
-  const next = a.queue.findIndex((q, k) => k > i && !q.skipped && St.loggedFor(a, k).length < St.targetSets(q));
+  const next = a.queue.findIndex((q, k) => k > i && !q.skipped && St.workFor(a, k).length < St.targetSets(q));
   const lastNote = [...D().sessions].reverse().find(x => x.notes && x.notes[it.exId]);
   const note = (a.notes || {})[it.exId];
   view.innerHTML = `
-    <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.loggedFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
+    <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.workFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
     <div class="exnav"><button type="button" class="linkbtn" data-act="exprev" ${i === 0 ? "disabled" : ""}><span aria-hidden="true">‹</span> Vorherige Übung</button>
       <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>Nächste Übung <span aria-hidden="true">›</span></button></div>
     <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · ${done ? `erledigt, ${logged.length} von ${target} Sätzen` : `Satz ${logged.length + 1} von ${target}`} · Ziel ${it.min}–${it.max} Wdh.</p>
@@ -525,7 +527,7 @@ function viewTraining() {
       <span class="eyebrow">${resting ? "Pause" : "Pause nach dem Satz"}</span>
       <div class="num" id="rt" aria-hidden="true">${resting ? restLeft() : fmtSec(st === "warm" ? 60 : st === "drop" ? 0 : it.rest)}</div>
       <div class="row-btns" ${resting ? "" : `style="visibility:hidden" aria-hidden="true"`}><button class="btn small" data-act="rest30" ${resting ? "" : "tabindex=-1"}>+30 s</button><button class="btn small" data-act="skiprest" ${resting ? "" : "tabindex=-1"}>Pause beenden</button></div></div>
-    ${done ? `<p class="note">${it.skipped ? "Diese Übung hast du ausgelassen." : "Alle Sätze dieser Übung sind eingetragen."} Tippe unten auf einen Satz, um ihn zu korrigieren.</p>
+    ${!form ? `<p class="note">${it.skipped ? "Diese Übung hast du ausgelassen." : "Alle Sätze dieser Übung sind eingetragen."} Tippe unten auf einen Satz, um ihn zu korrigieren.</p>
     <div class="actionbar"><button class="btn primary" data-act="exgo" id="saveset">${St.firstOpen(a, 0) >= 0 ? "Weiter zur offenen Übung" : "Zur Zusammenfassung"}</button></div>` : `
     <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:10px">
       ${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="stype" data-v="${v}" aria-pressed="${st === v}">${l}</button>`).join("")}</div>
@@ -540,11 +542,51 @@ function viewTraining() {
     ${D().settings.rir && st !== "warm" ? `<fieldset><legend>Wie viele Wdh. wären noch gegangen? <span style="font-weight:500">(optional)</span></legend>
       <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></fieldset>` : ""}
     <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? "Aufwärmsatz speichern" : st === "drop" ? "Drop-Satz speichern" : `Satz ${logged.length + 1} speichern`}</button></div>`}
-    ${all.length ? `<h2 class="sec" style="margin-top:8px">Eingetragen</h2><ul class="logged">${(() => { let n = 0; return all.map(l => { const lab = l.type === "warm" ? "Aufwärmen" : l.type === "drop" ? `Drop-Satz` : `Satz ${++n}`; return `<li><button type="button" class="setrow" data-act="editset" data-k="${a.sets.indexOf(l)}" aria-haspopup="dialog" aria-label="${lab}: ${St.fmtW(e, l.kg)} mal ${l.reps}, bearbeiten"><span>${lab}</span><span class="num">${St.fmtW(e, l.kg)} × ${l.reps}${l.rir != null ? ` · RIR ${l.rir === 4 ? "4+" : l.rir}` : ""} <span class="chev" aria-hidden="true">›</span></span></button></li>`; }).join(""); })()}</ul>
-      <button class="btn small" data-act="undoset" style="margin-top:8px">Letzten Satz löschen</button>` : ""}
-    <div class="row-btns" style="margin-top:16px"><button class="btn small" data-act="extraset">+ Extra-Satz</button>${it.skipped ? `<button class="btn small" data-act="unskip" data-i="${i}">Wieder aufnehmen</button>` : ""}<button class="btn small" data-act="note" aria-haspopup="dialog">${note ? "Notiz ändern" : "Notiz"}</button>${done ? "" : `<button class="btn small" data-act="skipex">Übung auslassen</button>`}</div>
+    ${setTable(a, i, it, e, all, logged, target, done, st, sug, form)}
+    ${all.length ? `<button class="btn small" data-act="undoset" style="margin-top:8px">Letzten Satz löschen</button>` : ""}
+    <div class="row-btns" style="margin-top:16px">${done && !form && !it.skipped ? `<button class="btn small" data-act="adddrop">+ Drop-Satz</button>` : ""}<button class="btn small" data-act="extraset">+ Extra-Satz</button>${it.extra > 0 && logged.length < target ? `<button class="btn small" data-act="extraless">− Extra-Satz</button>` : ""}${it.skipped ? `<button class="btn small" data-act="unskip" data-i="${i}">Wieder aufnehmen</button>` : ""}<button class="btn small" data-act="note" aria-haspopup="dialog">${note ? "Notiz ändern" : "Notiz"}</button>${done ? "" : `<button class="btn small" data-act="skipex">Übung auslassen</button>`}</div>
     <p class="meta" style="margin-top:12px">${next >= 0 ? `Danach: ${esc(St.ex(a.queue[next].exId).name)}` : "Das ist die letzte offene Übung."}</p>
     <div style="height:16px"></div>`;
+}
+// Satz-Tabelle: alle Sätze der Übung in einer Liste. Eingetragene (bearbeitbar), der aktuelle (hervorgehoben)
+// und die noch offenen mit geplanten Werten. Aufwärmsätze stehen oben, Drop-Sätze bleiben unter ihrem Satz.
+// Nur Anzeige: Die gespeicherten Sätze selbst werden dafür nicht umsortiert oder verändert.
+function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
+  const rir = l => l.rir != null ? (l.rir === 4 ? "4+" : String(l.rir)) : "–";
+  const warm = all.filter(l => l.type === "warm"), rest = all.filter(l => l.type !== "warm");
+  const rows = [];
+  let wn = 0, n = 0;
+  for (const l of warm) rows.push({l, lab: warm.length > 1 ? `Aufwärmen ${++wn}` : "Aufwärmen", kind: "warm"});
+  const cur = (lab, kind) => ({cur: true, lab, kind});
+  if (form && st === "warm") rows.push(cur(warm.length ? `Aufwärmen ${warm.length + 1}` : "Aufwärmen", "warm"));
+  for (const l of rest) rows.push({l, lab: l.type === "drop" ? "Drop-Satz" : `Satz ${++n}`, kind: l.type === "drop" ? "drop" : "work"});
+  if (form && st === "drop") rows.push(cur("Drop-Satz", "drop"));
+  const lastWork = [...rest].reverse().find(l => l.type !== "drop");
+  const plan = lastWork ? {kg: lastWork.kg, reps: lastWork.reps} : {kg: sug.kg, reps: sug.reps};
+  for (let k = logged.length; k < target; k++) {
+    if (k === logged.length && !done && st === "work") rows.push(cur(`Satz ${k + 1}`, "work"));
+    else rows.push({open: true, lab: `Satz ${k + 1}`, kind: "work", extra: k >= it.sets});
+  }
+  if (!rows.length) return "";
+  const kgTxt = v => e.unit === "bw" ? (v ? `+${fmt(v)}` : "KG") : fmt(v);
+  const kgSay = v => e.unit === "bw" ? (v ? `Körpergewicht plus ${fmt(v)} Kilo` : "Körpergewicht") : `${fmt(v)} Kilo`;
+  const showRir = D().settings.rir !== false;
+  const rirCell = v => showRir ? `<span class="c-n c-rir">${v}</span>` : "";
+  const lab = r => r.kind === "drop" ? `<span aria-hidden="true">↳ </span>${r.lab}` : r.lab;
+  const body = rows.map(r => {
+    if (r.l) {
+      const k = a.sets.indexOf(r.l);
+      return `<li class="done ${r.kind}"><button type="button" class="srow" data-act="editset" data-k="${k}" aria-haspopup="dialog" aria-label="${r.lab}, erledigt: ${kgSay(r.l.kg)} mal ${r.l.reps}${r.l.rir != null ? `, RIR ${rir(r.l)}` : ""}. Bearbeiten">
+        <span class="c-lab">${lab(r)}</span><span class="c-n">${kgTxt(r.l.kg)}</span><span class="c-n">${r.l.reps}</span>${rirCell(rir(r.l))}<span class="c-st" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button></li>`;
+    }
+    if (r.cur) return `<li class="now ${r.kind}" aria-current="step"><span class="sr">${r.lab}, jetzt dran, eingestellt sind die Werte oben.</span><div class="srow" aria-hidden="true"><span class="c-lab">${lab(r)}</span><span class="c-n" id="curKg">${kgTxt(ui.kg)}</span><span class="c-n" id="curReps">${ui.reps}</span>${rirCell("–")}<span class="c-st"><span class="nowtag">jetzt</span></span></div></li>`;
+    const reps = it.min === it.max ? `${it.max}` : `${it.min}–${it.max}`;
+    return `<li class="open"><span class="sr">${r.lab}${r.extra ? ", Extra-Satz" : ""}, offen, geplant ${kgSay(plan.kg)} mal ${reps.replace("–", " bis ")}</span><div class="srow" aria-hidden="true"><span class="c-lab">${r.lab}${r.extra ? `<span class="xtag">extra</span>` : ""}</span><span class="c-n">${kgTxt(plan.kg)}</span><span class="c-n">${reps}</span>${rirCell("–")}<span class="c-st"></span></div></li>`;
+  }).join("");
+  const wDone = logged.length, summary = done ? `${wDone} von ${target} Sätzen erledigt` : `Satz ${Math.min(wDone + 1, target)} von ${target}${target - wDone - 1 > 0 ? `, danach noch ${target - wDone - 1} offen` : ", der letzte"}`;
+  return `<h2 class="sec" id="sets-h" style="margin-top:8px">Sätze <span class="sec-sub">${summary}</span></h2>
+    <div class="sethead ${D().settings.rir !== false ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">Wdh.</span>${D().settings.rir !== false ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
+    <ol class="setlist ${D().settings.rir !== false ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
 }
 const fmtSec = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 function restLeft() {
@@ -577,7 +619,7 @@ function miniText() {
   const i = St.firstOpen(a, a.idx) < 0 ? -1 : a.idx, it = i >= 0 ? a.queue[i] : null;
   const resting = a.restEnd > Date.now();
   const name = it ? St.ex(it.exId).name : "Alle Übungen erledigt";
-  const sub = resting ? `Pause · noch ${restLeft()}` : it ? `Satz ${Math.min(St.loggedFor(a, i).length + 1, St.targetSets(it))} von ${St.targetSets(it)} · bereit` : "Zum Speichern öffnen";
+  const sub = resting ? `Pause · noch ${restLeft()}` : it ? `Satz ${Math.min(St.workFor(a, i).length + 1, St.targetSets(it))} von ${St.targetSets(it)} · bereit` : "Zum Speichern öffnen";
   const pct = resting && a.restTotal ? Math.max(0, Math.min(100, (a.restEnd - Date.now()) / (a.restTotal * 1000) * 100)) : 0;
   return {name, sub, resting, pct};
 }
@@ -644,15 +686,23 @@ function readSetInputs() {
   const k = $("#kgIn"), r = $("#repsIn");
   if (k) { const v = parseFloat(k.value.replace(",", ".")); if (isFinite(v) && v >= 0 && v <= 1000) ui.kg = Math.round(v * 100) / 100; }
   if (r) { const v = parseInt(r.value, 10); if (isFinite(v) && v >= 0 && v <= 100) ui.reps = v; }
+  syncCur();
+}
+// Hält die hervorgehobene Zeile der Satz-Tabelle auf den Werten der Eingabe, ohne neu zu zeichnen
+function syncCur() {
+  const k = $("#curKg"), r = $("#curReps"), a = D() && D().active; if (!a || (!k && !r)) return;
+  const e = St.ex(a.queue[a.idx].exId);
+  if (k) k.textContent = e.unit === "bw" ? (ui.kg ? `+${fmt(ui.kg)}` : "KG") : fmt(ui.kg);
+  if (r) r.textContent = ui.reps;
 }
 function saveSet() {
   readSetInputs(); ui.pin = null;
   const a = D().active, i = a.idx, it = a.queue[i], e = St.ex(it.exId), type = ui.stype || "work";
   a.sets.push({q: i, exId: it.exId, kg: ui.kg, reps: ui.reps, rir: type === "warm" ? null : ui.rir, t: Date.now(), ...(type !== "work" ? {type} : {})});
-  const n = St.loggedFor(a, i).length, target = St.targetSets(it);
+  const n = St.workFor(a, i).length, target = St.targetSets(it);
   let msg = `Gespeichert: ${type === "warm" ? "Aufwärmsatz, " : type === "drop" ? "Drop-Satz, " : ""}${St.fmtW(e, ui.kg)}, ${ui.reps} Wiederholungen.`;
   if (type === "work" && ui.reps < it.min) msg += ` Unter dem Ziel von ${it.min}.`;
-  if (type === "drop") ui.stype = "work";
+  if (type === "drop") { ui.stype = "work"; ui.addAfter = false; }
   const nextIdx = St.firstOpen(a, i);
   if (nextIdx < 0) { a.restEnd = 0; cancelBeep(); persist(); ui.summary = true; say(msg + " Alle Übungen erledigt."); rerender(); view.querySelector("h1").focus(); return; }
   const rest = type === "warm" ? 60 : type === "drop" ? 0 : it.rest;
@@ -699,7 +749,7 @@ function saveSetEdit() {
 function openOverview() {
   const a = D().active;
   openDialog(`<h2 id="dlg-h">Übersicht</h2><ol class="edlist">
-    ${a.queue.map((q, k) => { const n = St.loggedFor(a, k).length, t = St.targetSets(q), name = esc(St.ex(q.exId).name);
+    ${a.queue.map((q, k) => { const n = St.workFor(a, k).length, t = St.targetSets(q), name = esc(St.ex(q.exId).name);
       return `<li><div class="edrow"><span class="t">${k + 1}. ${name}</span><span class="num">${q.skipped ? "ausgelassen" : `${n}/${t}`}</span></div>
       <div class="edtools">${q.skipped ? `<button class="push" data-act="unskip" data-i="${k}">Wieder aufnehmen</button>`
         : k === a.idx ? "" : n < t ? `<button class="push" data-act="jump" data-i="${k}">Jetzt machen</button>` : `<button class="push" data-act="jump" data-i="${k}">Ansehen &amp; korrigieren</button>`}</div></li>`; }).join("")}
@@ -1078,8 +1128,8 @@ const A = {
     toast(`${e.name} archiviert. Der Verlauf bleibt erhalten.`, () => { St.restore(snap); rerender(); });
   },
   /* Training */
-  kg: t => { readSetInputs(); const a = D().active, e = St.ex(a.queue[a.idx].exId); ui.kg = Math.max(0, Math.round((ui.kg + e.step * +t.dataset.d) * 100) / 100); $("#kgIn").value = fmt(ui.kg); sayLater(`${fmt(ui.kg)} Kilo`); },
-  reps: t => { readSetInputs(); ui.reps = Math.max(0, Math.min(100, ui.reps + +t.dataset.d)); $("#repsIn").value = ui.reps; sayLater(`${ui.reps} Wiederholungen`); },
+  kg: t => { readSetInputs(); const a = D().active, e = St.ex(a.queue[a.idx].exId); ui.kg = Math.max(0, Math.round((ui.kg + e.step * +t.dataset.d) * 100) / 100); $("#kgIn").value = fmt(ui.kg); syncCur(); sayLater(`${fmt(ui.kg)} Kilo`); },
+  reps: t => { readSetInputs(); ui.reps = Math.max(0, Math.min(100, ui.reps + +t.dataset.d)); $("#repsIn").value = ui.reps; syncCur(); sayLater(`${ui.reps} Wiederholungen`); },
   stype: t => { readSetInputs(); ui.stype = t.dataset.v; rerender(`[data-act="stype"][data-v="${t.dataset.v}"]`); },
   note: () => {
     const a = D().active, exId = a.queue[a.idx].exId, cur = (a.notes || {})[exId] || "";
@@ -1098,8 +1148,10 @@ const A = {
     const a = D().active, i = a.idx, k = a.sets.map(s => s.q).lastIndexOf(i);
     if (k < 0) return;
     const s = a.sets.splice(k, 1)[0]; a.restEnd = 0; persist();
-    ui.key = `${a.id}:${i}:${St.loggedFor(a, i).length}`; ui.rir = s.rir; ui.kg = s.kg; ui.reps = s.reps; rerender("#saveset"); say("Letzter Satz gelöscht. Werte zum Korrigieren übernommen.");
+    ui.key = `${a.id}:${i}:${St.workFor(a, i).length}`; ui.rir = s.rir; ui.kg = s.kg; ui.reps = s.reps; rerender("#saveset"); say("Letzter Satz gelöscht. Werte zum Korrigieren übernommen.");
   },
+  adddrop: () => { const a = D().active; ui.pin = a.idx; ui.addAfter = true; ui.stype = "drop"; rerender("#saveset"); say("Drop-Satz anhängen. Gewicht und Wiederholungen einstellen, dann speichern."); },
+  extraless: () => { const a = D().active, it = a.queue[a.idx]; if (it.extra < 1 || St.workFor(a, a.idx).length >= St.targetSets(it)) return; it.extra--; persist(); rerender("#saveset"); say(`Extra-Satz entfernt. Jetzt ${St.targetSets(it)} Sätze.`); },
   extraset: () => { const a = D().active; a.queue[a.idx].extra++; persist(); rerender("#saveset"); say(`Extra-Satz hinzugefügt. Jetzt ${St.targetSets(a.queue[a.idx])} Sätze.`); },
   skipex: () => {
     const a = D().active, i = a.idx, name = St.ex(a.queue[i].exId).name;
