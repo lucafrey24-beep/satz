@@ -17,7 +17,7 @@
   :root:not([data-theme="light"]){
     --bg:#000000; --card:#1C1C1E; --card-2:#2C2C2E; --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.2);
     --label:#FFFFFF; --label-2:#AEAEB2; --sep:rgba(84,84,88,.65);
-    --tint:#3DDC97; --on-tint:#000000; --tint-soft:rgba(61,220,151,.16); --fill-btn:rgba(120,120,128,.28);
+    --tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16); --fill-btn:rgba(120,120,128,.28);
     --red:#FF8078; --green:#30D158; --orange:#FFB340; --focus:#64A0FF;
     --glass:rgba(30,30,32,.72); --glass-border:rgba(255,255,255,.1); --shadow:0 8px 32px rgba(0,0,0,.5);
     color-scheme:dark;
@@ -26,7 +26,7 @@
 :root[data-theme="dark"]{
   --bg:#000000; --card:#1C1C1E; --card-2:#2C2C2E; --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.2);
   --label:#FFFFFF; --label-2:#AEAEB2; --sep:rgba(84,84,88,.65);
-  --tint:#3DDC97; --on-tint:#000000; --tint-soft:rgba(61,220,151,.16); --fill-btn:rgba(120,120,128,.28);
+  --tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16); --fill-btn:rgba(120,120,128,.28);
   --red:#FF8078; --green:#30D158; --orange:#FFB340; --focus:#64A0FF;
   --glass:rgba(30,30,32,.72); --glass-border:rgba(255,255,255,.1); --shadow:0 8px 32px rgba(0,0,0,.5);
   color-scheme:dark;
@@ -268,8 +268,8 @@ dialog h2:focus{outline:none}
 :root[data-accent="graphit"][data-theme="dark"]{--tint:#F2F2F7; --on-tint:#000000; --tint-soft:rgba(242,242,247,.14)}
 @media (prefers-color-scheme: dark){ :root[data-accent="graphit"]:not([data-theme="light"]){--tint:#F2F2F7; --on-tint:#000000; --tint-soft:rgba(242,242,247,.14)} }
 :root[data-accent="gruen"]{--tint:#00703A; --on-tint:#FFFFFF; --tint-soft:rgba(0,112,58,.12)}
-:root[data-accent="gruen"][data-theme="dark"]{--tint:#3DDC97; --on-tint:#000000; --tint-soft:rgba(61,220,151,.16)}
-@media (prefers-color-scheme: dark){ :root[data-accent="gruen"]:not([data-theme="light"]){--tint:#3DDC97; --on-tint:#000000; --tint-soft:rgba(61,220,151,.16)} }
+:root[data-accent="gruen"][data-theme="dark"]{--tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="gruen"]:not([data-theme="light"]){--tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16)} }
 :root[data-accent="kobalt"]{--tint:#1D4ED8; --on-tint:#FFFFFF; --tint-soft:rgba(29,78,216,.10)}
 :root[data-accent="kobalt"][data-theme="dark"]{--tint:#7AA2FF; --on-tint:#000000; --tint-soft:rgba(122,162,255,.18)}
 @media (prefers-color-scheme: dark){ :root[data-accent="kobalt"]:not([data-theme="light"]){--tint:#7AA2FF; --on-tint:#000000; --tint-soft:rgba(122,162,255,.18)} }
@@ -348,6 +348,9 @@ main > *{max-width:100%}
 /* iOS gibt Datumsfeldern eine feste Mindestbreite, die Spalten sprengen kann */
 input[type="date"]{min-width:0; max-width:100%; text-align:left}
 input[type="date"]::-webkit-date-and-time-value{text-align:left}
+/* iOS setzt den Wert im Datumsfeld oben an, wenn die Höhe nur über min-height kommt: feste Höhe und mittig ausrichten */
+.field input[type="date"]{display:flex; align-items:center; height:48px; line-height:48px}
+.field input[type="date"]::-webkit-date-and-time-value{margin:0; line-height:normal}
 .exlist .t,.fbtn b,.plist b{overflow-wrap:anywhere}
 .exsel{min-width:0; overflow-wrap:anywhere}
 
