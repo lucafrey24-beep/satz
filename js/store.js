@@ -325,7 +325,7 @@ export function sanitizeImport(d) {
   const s = d.settings || {};
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
     contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, voice: s.voice !== false, bgBell: !!s.bgBell, showFig: s.showFig !== false,
-    accent: ["graphit", "gruen", "kobalt", "signal"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
+    accent: ["graphit", "gruen", "kobalt", "signal", "oliv", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
     ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
   const pr = d.profile || {};
   const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",

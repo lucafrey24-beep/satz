@@ -271,9 +271,28 @@ dialog h2:focus{outline:none}
 :root[data-accent="signal"]{--tint:#C8102E; --on-tint:#FFFFFF; --tint-soft:rgba(200,16,46,.10)}
 :root[data-accent="signal"][data-theme="dark"]{--tint:#FF8585; --on-tint:#000000; --tint-soft:rgba(255,133,133,.18)}
 @media (prefers-color-scheme: dark){ :root[data-accent="signal"]:not([data-theme="light"]){--tint:#FF8585; --on-tint:#000000; --tint-soft:rgba(255,133,133,.18)} }
+/* Ab 0.9.1: sechs weitere Akzente, alle mit AA-Kontrast (Text auf Hintergrund und Schrift auf Akzent, hell und dunkel) */
+:root[data-accent="oliv"]{--tint:#55660F; --on-tint:#FFFFFF; --tint-soft:rgba(85,102,15,.12)}
+:root[data-accent="oliv"][data-theme="dark"]{--tint:#B8D45A; --on-tint:#000000; --tint-soft:rgba(184,212,90,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="oliv"]:not([data-theme="light"]){--tint:#B8D45A; --on-tint:#000000; --tint-soft:rgba(184,212,90,.16)} }
+:root[data-accent="petrol"]{--tint:#0B6E7F; --on-tint:#FFFFFF; --tint-soft:rgba(11,110,127,.12)}
+:root[data-accent="petrol"][data-theme="dark"]{--tint:#4CD3E3; --on-tint:#000000; --tint-soft:rgba(76,211,227,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="petrol"]:not([data-theme="light"]){--tint:#4CD3E3; --on-tint:#000000; --tint-soft:rgba(76,211,227,.16)} }
+:root[data-accent="violett"]{--tint:#6D28D9; --on-tint:#FFFFFF; --tint-soft:rgba(109,40,217,.12)}
+:root[data-accent="violett"][data-theme="dark"]{--tint:#B9A0FF; --on-tint:#000000; --tint-soft:rgba(185,160,255,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="violett"]:not([data-theme="light"]){--tint:#B9A0FF; --on-tint:#000000; --tint-soft:rgba(185,160,255,.16)} }
+:root[data-accent="beere"]{--tint:#B0185F; --on-tint:#FFFFFF; --tint-soft:rgba(176,24,95,.12)}
+:root[data-accent="beere"][data-theme="dark"]{--tint:#FF8CC0; --on-tint:#000000; --tint-soft:rgba(255,140,192,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="beere"]:not([data-theme="light"]){--tint:#FF8CC0; --on-tint:#000000; --tint-soft:rgba(255,140,192,.16)} }
+:root[data-accent="kupfer"]{--tint:#B23C00; --on-tint:#FFFFFF; --tint-soft:rgba(178,60,0,.12)}
+:root[data-accent="kupfer"][data-theme="dark"]{--tint:#FF9A5C; --on-tint:#000000; --tint-soft:rgba(255,154,92,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="kupfer"]:not([data-theme="light"]){--tint:#FF9A5C; --on-tint:#000000; --tint-soft:rgba(255,154,92,.16)} }
+:root[data-accent="ocker"]{--tint:#865600; --on-tint:#FFFFFF; --tint-soft:rgba(134,86,0,.12)}
+:root[data-accent="ocker"][data-theme="dark"]{--tint:#F2C14E; --on-tint:#000000; --tint-soft:rgba(242,193,78,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="ocker"]:not([data-theme="light"]){--tint:#F2C14E; --on-tint:#000000; --tint-soft:rgba(242,193,78,.16)} }
 
 /* ---------- Farbwahl ---------- */
-.swatches{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.swatches{display:grid; grid-template-columns:repeat(auto-fill,minmax(4.1rem,1fr)); gap:8px}
 .swatches button{display:flex; flex-direction:column; align-items:center; gap:6px; min-height:72px; padding:8px 2px; border:0; border-radius:var(--r); background:var(--fill-2); font-size:.765rem; font-weight:500}
 .swatches button[aria-pressed="true"]{background:var(--card-2); box-shadow:inset 0 0 0 2px var(--label)}
 .swatches i{display:block; width:30px; height:30px; border-radius:50%; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)}
