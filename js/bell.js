@@ -54,6 +54,8 @@ function session(type) {
   try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {}
 }
 session("ambient");
+// Für die Einstellungen: Kann dieses iPhone Töne mit fremder Musik mischen?
+export const canMix = () => !!navigator.audioSession;
 function webBell(sec) {
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === "suspended") ctx.resume();
