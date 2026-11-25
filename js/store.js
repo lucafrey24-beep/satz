@@ -341,6 +341,45 @@ export function newRecords(sets) {
   return out;
 }
 
+/* ---------- Monatsrückblick ---------- */
+// Trainings, harte Sätze (ohne Mobility), Trainingszeit, meistbelastete Muskeln und Bestwerte eines Kalendermonats (m: 0–11)
+export function monthStats(y, m) {
+  const inM = s => { const d = new Date(s.date); return d.getFullYear() === y && d.getMonth() === m; };
+  const ses = S.sessions.filter(inM);
+  const hard = ses.flatMap(s => s.sets.filter(isHard)).filter(x => !isMobility(ex(x.exId)));
+  const mins = ses.reduce((a, s) => a + (s.end ? Math.max(0, Math.min(240, (new Date(s.end) - new Date(s.date)) / 60000)) : 0), 0);
+  const v = zero(); hard.forEach(x => addSets(v, x.exId, 1));
+  const top = MUSCLES.filter(mm => v[mm.id] > 0).sort((a, b) => v[b.id] - v[a.id]).slice(0, 3).map(mm => ({name: mm.name, sets: v[mm.id]}));
+  // Bestwerte: jedes Training gegen alle früheren (Gewicht: geschätztes 1RM, ohne Gewicht: meiste Wdh. bzw. Sekunden)
+  const best = {}; let records = 0;
+  [...S.sessions].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(s => {
+    const by = {};
+    s.sets.filter(x => x.type !== "warm").forEach(x => { const e = ex(x.exId); if (isMobility(e)) return;
+      const val = e.unit === "kg" ? e1rm(x.kg, x.reps) : x.reps; by[x.exId] = Math.max(by[x.exId] ?? 0, val); });
+    for (const [k, val] of Object.entries(by)) { if (best[k] != null && val > best[k] + 0.01 && inM(s)) records++; best[k] = Math.max(best[k] ?? 0, val); }
+  });
+  return {sessions: ses.length, days: new Set(ses.map(sessionDay)).size, hard: hard.length, mins: Math.round(mins), top, records};
+}
+
+/* ---------- Kalenderdatei (.ics) ----------
+   iOS stellt einer Web-App ohne Server keine verlässlichen Erinnerungen zu. Ein wiederkehrender Termin im Kalender
+   mit Erinnerung funktioniert dagegen überall und ganz ohne SATZ im Hintergrund. RFC 5545, lokale Zeit ohne Zeitzone. */
+const ICS_DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+export function icsFor({days, time, before, minutes, title, url}) {
+  const [hh, mm] = time.split(":").map(Number), now = new Date();
+  const start = new Date(); start.setHours(hh, mm, 0, 0);
+  for (let i = 0; i < 8; i++) { const wd = (start.getDay() + 6) % 7; if (days.includes(wd) && start > now) break; start.setDate(start.getDate() + 1); start.setHours(hh, mm, 0, 0); }
+  const loc = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const utc = now.toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const esc = t => t.replace(/[\\;,]/g, c => "\\" + c).replace(/\n/g, "\\n");
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SATZ//Trainingsheft//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VEVENT", `UID:satz-${uid()}@satz`, `DTSTAMP:${utc}`, `DTSTART:${loc(start)}`, `DURATION:PT${Math.max(15, Math.round(minutes))}M`,
+    `RRULE:FREQ=WEEKLY;BYDAY=${days.sort((a, b) => a - b).map(d => ICS_DAYS[d]).join(",")}`,
+    `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc("Öffne SATZ und starte dein Training: " + url)}`, `URL:${url}`,
+    ...(before >= 0 ? ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(title)}`, `TRIGGER:-PT${before}M`, "END:VALARM"] : []),
+    "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
+}
+
 /* ---------- Training ---------- */
 export function startSession(p, dayIdx) {
   const d = p.days[dayIdx], dl = deloadNow(p);
@@ -418,7 +457,10 @@ export function sanitizeImport(d) {
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
     contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, voice: s.voice !== false, bgBell: !!s.bgBell, showFig: s.showFig !== false,
     accent: ["graphit", "gruen", "kobalt", "signal", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
-    ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
+    ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {}),
+    ...(s.onboarded ? {onboarded: true} : {}),
+    ...(s.remind && typeof s.remind === "object" ? {remind: {days: arr(s.remind.days || [], "Erinnerung").filter(v => Number.isInteger(v) && v >= 0 && v <= 6),
+      time: typeof s.remind.time === "string" && /^\d{2}:\d{2}$/.test(s.remind.time) ? s.remind.time : "18:00", before: [0, 15, 30, 60].includes(s.remind.before) ? s.remind.before : 15}} : {})};
   const pr = d.profile || {};
   const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",
     height: optNum(pr.height, 0, 250, 0), pal: [1.4, 1.55, 1.7, 1.9].includes(pr.pal) ? pr.pal : 1.55, goal: ["lose", "maintain", "gain"].includes(pr.goal) ? pr.goal : "maintain",

@@ -568,3 +568,13 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .recs li{display:flex; flex-direction:column; padding:6px 0; border-top:.5px solid var(--sep)}
 .recs li:first-child{border-top:0}
 .recs li span{color:var(--label-2); font-size:.9rem}
+.monthcard{padding:14px 16px}
+.mnav{display:flex; gap:2px}
+.mnav .linkbtn{min-width:44px; font-size:1.4rem; line-height:1}
+.mnav .linkbtn:disabled{color:var(--label-2); opacity:.5}
+.mstats{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin:10px 0 4px}
+.mstats div{display:flex; flex-direction:column}
+.mstats b{font-size:1.5rem; font-weight:700}
+.mstats span{font-size:.9rem}
+.mstats small{color:var(--label-2); font-size:.78rem}
+.daychip{min-width:44px; padding:0 10px}

@@ -823,6 +823,20 @@ function viewSummary() {
 }
 
 /* ============ Verlauf ============ */
+// Monatsrückblick: Zahlen des gewählten Monats, darunter der Vormonat zum Vergleich. Ohne Bewertung, nur Überblick.
+function monthCard() {
+  const now = new Date(), off = ui.mOff || 0, d = new Date(now.getFullYear(), now.getMonth() - off, 1), pd = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  const m = St.monthStats(d.getFullYear(), d.getMonth()), pm = St.monthStats(pd.getFullYear(), pd.getMonth());
+  const name = d.toLocaleDateString("de-DE", {month: "long", year: "numeric"}), hm = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")} h`;
+  const cell = (v, l, pv) => `<div><b class="num">${v}</b><span>${l}</span><small>Vormonat ${pv}</small></div>`;
+  return `<section class="card monthcard" aria-labelledby="mo-h">
+    <div class="wkhead"><h2 id="mo-h">Rückblick ${esc(name)}</h2>
+      <span class="mnav"><button type="button" class="linkbtn" data-act="mprev" aria-label="Vorheriger Monat">‹</button><button type="button" class="linkbtn" data-act="mnext" aria-label="Nächster Monat" ${off ? "" : "disabled"}>›</button></span></div>
+    ${m.sessions ? `<div class="mstats">${cell(m.sessions, m.sessions === 1 ? "Training" : "Trainings", pm.sessions)}${cell(m.hard, "harte Sätze", pm.hard)}${cell(m.mins ? hm(m.mins) : "–", "Trainingszeit", pm.mins ? hm(pm.mins) : "–")}${cell(m.records, m.records === 1 ? "Bestwert" : "Bestwerte", pm.records)}</div>
+    ${m.top.length ? `<p class="meta">Am meisten trainiert: ${m.top.map(t => `${esc(t.name)} (${fmt(t.sets)} Sätze)`).join(", ")}.</p>` : ""}`
+    : `<p class="meta">In diesem Monat gibt es noch kein Training.</p>`}
+  </section>`;
+}
 function viewHistory() {
   const s = D(), ses = [...s.sessions].reverse();
   if (!ses.length) {
@@ -830,7 +844,7 @@ function viewHistory() {
     return;
   }
   const exIds = [...new Set(s.sessions.flatMap(x => x.sets.map(y => y.exId)))];
-  const changes = exIds.map(id => {
+  const changes = exIds.filter(id => !noLoad(St.ex(id))).map(id => {
     const hist = s.sessions.filter(x => x.sets.some(y => y.exId === id));
     if (hist.length < 2) return null;
     const top = x => Math.max(...x.sets.filter(y => y.exId === id && St.isWork(y)).map(y => y.kg), 0);
@@ -839,6 +853,7 @@ function viewHistory() {
   if (!ui.histEx || !exIds.includes(ui.histEx)) ui.histEx = exIds[0];
   const p = St.activePlan();
   view.innerHTML = `<h1 class="big">Verlauf</h1>
+    ${monthCard()}
     ${weightSection()}
     ${measureSection()}
     ${changes.length ? `<h2 class="sec" style="margin-top:4px">Was sich verändert hat</h2><ul class="logged">
@@ -851,7 +866,7 @@ function viewHistory() {
     ${volumeTable(St.recentVolume(7), "Sätze pro Muskel in den letzten 7 Tagen, verglichen mit dem Plan", p ? St.planVolume(p) : null)}
     <h2 class="sec">Trainings</h2>
     ${ses.map(x => `<details><summary>${dateDe(x.date)} · ${esc(x.dayName)} · ${x.sets.length} Sätze</summary>
-      <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(St.ex(g.exId).name)}</span><span class="num">${g.sets.map(y => `${y.type === "warm" ? "A " : y.type === "drop" ? "D " : ""}${fmt(y.kg)}×${y.reps}`).join(", ")}</span></li>`).join("")}</ul>
+      <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(St.ex(g.exId).name)}</span><span class="num">${g.sets.map(y => `${y.type === "warm" ? "A " : y.type === "drop" ? "D " : ""}${noLoad(St.ex(g.exId)) ? `${y.reps}${St.ex(g.exId).unit === "s" ? " s" : ""}` : `${fmt(y.kg)}×${y.reps}`}`).join(", ")}</span></li>`).join("")}</ul>
       ${x.notes ? `<p class="meta" style="margin:8px 0 0">${Object.entries(x.notes).map(([k, v]) => `<b>${esc(St.ex(k).name)}:</b> ${esc(v)}`).join("<br>")}</p>` : ""}
       <div class="row-btns" style="margin:10px 0"><button class="btn small" data-act="sessedit" data-id="${esc(x.id)}" aria-haspopup="dialog">Korrigieren</button><button class="btn small destructive" data-act="delsession" data-id="${esc(x.id)}">Training löschen</button></div></details>`).join("")}
     <div style="height:24px"></div>`;
@@ -1067,6 +1082,7 @@ function viewMore() {
     <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
       <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (schwere Grundübungen 180 s, andere 120 s, Isolation 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
+    ${remindSection()}
     <h2 class="sec">Deine Daten</h2>
     ${recoveredNote()}
     <p>Alles bleibt auf diesem Gerät. Es gibt kein Konto und keinen Server. Sichere deine Daten ab und zu als Datei, besonders vor einem Handywechsel.</p>
@@ -1080,8 +1096,35 @@ function viewMore() {
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
     <p class="meta">3D-Körperkarte mit three.js (MIT). Figur und Bewegungsabläufe sind selbst gezeichnete Schemata: ähnliche Übungen teilen sich eine Bewegungsvorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels.</p>
-    <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
+    <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Tagesserien, kein Zwang: gezählt werden Wochen mit erreichtem Wochenziel, Pausenwochen unterbrechen nichts. Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010). Dehnen 30–45 s pro Position (ACSM 2021), zählt nicht zum Volumen.</p>
     <p class="meta">Version ${APP_VERSION} · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+}
+
+// Erinnerung über den Kalender: SATZ erzeugt einen wiederkehrenden Termin (.ics). Kein Server, keine Push-Nachrichten nötig.
+function remindCfg() {
+  const r = D().settings.remind, p = St.activePlan(), n = p ? p.perWeek : 3;
+  const preset = {1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6]}[n] || [0, 2, 4];
+  return r ? {...r, days: [...r.days]} : {days: preset, time: "18:00", before: 15};
+}
+function remindSection() {
+  const r = remindCfg();
+  return `<h2 class="sec">Erinnerung im Kalender</h2>
+    <p>Lege deine Trainingstage als wiederkehrenden Termin in deinen Kalender. Der Kalender erinnert dich, auch wenn SATZ geschlossen ist.</p>
+    <fieldset><legend>Tage</legend><div class="chips" role="group">${WD.map((w, i) => `<button type="button" class="chip daychip" data-act="icsday" data-d="${i}" aria-pressed="${r.days.includes(i)}" aria-label="${WDL[i]}">${w}</button>`).join("")}</div></fieldset>
+    <div class="pair"><label class="field">Uhrzeit <input type="time" data-on="icstime" value="${r.time}"></label>
+      <label class="field">Erinnerung <select data-on="icsbefore">${[[0, "Zur Startzeit"], [15, "15 Min. vorher"], [30, "30 Min. vorher"], [60, "1 Std. vorher"]].map(([v, l]) => `<option value="${v}" ${r.before === v ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+    <button class="btn" data-act="icsdl" ${r.days.length ? "" : "disabled"}>Kalenderdatei laden</button>
+    <p class="foot">Auf dem iPhone die Datei öffnen und „Alle hinzufügen“ tippen. Ändern oder löschen kannst du den Termin später direkt im Kalender. Eine neue Datei legt einen zweiten Termin an.</p>`;
+}
+function downloadIcs() {
+  const r = remindCfg(); if (!r.days.length) return toast("Wähle mindestens einen Tag.");
+  const p = St.activePlan(), d = p && p.days[St.nextDayIndex(p)];
+  const minutes = d ? d.slots.reduce((a, sl) => a + sl.sets * (St.restFor(sl) + 45), 0) / 60 : 60;
+  const txt = St.icsFor({days: r.days, time: r.time, before: r.before, minutes, title: p ? `Training: ${p.name}` : "Training", url: location.origin + location.pathname});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], {type: "text/calendar"}));
+  a.download = "satz-training.ics"; document.body.append(a); a.click(); a.remove();
+  D().settings.remind = r; persist();
+  say("Kalenderdatei erstellt.");
 }
 
 // Vor jedem App-Update legt SATZ den alten Stand automatisch beiseite (die letzten 3).
@@ -1232,6 +1275,10 @@ const A = {
     const n = a.sets.length; St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
     go("#/heute"); toast(n ? `Training gespeichert: ${n} Sätze.${checked.length ? " Plan angepasst." : ""}` : "Training beendet.");
   },
+  mprev: () => { ui.mOff = (ui.mOff || 0) + 1; rerender('[data-act="mprev"]'); },
+  mnext: () => { ui.mOff = Math.max(0, (ui.mOff || 0) - 1); rerender(ui.mOff ? '[data-act="mnext"]' : '[data-act="mprev"]'); },
+  icsdl: () => downloadIcs(),
+  icsday: t => { const r = remindCfg(), d = +t.dataset.d; r.days = r.days.includes(d) ? r.days.filter(x => x !== d) : [...r.days, d]; D().settings.remind = r; persist(); rerender(`[data-act="icsday"][data-d="${d}"]`); },
   pauseweek: () => { const was = St.isPaused(St.weekStart()); St.togglePause(); rerender('[data-act="pauseweek"]'); say(was ? "Pause aufgehoben." : "Diese Woche ist als Pause markiert. Deine Serie bleibt erhalten."); },
   discard: () => {
     const snap = St.snapshot(); D().active = null; persist(); ui.summary = false; cancelBeep(); go("#/heute");
@@ -1343,6 +1390,7 @@ document.addEventListener("change", ev => {
   if (k === "cycleweeks") { const p = curPlan(), n = +el.value; p.cycle = n ? {weeks: n, start: p.cycle && p.cycle.weeks ? p.cycle.start : dkey()} : {weeks: 0, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); }
   if (k === "msel") { ui.msel = el.value; rerender('[data-on="msel"]'); }
   if (k === "histex") { ui.histEx = el.value; rerender('[data-on="histex"]'); }
+  if (k === "icstime" || k === "icsbefore") { const r = remindCfg(); if (k === "icstime") { if (/^\d{2}:\d{2}$/.test(el.value)) r.time = el.value; } else r.before = +el.value; D().settings.remind = r; persist(); }
   if (k === "contrast" || k === "rir") { D().settings[k] = el.checked; persist(); applySettings(); }
   if (k === "rest") { D().settings.rest = +el.value; persist(); }
   if (k === "kgin" || k === "repsin") { readSetInputs(); el.value = k === "kgin" ? fmt(ui.kg) : ui.reps; }
