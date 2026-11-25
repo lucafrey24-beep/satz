@@ -64,7 +64,69 @@ const RAW = [
   ["kb_swing", "Kettlebell Swing", ["gluteus", "hamstrings"], ["lrs", "schultern"], 4, "kg"],
   ["box_jump", "Box Jumps", ["quads", "gluteus"], ["waden"], 2.5, "bw"],
   ["sprung_kb", "Sprungkniebeuge", ["quads", "gluteus"], ["waden"], 2.5, "bw"],
+  // ab 0.10: Studio-Varianten (Maschinen, Kabel)
+  ["brustpresse", "Brustpresse (Maschine)", ["brust"], ["trizeps", "schultern"], 5, "kg"],
+  ["kabel_crossover", "Kabel-Crossover", ["brust"], [], 2.5, "kg"],
+  ["schulterpresse", "Schulterpresse (Maschine)", ["schultern"], ["trizeps"], 5, "kg"],
+  ["kabel_seitheben", "Kabel-Seitheben", ["schultern"], [], 1.25, "kg"],
+  ["rudermaschine", "Rudermaschine, brustgestützt", ["ruecken"], ["bizeps"], 5, "kg"],
+  ["latziehen_eng", "Latziehen eng, Untergriff", ["ruecken"], ["bizeps"], 2.5, "kg"],
+  ["ueberzuege_kabel", "Überzüge am Kabel", ["ruecken"], [], 2.5, "kg"],
+  ["scottcurls", "Scottcurls", ["bizeps"], [], 2.5, "kg"],
+  ["kabelcurls", "Kabelcurls", ["bizeps"], [], 2.5, "kg"],
+  ["trizeps_seil_overhead", "Trizeps über Kopf am Seil", ["trizeps"], [], 2.5, "kg"],
+  ["french_press", "French Press (SZ-Stange)", ["trizeps"], [], 2.5, "kg"],
+  ["hackenschmidt", "Hackenschmidt-Kniebeuge", ["quads"], ["gluteus"], 5, "kg"],
+  ["frontkniebeuge", "Frontkniebeuge", ["quads", "gluteus"], ["bauch"], 2.5, "kg"],
+  ["beinbeuger_sitzend", "Beinbeuger sitzend", ["hamstrings"], [], 2.5, "kg"],
+  // ab 0.10: zu Hause mit Kurzhanteln
+  ["kh_schraegbank", "Kurzhantel-Schrägbankdrücken", ["brust"], ["schultern", "trizeps"], 2, "kg"],
+  ["kh_floorpress", "Kurzhantel-Bodendrücken", ["brust"], ["trizeps"], 2, "kg"],
+  ["kh_fliegende", "Kurzhantel-Fliegende", ["brust"], [], 1, "kg"],
+  ["kh_pullover", "Kurzhantel-Pullover", ["ruecken"], ["brust"], 2, "kg"],
+  ["kh_rudern_beid", "Kurzhantelrudern vorgebeugt", ["ruecken"], ["bizeps", "lrs"], 2, "kg"],
+  ["kh_schulterdruecken", "Kurzhantel-Schulterdrücken", ["schultern"], ["trizeps"], 2, "kg"],
+  ["arnold_press", "Arnold Press", ["schultern"], ["trizeps"], 2, "kg"],
+  ["kh_reverse_fly", "Reverse Flys vorgebeugt", ["schultern"], ["ruecken"], 1, "kg"],
+  ["kh_rdl", "Rumänisches Kreuzheben mit Kurzhanteln", ["hamstrings", "gluteus"], ["lrs"], 2, "kg"],
+  ["kh_rdl_einbeinig", "Einbeiniges Kreuzheben", ["hamstrings", "gluteus"], [], 2, "kg"],
+  ["rueckw_ausfall", "Rückwärts-Ausfallschritte", ["quads", "gluteus"], ["hamstrings"], 2, "kg"],
+  // ab 0.10: ohne Gerät oder mit Klimmzugstange
+  ["chinups", "Klimmzüge im Untergriff", ["ruecken", "bizeps"], [], 2.5, "bw"],
+  ["kniebeuge_kg", "Kniebeuge ohne Gewicht", ["quads", "gluteus"], [], 2.5, "bw"],
+  ["split_squat", "Split Squat", ["quads", "gluteus"], ["hamstrings"], 2, "bw"],
+  ["bridge_einbeinig", "Glute Bridge einbeinig", ["gluteus"], ["hamstrings"], 2.5, "bw"],
+  ["waden_einbeinig", "Wadenheben einbeinig", ["waden"], [], 2.5, "bw"],
+  ["liegestuetze_eng", "Enge Liegestütze", ["trizeps", "brust"], ["schultern"], 2.5, "bw"],
+  ["liegestuetze_erhoeht", "Liegestütze mit erhöhten Händen", ["brust"], ["trizeps", "schultern"], 2.5, "bw"],
+  ["pike_liegestuetze", "Pike-Liegestütze", ["schultern"], ["trizeps"], 2.5, "bw"],
+  ["bank_dips", "Dips an der Bank", ["trizeps"], ["brust", "schultern"], 2.5, "bw"],
+  ["tischrudern", "Rudern unter dem Tisch", ["ruecken"], ["bizeps"], 2.5, "bw"],
+  ["superman", "Superman", ["lrs"], ["gluteus"], 2.5, "bw"],
+  ["reverse_crunch", "Reverse Crunches", ["bauch"], [], 2.5, "bw"],
 ];
+// Wo geht die Übung? studio = braucht Studio-Geräte, kh = Kurzhanteln oder Kettlebell (zu Hause möglich),
+// stange = Klimmzugstange, ohne = ohne Gerät (Boden, Stufe, Stuhl). Eigene Übungen haben kein Merkmal.
+// Nur ein Filter beim Suchen: gespeicherte Übungen bekommen dafür kein neues Feld.
+export const KIT_LABEL = {studio: "Studio", kh: "Kurzhanteln", stange: "Klimmzugstange", ohne: "Ohne Gerät"};
+export const KIT_FILTERS = [
+  {id: "", l: "Alle Geräte"}, {id: "studio", l: "Studio"}, {id: "zuhause", l: "Zu Hause"},
+  {id: "kh", l: "Kurzhanteln"}, {id: "ohne", l: "Ohne Gerät"},
+];
+const KIT_GROUPS = {
+  kh: "kh_bank seitheben kh_rudern bizepscurls hammercurls trizeps_overhead ausfallschritte bulgarian goblet step_ups kb_swing kh_schraegbank kh_floorpress kh_fliegende kh_pullover kh_rudern_beid kh_schulterdruecken arnold_press kh_reverse_fly kh_rdl kh_rdl_einbeinig rueckw_ausfall",
+  stange: "klimmzuege leg_raises chinups",
+  ohne: "liegestuetze wadenheben crunches glute_bridge box_jump sprung_kb kniebeuge_kg split_squat bridge_einbeinig waden_einbeinig liegestuetze_eng liegestuetze_erhoeht pike_liegestuetze bank_dips tischrudern superman reverse_crunch",
+};
+export const KIT = {};
+for (const [k, ids] of Object.entries(KIT_GROUPS)) ids.split(" ").forEach(id => KIT[id] = k);
+RAW.forEach(r => { if (!KIT[r[0]]) KIT[r[0]] = "studio"; });
+export function kitMatch(e, f) {
+  if (!f) return true;
+  const k = e.custom ? "" : KIT[e.id];
+  if (!k) return false;
+  return f === "zuhause" ? k !== "studio" : k === f;
+}
 // Ausführung: [Bewegungsvorlage aus anim.js, Gerät, kurzer Technik-Hinweis]
 export const INFO = {
   bankdruecken: ["bench", "Flachbank mit Langhantel", "Schulterblätter zusammen, Stange kontrolliert zur unteren Brust, Füße fest am Boden."],
@@ -110,6 +172,43 @@ export const INFO = {
   kb_swing: ["swing", "Kettlebell", "Explosiv aus der Hüfte, Arme sind nur Seile, Bell bis Brusthöhe."],
   box_jump: ["boxjump", "Sprungbox", "Mit Armschwung abspringen, weich und leise landen, heruntersteigen."],
   sprung_kb: ["jumpsquat", "Ohne Gerät", "Aus der Hocke explosiv hochspringen, weich landen."],
+  brustpresse: ["chestpress", "Brustpresse-Maschine", "Griffe auf Brusthöhe, Schulterblätter am Polster, Arme nicht ganz durchdrücken."],
+  kabel_crossover: ["crossover", "Kabelzug, beide Seiten oben", "Leicht vorgebeugt, Arme leicht gebeugt in einem Bogen vor dem Körper zusammenführen."],
+  schulterpresse: ["press_machine", "Schulterpresse-Maschine", "Rücken an der Lehne, Griffe senkrecht nach oben drücken, langsam ablassen."],
+  kabel_seitheben: ["lateral_cable", "Kabelzug, unten", "Seitlich zum Kabel stehen, Arm bis Schulterhöhe heben, ohne Schwung."],
+  rudermaschine: ["row_machine", "Rudermaschine mit Brustpolster", "Brust am Polster, Ellbogen nah am Körper nach hinten ziehen."],
+  latziehen_eng: ["latpull", "Latzug-Maschine, enger Griff", "Handflächen zu dir, Stange zur Brust, Ellbogen eng nach unten."],
+  ueberzuege_kabel: ["straightarm", "Kabelzug, oben, Stange oder Seil", "Arme fast gestreckt, Griff in einem Bogen bis zu den Oberschenkeln ziehen."],
+  scottcurls: ["preacher", "Scottbank mit SZ-Stange", "Oberarme ganz auf dem Polster, unten nicht ganz durchstrecken."],
+  kabelcurls: ["curl_cable", "Kabelzug, unten", "Ellbogen am Körper, Griff hochrollen, langsam ablassen."],
+  trizeps_seil_overhead: ["overhead_cable", "Kabelzug mit Seil, Rücken zum Turm", "Ellbogen zeigen nach vorn oben, nur die Unterarme strecken."],
+  french_press: ["skull", "Flachbank mit SZ-Stange", "Ellbogen bleiben über der Schulter, Stange zur Stirn senken."],
+  hackenschmidt: ["hack", "Hackenschmidt-Maschine", "Rücken am Polster, tief beugen, Knie folgen den Zehen."],
+  frontkniebeuge: ["frontsquat", "Langhantel vorn auf den Schultern", "Ellbogen hoch, Oberkörper aufrecht, tief in die Hocke."],
+  beinbeuger_sitzend: ["legcurl_seat", "Beinbeuger-Maschine, sitzend", "Oberschenkel fixiert, Fersen unter den Sitz ziehen, langsam zurück."],
+  kh_schraegbank: ["incline_db", "Schrägbank mit Kurzhanteln", "Bank auf 30–45°, Hanteln zur oberen Brust absenken."],
+  kh_floorpress: ["floorpress", "Boden und Kurzhanteln", "Auf dem Rücken, Knie gebeugt. Oberarme bis zum Boden, dann hochdrücken."],
+  kh_fliegende: ["fly_db", "Flachbank oder Boden, Kurzhanteln", "Arme leicht gebeugt weit öffnen, bis Dehnung in der Brust, dann zusammenführen."],
+  kh_pullover: ["pullover", "Flachbank, eine Kurzhantel", "Hantel mit beiden Händen hinter den Kopf senken, Arme fast gestreckt, zurück über die Brust."],
+  kh_rudern_beid: ["row_dbs", "Zwei Kurzhanteln", "Oberkörper vorgebeugt, Rücken gerade, Hanteln zur Hüfte ziehen."],
+  kh_schulterdruecken: ["press_db", "Bank mit Lehne oder Stuhl, Kurzhanteln", "Hanteln von Schulterhöhe senkrecht nach oben drücken, Rumpf fest."],
+  arnold_press: ["press_db", "Bank mit Lehne, Kurzhanteln", "Unten Handflächen zu dir, beim Drücken nach außen drehen."],
+  kh_reverse_fly: ["rearfly_db", "Kurzhanteln, vorgebeugt", "Oberkörper fast waagerecht, Arme seitlich bis Schulterhöhe öffnen."],
+  kh_rdl: ["rdl_db", "Kurzhanteln", "Knie leicht gebeugt, Hüfte nach hinten, Hanteln nah an den Beinen."],
+  kh_rdl_einbeinig: ["rdl_db", "Eine oder zwei Kurzhanteln", "Auf einem Bein, das andere geht gestreckt nach hinten. Hüfte bleibt gerade."],
+  rueckw_ausfall: ["lunge", "Kurzhanteln", "Großer Schritt nach hinten, vorderes Knie über dem Fuß, zurück in den Stand."],
+  chinups: ["pullup", "Klimmzugstange, Untergriff", "Handflächen zu dir, Brust zur Stange, kontrolliert ablassen."],
+  kniebeuge_kg: ["airsquat", "Ohne Gerät", "Arme nach vorn, Hüfte nach hinten und unten, Fersen bleiben am Boden."],
+  split_squat: ["splitsquat", "Ohne Gerät", "Füße versetzt, hinteres Knie Richtung Boden, Gewicht auf dem vorderen Bein."],
+  bridge_einbeinig: ["bridge", "Matte", "Ein Bein angewinkelt, das andere gestreckt. Hüfte hoch, Becken gerade."],
+  waden_einbeinig: ["calf_bw", "Stufe, an der Wand festhalten", "Auf einem Fuß, Ferse tief unter die Stufe, dann ganz hoch."],
+  liegestuetze_eng: ["pushup", "Boden, ohne Gerät", "Hände eng unter der Brust, Ellbogen nah am Körper."],
+  liegestuetze_erhoeht: ["pushup_incline", "Bank, Tisch oder Stuhl", "Hände auf der Erhöhung, Körper gerade. Leichter als Liegestütze am Boden."],
+  pike_liegestuetze: ["pike", "Boden, ohne Gerät", "Hüfte hoch wie ein umgedrehtes V, Kopf zwischen die Hände senken."],
+  bank_dips: ["benchdip", "Bank oder stabiler Stuhl", "Hände hinter dir auf der Kante, Oberarme bis etwa waagerecht senken."],
+  tischrudern: ["invrow", "Stabiler Tisch oder tiefe Stange", "Körper gerade unter der Kante, Brust zur Kante ziehen."],
+  superman: ["superman", "Matte", "Auf dem Bauch, Arme und Beine gleichzeitig leicht anheben, kurz halten."],
+  reverse_crunch: ["revcrunch", "Matte", "Knie zur Brust ziehen, Becken vom Boden einrollen, langsam ablassen."],
 };
 // Fallback für eigene Übungen: Vorlage nach Hauptmuskel
 export const PATTERN_BY_MUSCLE = {brust: "bench", ruecken: "row_bb", schultern: "press", bizeps: "curl", trizeps: "pushdown", quads: "squat",
@@ -119,7 +218,9 @@ export const EXERCISES = RAW.map(([id, name, primary, secondary, step, unit]) =>
   ({id, name, primary, secondary, step, unit, custom: false}));
 
 // Grundübungen (mehrgelenkig) als festes Merkmal. Eigene Übungen: mehrgelenkig, wenn mehr als ein Muskel beteiligt ist.
-export const COMPOUND = new Set(["bulgarian", "goblet", "step_ups", "kb_swing", "box_jump", "sprung_kb", "bankdruecken", "schraegbank", "kh_bank", "dips", "liegestuetze", "latziehen", "klimmzuege", "tbar", "lh_rudern",
+export const COMPOUND = new Set(["brustpresse", "schulterpresse", "rudermaschine", "latziehen_eng", "hackenschmidt", "frontkniebeuge", "kh_schraegbank", "kh_floorpress",
+  "kh_rudern_beid", "kh_schulterdruecken", "arnold_press", "kh_rdl", "kh_rdl_einbeinig", "rueckw_ausfall", "chinups", "kniebeuge_kg", "split_squat",
+  "liegestuetze_eng", "liegestuetze_erhoeht", "pike_liegestuetze", "bank_dips", "tischrudern", "bulgarian", "goblet", "step_ups", "kb_swing", "box_jump", "sprung_kb", "bankdruecken", "schraegbank", "kh_bank", "dips", "liegestuetze", "latziehen", "klimmzuege", "tbar", "lh_rudern",
   "enges_rudern", "kh_rudern", "schulterdruecken", "kniebeugen", "beinpresse", "ausfallschritte", "rdl", "kreuzheben", "hip_thrust"]);
 export const isCompound = e => e.custom ? (e.compound ?? e.primary.length + e.secondary.length > 1) : COMPOUND.has(e.id);
 // Pausenstandard (Schoenfeld et al. 2016: 3 min > 1 min bei schweren Grundübungen; Grgic et al. 2018; Singer et al. 2024: ab ~90 s kaum Unterschied):

@@ -1,5 +1,5 @@
 import * as St from "./store.js";
-import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES} from "./data.js";
+import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch} from "./data.js";
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
@@ -9,13 +9,17 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.7";
-const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
+export const APP_VERSION = "0.9.8";
+const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
 const schemeSr = sl => `${sl.sets} ${sl.sets === 1 ? "Satz" : "Sätze"}, ${sl.min} bis ${sl.max} Wiederholungen`;
 const dateDe = iso => new Date(iso).toLocaleDateString("de-DE", {weekday: "short", day: "numeric", month: "numeric"});
 const muscleList = e => [...e.primary.map(m => MUSCLE_NAME[m]), ...e.secondary.map(m => MUSCLE_NAME[m] + " (mit)")].join(", ");
+// Gerät der Übung (nur Bibliothek) und Auswahlfeld für den Gerätefilter. Der Filter gilt für Auswahl und Übungsliste gemeinsam.
+const kitOf = e => !e.custom && KIT_LABEL[KIT[e.id]] ? KIT_LABEL[KIT[e.id]] : "";
+const exMeta = e => [muscleList(e), kitOf(e)].filter(Boolean).join(" · ");
+const kitSelect = on => `<label class="field">Gerät <select data-on="${on}">${KIT_FILTERS.map(f => `<option value="${f.id}" ${ui.kit === f.id ? "selected" : ""}>${f.l}</option>`).join("")}</select></label>`;
 
 function say(t) { const a = $("#announcer"); a.textContent = ""; setTimeout(() => a.textContent = t, 60); }
 
@@ -358,7 +362,8 @@ function openPicker(cb) {
   pickCb = cb; ui.pq = ""; ui.pm = "";
   openDialog(`<h2 id="dlg-h">Übung wählen</h2>
     <label class="field">Suchen oder eigenen Namen eingeben <input id="pq" type="search" data-on="pq" autocomplete="off" enterkeyhint="search"></label>
-    <label class="field">Muskel <select data-on="pm"><option value="">Alle Muskeln</option>${MUSCLES.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></label>
+    <div class="pair"><label class="field">Muskel <select data-on="pm"><option value="">Alle Muskeln</option>${MUSCLES.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></label>
+    ${kitSelect("kitp")}</div>
     <div id="pres"></div>
     <button class="btn" data-act="close">Abbrechen</button>`, "#pq");
   renderPickList();
@@ -366,13 +371,13 @@ function openPicker(cb) {
 function renderPickList() {
   const q = ui.pq.trim().toLowerCase();
   const list = Object.values(D().exercises)
-    .filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)))
+    .filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)) && kitMatch(e, ui.kit))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
   const exact = list.some(e => e.name.toLowerCase() === q);
   $("#pres").innerHTML = `
     ${q && !exact ? `<button class="btn primary" data-act="newex" style="margin-bottom:12px">„${esc(ui.pq.trim())}“ als eigene Übung anlegen</button>` : ""}
-    <p class="meta" aria-live="polite">${list.length} ${list.length === 1 ? "Treffer" : "Treffer"}</p>
-    <ul class="plist">${list.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b><small>${esc(muscleList(e))}</small></button></li>`).join("")}</ul>`;
+    <p class="meta" aria-live="polite">${list.length} Treffer${ui.kit ? ". Eigene Übungen erscheinen nur bei „Alle Geräte“." : ""}</p>
+    <ul class="plist">${list.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b><small>${esc(exMeta(e))}</small></button></li>`).join("")}</ul>`;
 }
 
 /* ---------- Übung anlegen / bearbeiten ---------- */
@@ -423,13 +428,15 @@ function saveEx() {
 /* ============ Übungen ============ */
 function viewExercises() {
   const q = ui.exq.trim().toLowerCase();
-  const list = Object.values(D().exercises).filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q))).sort((a, b) => (b.custom - a.custom) || a.name.localeCompare(b.name, "de"));
+  const list = Object.values(D().exercises).filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && kitMatch(e, ui.kit)).sort((a, b) => (b.custom - a.custom) || a.name.localeCompare(b.name, "de"));
   view.innerHTML = `<p class="eyebrow"><a href="#/plaene">Pläne</a></p><h1 class="big">Übungen</h1>
     <p class="meta">Umbenennen und Tauschen lassen deinen Verlauf unverändert. Jede Übung behält ihre eigenen Sätze.</p>
     <button class="btn primary" data-act="newexlist">Eigene Übung anlegen</button>
-    <label class="field" style="margin-top:14px">Suchen <input type="search" data-on="exq" value="${esc(ui.exq)}" autocomplete="off"></label>
+    <div class="pair" style="margin-top:14px"><label class="field">Suchen <input type="search" data-on="exq" value="${esc(ui.exq)}" autocomplete="off"></label>
+    ${kitSelect("kitx")}</div>
+    <p class="meta" aria-live="polite">${list.length} ${list.length === 1 ? "Übung" : "Übungen"}${ui.kit ? ". Eigene Übungen erscheinen nur bei „Alle Geräte“." : ""}</p>
     <ul class="plist" style="max-height:none">${list.map(e => `<li><button data-act="editex" data-id="${e.id}" aria-label="${esc(e.name)} bearbeiten"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b>
-      <small>${esc(muscleList(e))} · ${St.setCount(e.id)} Sätze im Verlauf</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
+      <small>${esc(exMeta(e))} · ${St.setCount(e.id)} Sätze im Verlauf</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
 }
 
 /* ============ Ausführung: Gerät und Bewegungsablauf ============ */
@@ -1293,6 +1300,8 @@ document.addEventListener("input", ev => {
 document.addEventListener("change", ev => {
   const el = ev.target, k = el.dataset.on;
   if (k === "pm") { ui.pm = el.value; renderPickList(); }
+  if (k === "kitp") { ui.kit = el.value; renderPickList(); }
+  if (k === "kitx") { ui.kit = el.value; rerender('[data-on="kitx"]'); }
   if (k === "pname") { curPlan().name = el.value.trim() || "Mein Plan"; persist(); rerender('[data-on="pname"]'); }
   if (k === "dname") { const p = curPlan(); p.days[ui.eday].name = el.value.trim() || `Tag ${ui.eday + 1}`; persist(); rerender('[data-on="dname"]'); }
   if (k === "cycleweeks") { const p = curPlan(), n = +el.value; p.cycle = n ? {weeks: n, start: p.cycle && p.cycle.weeks ? p.cycle.start : dkey()} : {weeks: 0, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); }

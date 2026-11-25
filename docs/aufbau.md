@@ -241,3 +241,9 @@ Gespeicherte Trainings dürfen durch ein App-Update nie verloren gehen oder ver�
 - **Entlastungsrhythmus** (`store.js`: `cycleWeek`, `deloadNow`): Jeder Plan hat `cycle = {weeks, start}`. Standard 6 Wochen (5 Aufbau + 1 Entlastung), wählbar 4/5/6/8 oder aus, im Plan-Editor unter „Rhythmus“. In der Entlastungswoche halbiert `startSession` die Sätze, `suggest` schlägt ca. 90 % Last vor, das Training wird mit `deload: true` gespeichert und zählt nicht als Grundlage für die nächste Steigerung. Heute-Ansicht zeigt Woche x von n.
 - **Adaptiver Bedarf** (`nutrition.js`: `adaptiveTdee`): Energiebilanz aus 14–28 Tagen Tagebuch (mind. 80 % der Tage eingetragen) und Gewichtstrend (Regression, mind. 5 Wiegungen über 10+ Tage). Übernommen landet er in `profile.tdeeAdj` und ersetzt Grundumsatz × PAL. Karte in Ernährung (heute), Rückweg im Ziel-Dialog.
 - **Körpermaße** (`data.js`: `MEASURES`, Verlauf): `measures = [{date, m: {taille: 82, …}}]`, Eingabe von Hand in cm, Figur mit Messlinie und Anleitung zum fokussierten Feld, Verlauf als Liste und Diagramm, Taille ÷ Größe. Keine Fotos.
+
+## Neu in 0.9.8
+
+- **Mehr Übungen** (`data.js`): 37 neue Bibliotheksübungen (Studio-Varianten, Kurzhanteln, ohne Gerät, Klimmzugstange), zusammen 80. Neue IDs kommen nur dazu: `migrate()` ergänzt fehlende Bibliotheksübungen wie bisher, bestehende Übungen, Pläne und Trainings bleiben unverändert.
+- **Gerätefilter** (`data.js`: `KIT`, `KIT_FILTERS`, `kitMatch`): Das Gerät steht nur in den Stammdaten, nicht in den gespeicherten Daten. Filter in der Übungsauswahl und in der Übungsliste (Alle, Studio, Zu Hause, Kurzhanteln, Ohne Gerät). „Zu Hause“ heißt alles außer Studio, also auch Klimmzugstange. Eigene Übungen haben kein Gerät und erscheinen nur bei „Alle Geräte“.
+- **Neue Bewegungsvorlagen** (`anim.js`): 30 weitere Vorlagen, meist als Variante einer bestehenden mit anderem Gerät.

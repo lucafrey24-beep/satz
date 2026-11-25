@@ -15,7 +15,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 ## Aufbau
 - `index.html` – Gerüst mit Navigation
 - `css/app.css` – iOS-Look nach Apple Human Interface Guidelines (Systemschrift mit Dynamic Type, gruppierte Listen, schwebende Tab-Bar), hell/dunkel/erhöhter Kontrast
-- `js/data.js` – Muskeln, 43 Übungen mit Gerät und Ausführungshinweis, 8 fertige Pläne mit Trainingsziel (Kraft & Muskeln, Kraftausdauer, Athletik)
+- `js/data.js` – Muskeln, 80 Übungen mit Gerät, Gerätefilter (Studio, zu Hause, Kurzhanteln, ohne Gerät) und Ausführungshinweis, 8 fertige Pläne mit Trainingsziel (Kraft & Muskeln, Kraftausdauer, Athletik)
 - `js/store.js` – Speicherung, Volumen pro Muskel, doppelte Progression
 - `js/nutrition.js` – Energiebedarf (Mifflin-St Jeor × PAL), Makroziele mit Quellen, Open-Food-Facts-Abfragen
 - `js/vendor/zxing.min.js` – Barcode-Erkennung (ZXing 0.21.3, Apache-2.0, siehe `zxing-LICENSE`), wird nur geladen, wenn der Browser keinen eigenen BarcodeDetector hat
