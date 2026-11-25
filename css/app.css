@@ -7,7 +7,7 @@
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --card-2:#F2F2F7; --fill:rgba(120,120,128,.16); --fill-2:rgba(120,120,128,.08);
   --label:#000000; --label-2:#6C6C70; --sep:rgba(60,60,67,.29);
-  --tint:#00703A; --on-tint:#FFFFFF; --tint-soft:rgba(0,112,58,.12); --fill-btn:rgba(120,120,128,.12);
+  --tint:#00703A; --on-tint:#FFFFFF; --rest:#4745C2; --rest-bg:rgba(94,92,230,.14); --tint-soft:rgba(0,112,58,.12); --fill-btn:rgba(120,120,128,.12);
   --red:#C00013; --green:#1F7A35; --orange:#C93400; --focus:#0A60FF;
   --glass:rgba(255,255,255,.72); --glass-border:rgba(0,0,0,.08); --shadow:0 8px 32px rgba(0,0,0,.12);
   --r:12px; --r-lg:16px;
@@ -17,7 +17,7 @@
   :root:not([data-theme="light"]){
     --bg:#000000; --card:#1C1C1E; --card-2:#2C2C2E; --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.2);
     --label:#FFFFFF; --label-2:#AEAEB2; --sep:rgba(84,84,88,.65);
-    --tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16); --fill-btn:rgba(120,120,128,.28);
+    --tint:#00C46A; --on-tint:#000000; --rest:#B4B3FF; --rest-bg:rgba(94,92,230,.30); --tint-soft:rgba(0,196,106,.16); --fill-btn:rgba(120,120,128,.28);
     --red:#FF8078; --green:#30D158; --orange:#FFB340; --focus:#64A0FF;
     --glass:rgba(30,30,32,.72); --glass-border:rgba(255,255,255,.1); --shadow:0 8px 32px rgba(0,0,0,.5);
     color-scheme:dark;
@@ -26,7 +26,7 @@
 :root[data-theme="dark"]{
   --bg:#000000; --card:#1C1C1E; --card-2:#2C2C2E; --fill:rgba(120,120,128,.36); --fill-2:rgba(120,120,128,.2);
   --label:#FFFFFF; --label-2:#AEAEB2; --sep:rgba(84,84,88,.65);
-  --tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16); --fill-btn:rgba(120,120,128,.28);
+  --tint:#00C46A; --on-tint:#000000; --rest:#B4B3FF; --rest-bg:rgba(94,92,230,.30); --tint-soft:rgba(0,196,106,.16); --fill-btn:rgba(120,120,128,.28);
   --red:#FF8078; --green:#30D158; --orange:#FFB340; --focus:#64A0FF;
   --glass:rgba(30,30,32,.72); --glass-border:rgba(255,255,255,.1); --shadow:0 8px 32px rgba(0,0,0,.5);
   color-scheme:dark;
@@ -268,8 +268,8 @@ dialog h2:focus{outline:none}
 :root[data-accent="graphit"][data-theme="dark"]{--tint:#F2F2F7; --on-tint:#000000; --tint-soft:rgba(242,242,247,.14)}
 @media (prefers-color-scheme: dark){ :root[data-accent="graphit"]:not([data-theme="light"]){--tint:#F2F2F7; --on-tint:#000000; --tint-soft:rgba(242,242,247,.14)} }
 :root[data-accent="gruen"]{--tint:#00703A; --on-tint:#FFFFFF; --tint-soft:rgba(0,112,58,.12)}
-:root[data-accent="gruen"][data-theme="dark"]{--tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16)}
-@media (prefers-color-scheme: dark){ :root[data-accent="gruen"]:not([data-theme="light"]){--tint:#00C46A; --on-tint:#000000; --tint-soft:rgba(0,196,106,.16)} }
+:root[data-accent="gruen"][data-theme="dark"]{--tint:#00C46A; --on-tint:#000000; --rest:#B4B3FF; --rest-bg:rgba(94,92,230,.30); --tint-soft:rgba(0,196,106,.16)}
+@media (prefers-color-scheme: dark){ :root[data-accent="gruen"]:not([data-theme="light"]){--tint:#00C46A; --on-tint:#000000; --rest:#B4B3FF; --rest-bg:rgba(94,92,230,.30); --tint-soft:rgba(0,196,106,.16)} }
 :root[data-accent="kobalt"]{--tint:#1D4ED8; --on-tint:#FFFFFF; --tint-soft:rgba(29,78,216,.10)}
 :root[data-accent="kobalt"][data-theme="dark"]{--tint:#7AA2FF; --on-tint:#000000; --tint-soft:rgba(122,162,255,.18)}
 @media (prefers-color-scheme: dark){ :root[data-accent="kobalt"]:not([data-theme="light"]){--tint:#7AA2FF; --on-tint:#000000; --tint-soft:rgba(122,162,255,.18)} }
@@ -559,9 +559,24 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .wkdays{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; list-style:none; padding:0; margin:12px 0 4px}
 .wkdays li{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:.8rem; color:var(--label-2)}
 .wkdays .dot{display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:2px solid var(--fill); box-sizing:border-box; font-size:.75rem; font-weight:700; color:var(--on-tint)}
-.wkdays li.on .dot{background:var(--tint); border-color:var(--tint)}
 .wkdays li.today{color:var(--label); font-weight:600}
-.wkdays li.today:not(.on) .dot{border-color:var(--tint)}
+/* Tageszustände: Farbe plus Symbol. Ruhetag hat eine eigene, ruhige Farbe. */
+.d-done .dot{background:var(--tint); border-color:var(--tint); color:var(--on-tint)}
+.d-plan .dot{border-color:var(--tint); color:var(--tint); font-size:.55rem}
+.d-rest .dot{background:var(--rest-bg); border-color:transparent; color:var(--rest)}
+.d-pause .dot{border-style:dashed; border-color:var(--label-2); color:var(--label-2);
+  background:repeating-linear-gradient(135deg, transparent 0 4px, var(--fill) 4px 6px)}
+.d-past .dot{border-color:var(--fill)}
+.wkdays li.today .dot{box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--label-2)}
+.wklegend{display:flex; flex-wrap:wrap; gap:4px 14px; list-style:none; padding:0; margin:6px 0 4px; font-size:.78rem; color:var(--label-2)}
+.wklegend li{display:flex; align-items:center; gap:5px}
+.wklegend .dot{display:grid; place-items:center; width:16px; height:16px; border-radius:50%; border:1.5px solid var(--fill); box-sizing:border-box; font-size:.6rem; font-weight:700}
+.wklegend .d-plan .dot{font-size:.4rem}
+.wkbtns{margin-top:2px; gap:0 12px}
+.plist.planweek button{display:flex; justify-content:space-between; align-items:center; gap:8px}
+.pwstate{display:flex; align-items:center; gap:8px; font-size:.9rem; color:var(--label-2)}
+.pwstate .dot{display:grid; place-items:center; width:26px; height:26px; border-radius:50%; border:2px solid var(--fill); box-sizing:border-box; font-size:.8rem; font-weight:700}
+.pwstate.d-plan .dot{font-size:.5rem}
 .wkmsg{margin:8px 0 0}
 .recs h2{font-size:1.06rem; font-weight:600; margin:0 0 6px}
 .recs ul{list-style:none; padding:0; margin:0}
@@ -570,7 +585,7 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .recs li span{color:var(--label-2); font-size:.9rem}
 .monthcard{padding:14px 16px}
 .mnav{display:flex; gap:2px}
-.mnav .linkbtn{min-width:44px; font-size:1.4rem; line-height:1}
+.mnav .linkbtn{min-width:44px; min-height:44px; font-size:1.4rem; line-height:1}
 .mnav .linkbtn:disabled{color:var(--label-2); opacity:.5}
 .mstats{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin:10px 0 4px}
 .mstats div{display:flex; flex-direction:column}
@@ -581,3 +596,16 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .obbar{height:4px; border-radius:2px; background:var(--fill); margin:4px 0 14px; overflow:hidden}
 .obbar span{display:block; height:100%; background:var(--tint)}
 .oblist button[aria-pressed="true"] b{color:var(--tint)}
+/* Kalender (0.9.9): Monatsraster mit denselben Tageszuständen wie die Wochenleiste. Geändert = kleiner Strich unter der Zahl. */
+.calcard{padding:14px 12px 10px}
+.calhead,.calgrid{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:2px; list-style:none; padding:0; margin:0}
+.calhead{margin-top:10px; font-size:.75rem; color:var(--label-2); text-align:center}
+.calgrid button{display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; min-height:56px; padding:4px 0; border:0; background:none; border-radius:10px; color:var(--label-2); font:inherit; font-size:.78rem; cursor:pointer}
+.calgrid button:active{background:var(--fill)}
+.calgrid button:focus-visible{outline:3px solid var(--tint); outline-offset:-1px}
+:where(.calgrid) .dot{display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:2px solid var(--fill); box-sizing:border-box; font-size:.75rem; font-weight:700; color:var(--on-tint)}
+.calgrid .today .cnum{color:var(--label); font-weight:700}
+.calgrid .today .dot{box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--label-2)}
+.calgrid .ovr .cnum{text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px; color:var(--label)}
+.wklegend .ovmark{display:inline-block; width:14px; height:2px; background:var(--label)}
+.calcard p .linkbtn{min-height:44px}

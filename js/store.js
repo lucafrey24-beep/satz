@@ -66,6 +66,8 @@ function migrate() {
   S.measures = S.measures || [];
   // Ab 0.9.8: Pausenwochen fürs Wochenziel (Wochenanfang Montag, YYYY-MM-DD)
   S.pauses = S.pauses || [];
+  // Ab 0.9.9: Tagesplan, nur Abweichungen vom Wochenmuster ({"YYYY-MM-DD": "train"|"rest"|"pause"})
+  S.dayPlan = S.dayPlan && typeof S.dayPlan === "object" && !Array.isArray(S.dayPlan) ? S.dayPlan : {};
   S.plans.forEach(p => { if (!p.cycle) p.cycle = {weeks: DEFAULT_CYCLE, start: today()}; });
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
   if (S.settings.sound == null) S.settings.sound = true;
@@ -303,16 +305,55 @@ export function weekDays(wk = weekStart()) {
   S.sessions.forEach(s => { const k = sessionDay(s); byDay[k] = (byDay[k] || 0) + 1; });
   return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); const k = ymd(d); return {key: k, date: d, n: byDay[k] || 0}; });
 }
+// Geplante Trainingstage (0 = Montag). Ohne eigene Planung: gleichmäßig verteilt nach „pro Woche“ des aktiven Plans.
+export const PRESET_DAYS = {1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6]};
+export const trainDays = () => Array.isArray(S.settings.trainDays) ? [...S.settings.trainDays] : [...(PRESET_DAYS[weekGoal()] || PRESET_DAYS[3])];
 export const weekCount = wk => weekDays(wk).reduce((a, d) => a + d.n, 0);
+/* Kalender: S.dayPlan speichert nur Abweichungen vom Wochenmuster. Ohne Eintrag gilt das Muster (trainDays).
+   "pause" = Urlaub/krank: ein so markierter Trainingstag senkt das Wochenziel um 1, die Serie bricht nicht. */
+export const DAY_STATES = ["train", "rest", "pause"];
+const addDays = (key, n) => { const d = new Date(key + "T12:00:00"); d.setDate(d.getDate() + n); return ymd(d); };
+export const keyAdd = addDays;
+export const dateKey = d => ymd(new Date(d));
+export const patternFor = key => trainDays().includes((new Date(key + "T12:00:00").getDay() + 6) % 7) ? "train" : "rest";
+export const dayOverride = key => (S.dayPlan || {})[key] || null;
+export function planFor(key) {
+  if (isPaused(weekStart(new Date(key + "T12:00:00")))) return "pause";
+  return dayOverride(key) || patternFor(key);
+}
+export function setDay(key, v, persist = true) {
+  S.dayPlan = S.dayPlan || {};
+  if (v == null || v === patternFor(key)) delete S.dayPlan[key];
+  else if (DAY_STATES.includes(v)) S.dayPlan[key] = v;
+  if (persist) save();
+}
+// Training verschieben: alter Tag wird Ruhetag, neuer Tag Trainingstag. Das Wochenmuster bleibt.
+export function moveTraining(from, to) { setDay(from, "rest", false); setDay(to, "train", false); save(); }
+// Zeitraum pausieren (max. 92 Tage) oder Pause darin wieder aufheben
+export function pauseRange(from, to, on = true) {
+  if (to < from) [from, to] = [to, from];
+  for (let k = from, i = 0; k <= to && i < 92; k = addDays(k, 1), i++) {
+    if (on) setDay(k, "pause", false); else if (dayOverride(k) === "pause") setDay(k, null, false);
+  }
+  save();
+}
+export function weekGoalFor(wk = weekStart()) {
+  if (isPaused(wk)) return 0;
+  let off = 0;
+  for (let i = 0; i < 7; i++) { const k = addDays(wk, i); if (dayOverride(k) === "pause" && patternFor(k) === "train") off++; }
+  return Math.max(0, weekGoal() - off);
+}
 // Serie: Wochen in Folge mit erreichtem Ziel, rückwärts ab der laufenden (zählt nur, wenn schon erreicht) bzw. der letzten Woche
 export function weekStreak() {
   if (!S.sessions.length) return {weeks: 0, paused: 0};
-  const goal = weekGoal(), first = weekStart(new Date(Math.min(...S.sessions.map(x => new Date(x.date).getTime()))));
+  const first = weekStart(new Date(Math.min(...S.sessions.map(x => new Date(x.date).getTime()))));
   let wk = weekStart(), weeks = 0, paused = 0;
-  const prev = k => { const d = new Date(k + "T12:00:00"); d.setDate(d.getDate() - 7); return ymd(d); };
-  if (weekCount(wk) < goal) wk = prev(wk);
+  const prev = k => addDays(k, -7);
+  if (weekCount(wk) < weekGoalFor(wk) || weekGoalFor(wk) === 0) wk = prev(wk);
   while (wk >= first) {
-    if (isPaused(wk) && weekCount(wk) < goal) { paused++; wk = prev(wk); continue; }
+    const goal = weekGoalFor(wk);
+    if (goal === 0 && weekCount(wk) < weekGoal()) { paused++; wk = prev(wk); continue; }
+    if (goal === 0) { weeks++; wk = prev(wk); continue; }
     if (weekCount(wk) < goal) break;
     weeks++; wk = prev(wk);
   }
@@ -459,6 +500,7 @@ export function sanitizeImport(d) {
     accent: ["graphit", "gruen", "kobalt", "signal", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
     ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {}),
     ...(s.onboarded ? {onboarded: true} : {}),
+    ...(Array.isArray(s.trainDays) ? {trainDays: [...new Set(s.trainDays.filter(v => Number.isInteger(v) && v >= 0 && v <= 6))].sort()} : {}),
     ...(s.remind && typeof s.remind === "object" ? {remind: {days: arr(s.remind.days || [], "Erinnerung").filter(v => Number.isInteger(v) && v >= 0 && v <= 6),
       time: typeof s.remind.time === "string" && /^\d{2}:\d{2}$/.test(s.remind.time) ? s.remind.time : "18:00", before: [0, 15, 30, 60].includes(s.remind.before) ? s.remind.before : 15}} : {})};
   const pr = d.profile || {};
@@ -475,5 +517,7 @@ export function sanitizeImport(d) {
     foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge"), ...(e.quick ? {quick: true} : {})}));
   const pauses = [...new Set(arr(d.pauses || [], "Pausenwochen").filter(v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)))].sort();
   const activePlanId = d.activePlanId && plans.some(p => p.id === d.activePlanId) ? d.activePlanId : plans[0]?.id || null;
-  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food, pauses};
+  const dayPlan = {};
+  for (const [k, v] of Object.entries(d.dayPlan && typeof d.dayPlan === "object" ? d.dayPlan : {})) if (/^\d{4}-\d{2}-\d{2}$/.test(k) && DAY_STATES.includes(v)) dayPlan[k] = v;
+  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food, pauses, dayPlan};
 }
