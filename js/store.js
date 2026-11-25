@@ -68,8 +68,8 @@ function migrate() {
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
   if (S.settings.sound == null) S.settings.sound = true;
   if (!S.settings.accentSet) { S.settings.accent = "gruen"; S.settings.accentSet = true; }
-  // Ab 0.9.3 ersetzt Gras (kräftiges Grün) die Farbe Oliv. Wer Oliv gewählt hatte, bekommt Gras.
-  if (S.settings.accent === "oliv") S.settings.accent = "gras";
+  // Oliv (bis 0.9.2) und Gras (0.9.3) gibt es nicht mehr. Wer eine davon gewählt hatte, bekommt Grün.
+  if (S.settings.accent === "oliv" || S.settings.accent === "gras") S.settings.accent = "gruen";
 }
 export const currentWeight = () => S.weights.length ? S.weights[S.weights.length - 1].kg : 0;
 
@@ -329,7 +329,7 @@ export function sanitizeImport(d) {
   const s = d.settings || {};
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
     contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, voice: s.voice !== false, bgBell: !!s.bgBell, showFig: s.showFig !== false,
-    accent: s.accent === "oliv" ? "gras" : ["graphit", "gruen", "kobalt", "signal", "gras", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
+    accent: ["graphit", "gruen", "kobalt", "signal", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
     ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
   const pr = d.profile || {};
   const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",
