@@ -84,6 +84,8 @@ const cable = (from, p) => line(from[0], from[1], p[0].toFixed(1), p[1].toFixed(
 const stack = (x, top) => rect(x - 4, top, 8, 108 - top, "eq2");
 const bench = (x1, x2, y) => rect(x1, y, x2 - x1, 4) + line(x1 + 4, y + 4, x1 + 4, 108) + line(x2 - 4, y + 4, x2 - 4, 108);
 const floor = (y = 108) => line(4, y, 156, y, "fl");
+const band = (a, b) => `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" class="bnd"/>`;
+const wall = x => rect(x, 4, 5, 104, "eq2");
 
 /* ---------- Vorlagen ---------- */
 // A/B: hip, t (Rumpfwinkel, -90 = aufrecht), hand, foot (Knöchel), hs/fs Beugerichtung, ft Fußwinkel, foot2 zweites Bein
@@ -157,6 +159,69 @@ const P = {
     eq: () => rect(98, 84, 36, 24, "eq2")},
   abduct: {front: true, A: {hand: [16, 70], hs: 1, foot: [9, 104], fs: -1}, B: {foot: [26, 104]},
     eq: () => rect(64, 68, 32, 8, "eq2") + rect(66, 30, 28, 38, "eq2")},
+  // ab 0.10: Varianten und Übungen für zu Hause
+  chestpress: {A: {hip: [62, 82], t: -92, hand: [84, 58], hs: 1, foot: [92, 106], fs: -1}, B: {hand: [104, 60]},
+    eq: J => rect(48, 84, 28, 4) + line(52, 84, 50, 36, "eqt") + line(58, 88, 58, 108) + stack(132, 30) + line(J.hand[0], J.hand[1] - 6, J.hand[0], J.hand[1] + 6, "eqt")},
+  crossover: {front: true, A: {hand: [36, 34], hs: 1, foot: [12, 106], hipY: 72}, B: {hand: [8, 76]},
+    eq: J => line(6, 8, 6, 108) + line(154, 8, 154, 108) + cable([10, 10], J.handL) + cable([150, 10], J.handR)},
+  press_machine: {base: "press", eq: J => rect(56, 84, 28, 4) + line(62, 88, 62, 108) + line(60, 84, 60, 40, "eqt") + stack(110, 8) + line(J.hand[0] - 6, J.hand[1], J.hand[0] + 6, J.hand[1], "eqt")},
+  lateral_cable: {base: "lateral", eq: J => stack(150, 40) + cable([146, 104], J.handR)},
+  row_machine: {A: {hip: [64, 84], t: -60, hand: [106, 64], hs: -1, foot: [96, 106], fs: -1}, B: {hand: [80, 70]},
+    eq: J => rect(50, 86, 26, 4) + line(56, 90, 56, 108) + rect(86, 40, 6, 30, "eq2") + line(92, 70, 92, 108) + line(J.hand[0], J.hand[1] - 6, J.hand[0], J.hand[1] + 6, "eqt")},
+  straightarm: {A: {hip: [76, 70], t: -78, hand: [118, 30], hs: -1, foot: [80, 108], fs: -1}, B: {hand: [96, 76]},
+    eq: J => stack(140, 6) + line(140, 6, 126, 6) + cable([126, 6], J.hand)},
+  preacher: {A: {hip: [66, 82], t: -84, hand: [104, 76], hs: 1, foot: [84, 106], fs: -1}, B: {hand: [86, 46]},
+    eq: J => line(78, 56, 98, 76, "eqt") + line(86, 70, 86, 108) + rect(56, 84, 24, 4) + plate(J.hand, 5)},
+  curl_cable: {base: "curl", eq: J => stack(132, 40) + cable([128, 104], J.hand)},
+  overhead_cable: {A: {hip: [70, 70], t: -70, hand: [102, 30], hs: -1, foot: [80, 108], fs: -1}, B: {hand: [116, 10]},
+    eq: J => stack(30, 6) + cable([34, 20], J.hand)},
+  skull: {base: "bench", A: {hand: [44, 44], hs: 1}, B: {hand: [28, 56]}, eq: J => bench(26, 84, 80) + plate(J.hand, 5)},
+  hack: {A: {hip: [84, 70], t: -100, hand: [80, 46], hs: 1, foot: [88, 104], fs: -1}, B: {hip: [72, 88], t: -112, hand: [68, 62]},
+    eq: J => line(J.hip[0] - 6, J.hip[1] + 6, J.sho[0] - 6, J.sho[1] - 8, "eqt") + rect(80, 104, 22, 4, "eq2")},
+  frontsquat: {base: "squat", A: {hand: [92, 40]}, B: {hand: [94, 60]}, eq: J => plate([J.sho[0] + 5, J.sho[1] + 1], 8)},
+  legcurl_seat: {base: "legext", A: {foot: [106, 80]}, B: {foot: [84, 108]}},
+  incline_db: {base: "incline", eq: J => line(78, 84, 46, 62, "eqt") + bench(66, 90, 84) + db(J.hand)},
+  floorpress: {A: {hip: [74, 102], t: 180, hand: [44, 80], hs: -1, foot: [100, 106], fs: -1}, B: {hand: [44, 60]}, eq: J => db(J.hand)},
+  fly_db: {base: "bench", A: {hand: [46, 96], hs: -1}, B: {hand: [42, 46]}, eq: J => bench(26, 84, 80) + db(J.hand)},
+  pullover: {base: "bench", A: {hand: [8, 74], hs: 1}, B: {hand: [40, 46]}, eq: J => bench(26, 84, 80) + db(J.hand)},
+  row_dbs: {base: "row_bb", eq: J => db(J.hand)},
+  press_db: {base: "press", eq: J => rect(56, 84, 28, 4) + line(62, 88, 62, 108) + line(60, 84, 60, 40, "eqt") + db(J.hand)},
+  rearfly_db: {A: {hip: [84, 66], t: -18, hand: [102, 96], hs: -1, foot: [90, 106], fs: -1}, B: {hand: [96, 52]}, eq: J => db(J.hand)},
+  rdl_db: {base: "rdl", eq: J => db(J.hand)},
+  airsquat: {base: "squat", A: {hand: [104, 46]}, B: {hand: [106, 66]}, eq: () => ""},
+  splitsquat: {base: "lunge", A: {foot: [100, 106], foot2: [56, 106], ft2: 50}, B: {foot: [100, 106], foot2: [56, 106]}, eq: () => ""},
+  calf_bw: {base: "calf", A: {hand: [108, 50], hs: -1}, B: {hand: [108, 46]}, eq: () => rect(70, 102, 30, 6, "eq2") + line(118, 10, 118, 108, "eql")},
+  pushup_incline: {A: {hip: [74, 86], t: -28, hand: [112, 84], hs: -1, foot: [36, 106], fs: 1, ft: 90}, B: {hip: [76, 80], t: -42},
+    eq: () => rect(104, 84, 40, 5) + line(110, 89, 110, 108) + line(138, 89, 138, 108)},
+  pike: {A: {hip: [82, 62], t: 120, hand: [62, 106], hs: -1, foot: [106, 106], fs: 1, ft: 90}, B: {hip: [82, 70], t: 145}, eq: () => ""},
+  benchdip: {A: {hip: [70, 76], t: -94, hand: [60, 80], hs: -1, foot: [118, 106], fs: -1}, B: {hip: [70, 96], hand: [60, 80]},
+    eq: () => bench(36, 66, 80)},
+  invrow: {A: {hip: [92, 92], t: 192, hand: [58, 62], hs: 1, foot: [130, 106], fs: 1, ft: -90}, B: {hip: [92, 82], t: 200},
+    eq: () => rect(26, 58, 72, 4) + line(32, 62, 32, 108) + line(92, 62, 92, 108)},
+  superman: {A: {hip: [84, 102], t: 180, hand: [34, 104], hs: 1, foot: [130, 104], fs: 1, ft: 90}, B: {t: 172, hand: [32, 94], foot: [130, 96]}, eq: () => ""},
+  // ab 0.10: Widerstandsband
+  row_band: {base: "row_cable", eq: J => band(J.toe, J.hand)},
+  pullapart: {front: true, A: {hand: [8, 46], hs: 1, foot: [10, 106]}, B: {hand: [36, 46]}, eq: J => band(J.handL, J.handR)},
+  facepull_band: {base: "facepull", eq: J => rect(142, 34, 6, 8, "eq2") + band([142, 38], J.hand)},
+  press_band: {A: {hip: [76, 70], t: -90, hand: [84, 44], hs: 1, foot: [78, 108], fs: -1}, B: {hand: [80, 14]}, eq: J => band(J.toe, J.hand)},
+  pushdown_band: {base: "pushdown", eq: J => wall(100) + band([100, 8], J.hand)},
+  curl_band: {base: "curl", eq: J => band(J.toe, J.hand)},
+  sidestep_band: {front: true, A: {hand: [18, 66], hs: 1, foot: [10, 106], fs: -1, hipY: 74}, B: {foot: [24, 106]}, eq: J => band(J.kneeL, J.kneeR)},
+  // ab 0.10: Halten und Mobility. Zwei nahe Posen: die Figur „atmet“ in der Haltung.
+  plank: {A: {hip: [76, 96], t: -6, hand: [116, 106], hs: 1, foot: [40, 106], fs: 1, ft: 90}, B: {hip: [76, 95]}, eq: () => ""},
+  wallsit: {A: {hip: [66, 84], t: -90, hand: [80, 82], hs: 1, foot: [88, 106], fs: -1}, B: {hip: [66, 85]}, eq: () => wall(56)},
+  kneelstretch: {A: {hip: [76, 84], t: -88, hand: [80, 86], hs: -1, foot: [100, 106], fs: -1, foot2: [56, 106], fs2: -1, ft2: 180}, B: {hip: [82, 86], t: -84},
+    eq: () => ""},
+  pigeon: {A: {hip: [76, 98], t: -70, hand: [92, 104], hs: -1, foot: [92, 104], fs: -1, ft: 0, foot2: [40, 106], fs2: 1, ft2: 180}, B: {t: -24, hand: [116, 104]}, eq: () => ""},
+  fold: {A: {hip: [80, 68], t: -40, hand: [96, 92], hs: -1, foot: [84, 106], fs: -1}, B: {t: -14, hand: [104, 102]}, eq: () => ""},
+  chestwall: {A: {hip: [84, 70], t: -90, hand: [62, 40], hs: -1, foot: [86, 108], fs: -1}, B: {hip: [88, 70], t: -86}, eq: () => wall(52)},
+  child: {A: {hip: [62, 98], t: -12, hand: [124, 104], hs: 1, foot: [44, 106], fs: 1, ft: 180}, B: {t: -6, hand: [132, 104]}, eq: () => ""},
+  catcow: {A: {hip: [58, 82], t: 4, hand: [92, 106], hs: 1, foot: [36, 106], fs: 1, ft: 180}, B: {hip: [58, 78], t: -8}, eq: () => ""},
+  quadrot: {base: "catcow", B: {hip: [58, 82], t: 0, hand: [94, 54]}},
+  calfwall: {A: {hip: [80, 72], t: -66, hand: [114, 44], hs: 1, foot: [98, 106], fs: -1, foot2: [52, 106], fs2: -1}, B: {hip: [86, 72], t: -62}, eq: () => wall(118)},
+  deepsquat: {A: {hip: [72, 98], t: -66, hand: [100, 78], hs: 1, foot: [88, 106], fs: -1}, B: {hip: [72, 97], t: -70}, eq: () => ""},
+  crossarm: {front: true, A: {hand: [-8, 48], hs: -1, foot: [10, 106]}, B: {hand: [-12, 46]}, eq: () => ""},
+  revcrunch: {A: {hip: [80, 102], t: 180, hand: [70, 106], hs: 1, foot: [118, 104], fs: -1}, B: {hip: [82, 98], foot: [88, 76]}, eq: () => ""},
 };
 for (const k of Object.keys(P)) { const p = P[k]; if (p.base) { const b = P[p.base]; P[k] = {...b, ...p, A: {...b.A, ...(p.A || {})}, B: {...b.B, ...(p.B || {})}}; } }
 for (const p of Object.values(P)) p.B = {...p.A, ...p.B};

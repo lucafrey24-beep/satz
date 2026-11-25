@@ -15,10 +15,11 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 ## Aufbau
 - `index.html` – Gerüst mit Navigation
 - `css/app.css` – iOS-Look nach Apple Human Interface Guidelines (Systemschrift mit Dynamic Type, gruppierte Listen, schwebende Tab-Bar), hell/dunkel/erhöhter Kontrast
-- `js/data.js` – Muskeln, 43 Übungen mit Gerät und Ausführungshinweis, 8 fertige Pläne mit Trainingsziel (Kraft & Muskeln, Kraftausdauer, Athletik)
+- `js/data.js` – Muskeln, 101 Übungen mit Gerät, Gerätefilter (Studio, zu Hause, Kurzhanteln, Band, ohne Gerät, Mobility) und Ausführungshinweis, 12 fertige Pläne (auch für zu Hause und Mobility) mit Trainingsziel (Kraft & Muskeln, Kraftausdauer, Athletik)
 - `js/store.js` – Speicherung, Volumen pro Muskel, doppelte Progression
 - `js/nutrition.js` – Energiebedarf (Mifflin-St Jeor × PAL), Makroziele mit Quellen, Open-Food-Facts-Abfragen
 - `js/vendor/zxing.min.js` – Barcode-Erkennung (ZXing 0.21.3, Apache-2.0, siehe `zxing-LICENSE`), wird nur geladen, wenn der Browser keinen eigenen BarcodeDetector hat
+- `js/onboarding.js` – Einstieg für neue Nutzer: fünf Fragen, Planvorschlag aus den Vorlagen, Satzzahl passend zur Zeit
 - `js/anim.js` – selbst gezeichnete Bewegungsabläufe (SVG-Strichfiguren mit Gerät). Ähnliche Übungen teilen sich eine Vorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels. Bei „Bewegung reduzieren“ Start- und Endposition als Standbild
 - `js/bell.js` – Pausenende: selbst synthetisierte Ringglocke (Web Audio, mischt sich mit Musik; optional als Audiodatei auch im Hintergrund) und Ansage „Next Round“ über die Sprachausgabe des Geräts
 - `js/body3d.js` – 3D-Körperkarte aus einfachen Formen, Muskeln antippbar, Drehen per Ziehen. Liste als gleichwertige Alternative

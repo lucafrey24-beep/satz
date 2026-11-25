@@ -88,7 +88,7 @@ main:focus{outline:none}
 .eyebrow{font-size:.765rem; font-weight:400; color:var(--label-2); margin:12px 0 2px; text-transform:uppercase; letter-spacing:.02em}
 h1.big{font-size:2rem; font-weight:700; letter-spacing:.01em; line-height:1.15; margin:4px 0 12px; overflow-wrap:anywhere; hyphens:auto}
 h1.big:focus{outline:none}
-h2.sec{font-size:.765rem; font-weight:400; color:var(--label-2); text-transform:uppercase; letter-spacing:.02em; margin:28px 16px 6px}
+h2.sec, h3.sec{font-size:.765rem; font-weight:400; color:var(--label-2); text-transform:uppercase; letter-spacing:.02em; margin:28px 16px 6px}
 h3{font-size:1rem; font-weight:600; margin:0}
 p{margin:0 0 12px}
 .meta{color:var(--label-2); font-size:.88rem}
@@ -427,6 +427,7 @@ svg.exanim{display:block; width:100%; height:auto; max-height:200px}
 .exanim .eql{stroke:var(--label-2); stroke-width:2; stroke-linecap:round}
 .exanim .eqt{stroke:var(--label-2); stroke-width:3.4; stroke-linecap:round}
 .exanim .cbl{stroke:var(--label-2); stroke-width:1; stroke-dasharray:3 2}
+.exanim .bnd{stroke:var(--tint); stroke-width:1.8; stroke-linecap:round; opacity:.8}
 .exanim .ld{fill:var(--label-2)}
 .exanim .hub{fill:var(--card)}
 .exanim .fl{stroke:var(--sep); stroke-width:1.5}
@@ -550,3 +551,33 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .setlist .nowtag{font-size:.7rem; font-weight:700; color:var(--on-tint); background:var(--tint); border-radius:6px; padding:2px 6px}
 .setlist .xtag{font-size:.68rem; color:var(--label-2); border:1px solid var(--sep); border-radius:5px; padding:0 4px; margin-left:4px}
 @media (max-width:360px){ .sethead,.setlist .srow{grid-template-columns:minmax(0,1fr) 3.2em 2.8em 2.2em 2.4em; column-gap:4px} .setlist .srow{padding-left:12px; padding-right:12px} }
+/* ab 0.9.8: Wochenkalender mit Wochenziel, Bestwerte, Rückblick, Einstieg */
+.weekcard{padding:14px 16px 8px}
+.wkhead{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+.wkhead h2{font-size:1.06rem; font-weight:600; margin:0}
+.wkhead .num{font-weight:600; color:var(--tint); font-variant-numeric:tabular-nums}
+.wkdays{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; list-style:none; padding:0; margin:12px 0 4px}
+.wkdays li{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:.8rem; color:var(--label-2)}
+.wkdays .dot{display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:2px solid var(--fill); box-sizing:border-box; font-size:.75rem; font-weight:700; color:var(--on-tint)}
+.wkdays li.on .dot{background:var(--tint); border-color:var(--tint)}
+.wkdays li.today{color:var(--label); font-weight:600}
+.wkdays li.today:not(.on) .dot{border-color:var(--tint)}
+.wkmsg{margin:8px 0 0}
+.recs h2{font-size:1.06rem; font-weight:600; margin:0 0 6px}
+.recs ul{list-style:none; padding:0; margin:0}
+.recs li{display:flex; flex-direction:column; padding:6px 0; border-top:.5px solid var(--sep)}
+.recs li:first-child{border-top:0}
+.recs li span{color:var(--label-2); font-size:.9rem}
+.monthcard{padding:14px 16px}
+.mnav{display:flex; gap:2px}
+.mnav .linkbtn{min-width:44px; font-size:1.4rem; line-height:1}
+.mnav .linkbtn:disabled{color:var(--label-2); opacity:.5}
+.mstats{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin:10px 0 4px}
+.mstats div{display:flex; flex-direction:column}
+.mstats b{font-size:1.5rem; font-weight:700}
+.mstats span{font-size:.9rem}
+.mstats small{color:var(--label-2); font-size:.78rem}
+.daychip{min-width:44px; padding:0 10px}
+.obbar{height:4px; border-radius:2px; background:var(--fill); margin:4px 0 14px; overflow:hidden}
+.obbar span{display:block; height:100%; background:var(--tint)}
+.oblist button[aria-pressed="true"] b{color:var(--tint)}

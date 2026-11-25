@@ -1,5 +1,5 @@
 // Zustand, Speicherung, Progression und Volumen.
-import {EXERCISES, TEMPLATES, MUSCLES, MEASURES, isCompound, defaultRest} from "./data.js";
+import {EXERCISES, TEMPLATES, MUSCLES, MEASURES, isCompound, defaultRest, isMobility, noLoad} from "./data.js";
 const MEASURE_IDS = new Set(MEASURES.map(m => m.id));
 
 const KEY = "satz-data";
@@ -64,6 +64,8 @@ function migrate() {
   // Ab 0.9: Körpermaße und Entlastungsrhythmus. Bestehende Pläne starten ihren Zyklus am Tag des Updates,
   // damit kein laufender Plan plötzlich mitten in einer Entlastungswoche steht.
   S.measures = S.measures || [];
+  // Ab 0.9.8: Pausenwochen fürs Wochenziel (Wochenanfang Montag, YYYY-MM-DD)
+  S.pauses = S.pauses || [];
   S.plans.forEach(p => { if (!p.cycle) p.cycle = {weeks: DEFAULT_CYCLE, start: today()}; });
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
   if (S.settings.sound == null) S.settings.sound = true;
@@ -129,6 +131,7 @@ export function nextDayIndex(p) {
 const zero = () => Object.fromEntries(MUSCLES.map(m => [m.id, 0]));
 function addSets(v, exId, n) {
   const e = ex(exId);
+  if (isMobility(e)) return;   // Dehnen und Mobility zählen nicht als Trainingsvolumen
   e.primary.forEach(m => v[m] = (v[m] || 0) + n);
   e.secondary.forEach(m => v[m] = (v[m] || 0) + n * 0.5);
 }
@@ -189,7 +192,7 @@ export function setCount(exId) {
 }
 // Sinnvoller Startwert beim ersten Mal: Langhantel 20 kg, sonst ein leichtes Gewicht (danach direkt eintippen)
 export function startWeight(e) {
-  if (e.unit === "bw") return 0;
+  if (e.unit === "bw" || noLoad(e)) return 0;
   if (/langhantel|bankdr|kniebeug|kreuzheb|rudern|schulterdr|sz/i.test(e.name) && !/kurzhantel/i.test(e.name)) return 20;
   return isCompound(e) ? 20 : 10;
 }
@@ -198,12 +201,36 @@ const roundTo = (x, step) => step ? Math.max(0, Math.round(x / step) * step) : x
 export const fmt = n => (Math.round(n * 100) / 100).toLocaleString("de-DE");
 export function fmtW(e, kg) {
   if (e.unit === "bw") return kg ? `Körpergewicht + ${fmt(kg)} kg` : "Körpergewicht";
+  if (e.unit === "band") return "Band";
+  if (e.unit === "s") return "Halten";
   return `${fmt(kg)} kg`;
+}
+// Einheit der „Wiederholungen“: bei Halteübungen Sekunden
+export const repWord = e => e.unit === "s" ? "Sekunden" : "Wiederholungen";
+export const repShort = e => e.unit === "s" ? "Sek." : "Wdh.";
+
+// Band und Halten: kein Gewicht. Band: erst alle Sätze bis zum oberen Ende, dann stärkeres Band.
+// Halten: bis zum oberen Ende steigern, dort bleiben. Mobility hat kein Leistungsziel.
+function suggestNoLoad(slot, e, last) {
+  const u = e.unit === "s" ? "s" : "Wdh.", range = `${slot.sets} × ${slot.min}–${slot.max} ${u}`;
+  if (!last) return {kind: "new", kg: 0, reps: e.unit === "s" ? slot.min : slot.max,
+    text: isMobility(e) ? `Locker in die Dehnung gehen, ruhig atmen, nicht wippen. Ziel: ${range}.`
+      : e.unit === "s" ? `Erstes Mal. Halte sauber ${slot.min} s, Ziel: ${range}.` : `Erstes Mal. Wähle ein Band, mit dem du ${slot.max} saubere Wdh. schaffst.`};
+  const prev = `Letztes Mal: ${last.sets.map(x => x.reps).join(" + ")} ${u}.`;
+  if (isMobility(e)) return {kind: "hold", kg: 0, reps: slot.max, text: `${prev} Heute wieder ${range}. Dehnen ohne Schmerz, mit dem Atem tiefer.`};
+  const all = last.sets.length >= slot.sets && last.sets.every(x => x.reps >= slot.max);
+  if (e.unit === "band") return all
+    ? {kind: "up", kg: 0, reps: slot.min, text: `${prev} Ziel erreicht. Nimm heute ein stärkeres Band, Ziel ab ${slot.min} Wdh.`}
+    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 1), text: `${prev} Gleiches Band, eine Wiederholung mehr. Ziel: ${slot.sets} × ${slot.max}.`};
+  return all
+    ? {kind: "hold", kg: 0, reps: slot.max, text: `${prev} Ziel erreicht. Halte die ${slot.max} s sauber oder wähle eine schwerere Variante.`}
+    : {kind: "hold", kg: 0, reps: Math.min(slot.max, Math.max(...last.sets.map(x => x.reps)) + 5), text: `${prev} Heute etwa 5 s länger. Ziel: ${range}.`};
 }
 
 // Doppelte Progression pro Übung (Plotkin et al. 2022): erst alle Sätze bis zum oberen Ende der Spanne, dann Gewicht steigern.
 export function suggest(slot) {
   const e = ex(slot.exId), last = lastSetsFor(slot.exId);
+  if (noLoad(e)) return suggestNoLoad(slot, e, last);
   if (!last) {
     return {kind: "new", kg: startWeight(e), reps: slot.max,
       text: e.unit === "bw"
@@ -251,6 +278,106 @@ export function suggest(slot) {
     text: `${prev} Du hattest 3+ Wdh. in Reserve. Geh heute näher ans Limit, Ziel: ${slot.sets} × ${slot.max}.`};
   return {kind: "hold", kg, reps: Math.min(slot.max, top[0].reps + 1),
     text: `${prev} Gewicht halten und eine Wiederholung mehr schaffen. Ziel: ${slot.sets} × ${slot.max}.`};
+}
+
+/* ---------- Motivation: Wochenziel statt Tagesserie ----------
+   Keine Streaks pro Tag: Ruhetage und Entlastungswochen gehören zum Training (Lally et al. 2010: ein verpasster Tag schadet der Gewohnheit nicht).
+   Gezählt werden Wochen (Mo–So), in denen das Wochenziel des aktiven Plans erreicht wurde. Als Pause markierte Wochen (Urlaub, krank)
+   unterbrechen die Serie nicht und zählen nicht mit. Die laufende Woche zählt erst, wenn ihr Ziel erreicht ist. */
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export function weekStart(date = new Date()) {
+  const d = new Date(date); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d);
+}
+export const sessionDay = s => ymd(new Date(s.date));
+export const weekGoal = () => (activePlan() || {perWeek: 3}).perWeek;
+export const isPaused = wk => (S.pauses || []).includes(wk);
+export function togglePause(wk = weekStart()) {
+  S.pauses = S.pauses || [];
+  S.pauses = isPaused(wk) ? S.pauses.filter(x => x !== wk) : [...S.pauses, wk].sort();
+  save();
+}
+export function weekDays(wk = weekStart()) {
+  const start = new Date(wk + "T12:00:00");
+  const byDay = {};
+  S.sessions.forEach(s => { const k = sessionDay(s); byDay[k] = (byDay[k] || 0) + 1; });
+  return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); const k = ymd(d); return {key: k, date: d, n: byDay[k] || 0}; });
+}
+export const weekCount = wk => weekDays(wk).reduce((a, d) => a + d.n, 0);
+// Serie: Wochen in Folge mit erreichtem Ziel, rückwärts ab der laufenden (zählt nur, wenn schon erreicht) bzw. der letzten Woche
+export function weekStreak() {
+  if (!S.sessions.length) return {weeks: 0, paused: 0};
+  const goal = weekGoal(), first = weekStart(new Date(Math.min(...S.sessions.map(x => new Date(x.date).getTime()))));
+  let wk = weekStart(), weeks = 0, paused = 0;
+  const prev = k => { const d = new Date(k + "T12:00:00"); d.setDate(d.getDate() - 7); return ymd(d); };
+  if (weekCount(wk) < goal) wk = prev(wk);
+  while (wk >= first) {
+    if (isPaused(wk) && weekCount(wk) < goal) { paused++; wk = prev(wk); continue; }
+    if (weekCount(wk) < goal) break;
+    weeks++; wk = prev(wk);
+  }
+  return {weeks, paused};
+}
+// Neue Bestwerte im laufenden Training gegenüber allen gespeicherten Trainings.
+// Mit Gewicht: geschätztes 1RM (Epley). Ohne Gewicht: meiste Wdh. in einem Satz. Halten: längste Zeit. Mobility: keine Rekorde.
+export function newRecords(sets) {
+  const out = [], seen = new Set();
+  for (const x of sets) {
+    if (x.type === "warm" || seen.has(x.exId)) continue;
+    seen.add(x.exId);
+    const e = ex(x.exId); if (isMobility(e)) continue;
+    const mine = sets.filter(y => y.exId === x.exId && y.type !== "warm");
+    const old = S.sessions.flatMap(s => s.sets.filter(y => y.exId === x.exId && y.type !== "warm"));
+    if (!old.length) continue;
+    const weighted = e.unit === "kg" || (e.unit === "bw" && (mine.some(y => y.kg > 0) || old.some(y => y.kg > 0)));
+    if (weighted) {
+      const now = Math.max(...mine.map(y => e1rm(y.kg, y.reps))), before = Math.max(...old.map(y => e1rm(y.kg, y.reps)));
+      if (now > before + 0.01) { const b = mine.find(y => e1rm(y.kg, y.reps) === now); out.push({exId: x.exId, name: e.name, text: `${fmtW(e, b.kg)} × ${b.reps}, 1RM ca. ${fmt(Math.round(now * 10) / 10)} kg (vorher ${fmt(Math.round(before * 10) / 10)})`}); }
+    } else {
+      const now = Math.max(...mine.map(y => y.reps)), before = Math.max(...old.map(y => y.reps));
+      if (now > before) out.push({exId: x.exId, name: e.name, text: e.unit === "s" ? `${now} s gehalten (vorher ${before} s)` : `${now} Wdh. in einem Satz (vorher ${before})`});
+    }
+  }
+  return out;
+}
+
+/* ---------- Monatsrückblick ---------- */
+// Trainings, harte Sätze (ohne Mobility), Trainingszeit, meistbelastete Muskeln und Bestwerte eines Kalendermonats (m: 0–11)
+export function monthStats(y, m) {
+  const inM = s => { const d = new Date(s.date); return d.getFullYear() === y && d.getMonth() === m; };
+  const ses = S.sessions.filter(inM);
+  const hard = ses.flatMap(s => s.sets.filter(isHard)).filter(x => !isMobility(ex(x.exId)));
+  const mins = ses.reduce((a, s) => a + (s.end ? Math.max(0, Math.min(240, (new Date(s.end) - new Date(s.date)) / 60000)) : 0), 0);
+  const v = zero(); hard.forEach(x => addSets(v, x.exId, 1));
+  const top = MUSCLES.filter(mm => v[mm.id] > 0).sort((a, b) => v[b.id] - v[a.id]).slice(0, 3).map(mm => ({name: mm.name, sets: v[mm.id]}));
+  // Bestwerte: jedes Training gegen alle früheren (Gewicht: geschätztes 1RM, ohne Gewicht: meiste Wdh. bzw. Sekunden)
+  const best = {}; let records = 0;
+  [...S.sessions].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(s => {
+    const by = {};
+    s.sets.filter(x => x.type !== "warm").forEach(x => { const e = ex(x.exId); if (isMobility(e)) return;
+      const val = e.unit === "kg" ? e1rm(x.kg, x.reps) : x.reps; by[x.exId] = Math.max(by[x.exId] ?? 0, val); });
+    for (const [k, val] of Object.entries(by)) { if (best[k] != null && val > best[k] + 0.01 && inM(s)) records++; best[k] = Math.max(best[k] ?? 0, val); }
+  });
+  return {sessions: ses.length, days: new Set(ses.map(sessionDay)).size, hard: hard.length, mins: Math.round(mins), top, records};
+}
+
+/* ---------- Kalenderdatei (.ics) ----------
+   iOS stellt einer Web-App ohne Server keine verlässlichen Erinnerungen zu. Ein wiederkehrender Termin im Kalender
+   mit Erinnerung funktioniert dagegen überall und ganz ohne SATZ im Hintergrund. RFC 5545, lokale Zeit ohne Zeitzone. */
+const ICS_DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+export function icsFor({days, time, before, minutes, title, url}) {
+  const [hh, mm] = time.split(":").map(Number), now = new Date();
+  const start = new Date(); start.setHours(hh, mm, 0, 0);
+  for (let i = 0; i < 8; i++) { const wd = (start.getDay() + 6) % 7; if (days.includes(wd) && start > now) break; start.setDate(start.getDate() + 1); start.setHours(hh, mm, 0, 0); }
+  const loc = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const utc = now.toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const esc = t => t.replace(/[\\;,]/g, c => "\\" + c).replace(/\n/g, "\\n");
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SATZ//Trainingsheft//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VEVENT", `UID:satz-${uid()}@satz`, `DTSTAMP:${utc}`, `DTSTART:${loc(start)}`, `DURATION:PT${Math.max(15, Math.round(minutes))}M`,
+    `RRULE:FREQ=WEEKLY;BYDAY=${days.sort((a, b) => a - b).map(d => ICS_DAYS[d]).join(",")}`,
+    `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc("Öffne SATZ und starte dein Training: " + url)}`, `URL:${url}`,
+    ...(before >= 0 ? ["BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(title)}`, `TRIGGER:-PT${before}M`, "END:VALARM"] : []),
+    "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
 }
 
 /* ---------- Training ---------- */
@@ -312,10 +439,10 @@ export function sanitizeImport(d) {
   for (const [k, e] of Object.entries(d.exercises || bad("Übungen fehlen."))) {
     id(k, "Übung");
     exercises[k] = {id: k, name: str(e.name, 80) || "Übung", primary: arr(e.primary, "Muskeln").filter(m => MUSCLE_IDS.has(m)), secondary: arr(e.secondary || [], "Muskeln").filter(m => MUSCLE_IDS.has(m)),
-      step: optNum(e.step, 0.1, 50, 2.5), unit: e.unit === "bw" ? "bw" : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
+      step: optNum(e.step, 0.1, 50, 2.5), unit: ["bw", "band", "s"].includes(e.unit) ? e.unit : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
     if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
   }
-  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik"].includes(p.goal) ? p.goal : "kraft",
+  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik", "mobil"].includes(p.goal) ? p.goal : "kraft",
     ...(p.cycle && typeof p.cycle === "object" ? {cycle: {weeks: CYCLES.includes(p.cycle.weeks) ? p.cycle.weeks : DEFAULT_CYCLE, start: day(p.cycle.start)}} : {}),
     days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
       slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
@@ -330,7 +457,10 @@ export function sanitizeImport(d) {
   const settings = {scale: [1, 1.15, 1.3, 1.5].includes(s.scale) ? s.scale : 1, theme: ["auto", "light", "dark"].includes(s.theme) ? s.theme : "auto",
     contrast: !!s.contrast, rir: s.rir !== false, rest: [0, 60, 90, 120, 180].includes(s.rest) ? s.rest : 0, sound: s.sound !== false, voice: s.voice !== false, bgBell: !!s.bgBell, showFig: s.showFig !== false,
     accent: ["graphit", "gruen", "kobalt", "signal", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
-    ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {})};
+    ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {}),
+    ...(s.onboarded ? {onboarded: true} : {}),
+    ...(s.remind && typeof s.remind === "object" ? {remind: {days: arr(s.remind.days || [], "Erinnerung").filter(v => Number.isInteger(v) && v >= 0 && v <= 6),
+      time: typeof s.remind.time === "string" && /^\d{2}:\d{2}$/.test(s.remind.time) ? s.remind.time : "18:00", before: [0, 15, 30, 60].includes(s.remind.before) ? s.remind.before : 15}} : {})};
   const pr = d.profile || {};
   const profile = {birth: typeof pr.birth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(pr.birth) ? pr.birth : "", sex: ["m", "w", "x"].includes(pr.sex) ? pr.sex : "",
     height: optNum(pr.height, 0, 250, 0), pal: [1.4, 1.55, 1.7, 1.9].includes(pr.pal) ? pr.pal : 1.55, goal: ["lose", "maintain", "gain"].includes(pr.goal) ? pr.goal : "maintain",
@@ -343,6 +473,7 @@ export function sanitizeImport(d) {
   for (const [k, f] of Object.entries(d.foods || {})) { id(k, "Lebensmittel"); foods[k] = {id: k, name: str(f.name, 120) || "Lebensmittel", brand: str(f.brand, 80), barcode: /^\d{0,14}$/.test(f.barcode || "") ? f.barcode || "" : "", per100: per100(f.per100), serving: optNum(f.serving, 0, 5000, 0), source: f.source === "off" ? "off" : "own", ...(f.fav ? {fav: true} : {})}; }
   const food = arr(d.food || [], "Tagebuch").map(e => ({id: id(e.id, "Eintrag"), date: day(e.date), meal: ["fruehstueck", "mittag", "abend", "snack"].includes(e.meal) ? e.meal : "snack",
     foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge"), ...(e.quick ? {quick: true} : {})}));
+  const pauses = [...new Set(arr(d.pauses || [], "Pausenwochen").filter(v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)))].sort();
   const activePlanId = d.activePlanId && plans.some(p => p.id === d.activePlanId) ? d.activePlanId : plans[0]?.id || null;
-  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food};
+  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food, pauses};
 }

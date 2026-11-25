@@ -1,5 +1,6 @@
 import * as St from "./store.js";
-import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES} from "./data.js";
+import * as OB from "./onboarding.js";
+import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch, noLoad, isMobility} from "./data.js";
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
@@ -9,13 +10,17 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.7";
-const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
+export const APP_VERSION = "0.9.8";
+const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
-const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
-const schemeSr = sl => `${sl.sets} ${sl.sets === 1 ? "Satz" : "Sätze"}, ${sl.min} bis ${sl.max} Wiederholungen`;
+const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
+const schemeSr = sl => `${sl.sets} ${sl.sets === 1 ? "Satz" : "Sätze"}, ${sl.min} bis ${sl.max} ${St.repWord(St.ex(sl.exId))}`;
 const dateDe = iso => new Date(iso).toLocaleDateString("de-DE", {weekday: "short", day: "numeric", month: "numeric"});
 const muscleList = e => [...e.primary.map(m => MUSCLE_NAME[m]), ...e.secondary.map(m => MUSCLE_NAME[m] + " (mit)")].join(", ");
+// Gerät der Übung (nur Bibliothek) und Auswahlfeld für den Gerätefilter. Der Filter gilt für Auswahl und Übungsliste gemeinsam.
+const kitOf = e => !e.custom && KIT_LABEL[KIT[e.id]] ? KIT_LABEL[KIT[e.id]] : "";
+const exMeta = e => [muscleList(e), kitOf(e)].filter(Boolean).join(" · ");
+const kitSelect = on => `<label class="field">Gerät <select data-on="${on}">${KIT_FILTERS.map(f => `<option value="${f.id}" ${ui.kit === f.id ? "selected" : ""}>${f.l}</option>`).join("")}</select></label>`;
 
 function say(t) { const a = $("#announcer"); a.textContent = ""; setTimeout(() => a.textContent = t, 60); }
 
@@ -175,10 +180,10 @@ function templateCard(t, compact) {
 const goalLabel = g => (TGOALS.find(x => x.id === g) || TGOALS[0]).l;
 // Fertige Pläne mit Filter nach Trainingsziel
 function templatesBlock(compact) {
-  const g = ui.tgoal || "all", list = TEMPLATES.filter(t => g === "all" || t.goal === g), gd = TGOALS.find(x => x.id === g);
+  const g = ui.tgoal || "all", list = TEMPLATES.filter(t => g === "all" || (g === "home" ? t.home : t.goal === g)), gd = TGOALS.find(x => x.id === g);
   return `<div class="seg wrap" role="group" aria-label="Trainingsziel" style="margin-bottom:10px">
-      ${[["all", "Alle"], ...TGOALS.map(x => [x.id, x.l])].map(([v, l]) => `<button type="button" data-act="tgoal" data-v="${v}" aria-pressed="${g === v}">${l}</button>`).join("")}</div>
-    <p class="meta" aria-live="polite">${gd ? esc(gd.d) + " " : ""}${list.length} ${list.length === 1 ? "Plan" : "Pläne"}.</p>
+      ${[["all", "Alle"], ["home", "Zu Hause"], ...TGOALS.map(x => [x.id, x.l])].map(([v, l]) => `<button type="button" data-act="tgoal" data-v="${v}" aria-pressed="${g === v}">${l}</button>`).join("")}</div>
+    <p class="meta" aria-live="polite">${gd ? esc(gd.d) + " " : g === "home" ? "Pläne mit Kurzhanteln, Band oder ganz ohne Gerät. " : ""}${list.length} ${list.length === 1 ? "Plan" : "Pläne"}.</p>
     ${list.map(t => templateCard(t, compact)).join("")}`;
 }
 function bodyCard() {
@@ -187,9 +192,62 @@ function bodyCard() {
 }
 function emptyPlanBtn() { return `<button class="btn" data-act="newplan">Leeren Plan anlegen</button>`; }
 
+/* ============ Einstieg für neue Nutzer ============ */
+// Nur ganz neue Daten: kein Plan, kein Training, Einstieg noch nicht erledigt. Wer schon Daten hat, sieht ihn nie.
+// Eine Sprachauswahl beim ersten Start (Splash) kommt davor und stört den Ablauf nicht.
+const needsOnboarding = () => !D().plans.length && !D().sessions.length && !D().settings.onboarded;
+function viewOnboarding() {
+  const ob = ui.ob || (ui.ob = {step: 0, a: {}}), Q = OB.QUESTIONS;
+  if (ob.step < Q.length) {
+    const q = Q[ob.step], cur = ob.a[q.id];
+    view.innerHTML = `${ob.step === 0 ? `<p class="eyebrow">Willkommen bei SATZ</p>` : ""}
+      <p class="meta" aria-hidden="true">Frage ${ob.step + 1} von ${Q.length}</p>
+      <div class="obbar" aria-hidden="true"><span style="width:${(ob.step / Q.length) * 100}%"></span></div>
+      <h1 class="big" tabindex="-1"><span class="sr">Frage ${ob.step + 1} von ${Q.length}: </span>${esc(q.q)}</h1>
+      ${ob.step === 0 ? `<p>Fünf kurze Fragen, dann schlägt SATZ dir einen passenden Plan vor. Du kannst danach alles ändern.</p>` : ""}
+      <ul class="plist oblist" style="max-height:none">${q.opts.map(([v, l, d]) => `<li><button type="button" data-act="obpick" data-v="${v}" aria-pressed="${String(cur) === String(v)}"><b>${esc(l)}</b>${d ? `<small>${esc(d)}</small>` : ""}</button></li>`).join("")}</ul>
+      <div class="row-btns" style="margin-top:12px">${ob.step ? `<button type="button" class="btn small" data-act="obback">Zurück</button>` : ""}<button type="button" class="btn small" data-act="obskip">Überspringen und selbst wählen</button></div>
+      <div style="height:24px"></div>`;
+    return;
+  }
+  const r = OB.recommend(ob.a), plan = St.instantiate(r.tpl);
+  plan.perWeek = r.perWeek;
+  const fit = OB.fitToTime(plan, ob.a.mins, St.restFor, sl => St.ex(sl.exId).unit === "s");
+  ob.plan = plan;
+  view.innerHTML = `<p class="eyebrow">Dein Vorschlag</p>
+    <h1 class="big" tabindex="-1">${esc(plan.name)}</h1>
+    <p>${esc(r.why)}</p>
+    <p class="meta">${plan.perWeek}× pro Woche · ${plan.days.length} ${plan.days.length === 1 ? "Trainingstag" : "Trainingstage im Wechsel"} · ca. ${fit.minutes} Min. pro Training</p>
+    ${fit.cut ? `<p class="note">Damit es in deine Zeit passt, hat SATZ einige Übungen auf 2 Sätze gekürzt. Mit mehr Zeit kannst du sie im Plan wieder erhöhen.</p>`
+      : fit.minutes > ob.a.mins * 1.1 ? `<p class="note">Der Plan dauert etwas länger als deine Zeit. Lass im Plan eine Übung weg oder nimm weniger Sätze.</p>` : ""}
+    ${plan.days.map(d => `<h2 class="sec">${esc(d.name)}</h2><ol class="exlist">${d.slots.map(sl => `<li><span class="t">${esc(St.ex(sl.exId).name)}</span><span class="s"><span aria-hidden="true">${scheme(sl)}</span><span class="sr">${schemeSr(sl)}</span></span></li>`).join("")}</ol>`).join("")}
+    <div class="actionbar"><button class="btn primary" data-act="obadopt">Plan übernehmen</button></div>
+    <div class="row-btns" style="margin-top:12px"><button type="button" class="btn small" data-act="obrestart">Antworten ändern</button><button type="button" class="btn small" data-act="obskip">Andere Pläne ansehen</button></div>
+    <div style="height:24px"></div>`;
+}
+
 /* ============ Heute ============ */
+// Wochenkalender mit Wochenziel. Bewusst ohne Tagesserie und ohne Schuldgefühle: Pausenwochen halten die Serie an.
+const WD = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], WDL = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const trainings = n => `${n} ${n === 1 ? "Training" : "Trainings"}`;
+function weekCard() {
+  const wk = St.weekStart(), days = St.weekDays(wk), goal = St.weekGoal(), n = days.reduce((a, d) => a + d.n, 0);
+  const paused = St.isPaused(wk), st = St.weekStreak(), todayKey = dkey();
+  const streak = st.weeks > 0 ? `${st.weeks === 1 ? "Eine Woche" : `${st.weeks} Wochen`} in Folge geschafft${st.paused ? `, ${st.paused === 1 ? "eine Pausenwoche" : `${st.paused} Pausenwochen`} dazwischen` : ""}.` : "";
+  const msg = n >= goal ? `Wochenziel erreicht. ${streak}`
+    : paused ? "Pausenwoche (Urlaub oder krank). Deine Serie wartet einfach, bis du wieder trainierst."
+    : `Noch ${trainings(goal - n)} bis zum Wochenziel. ${streak}`;
+  return `<section class="card weekcard" aria-labelledby="wk-h">
+    <div class="wkhead"><h2 id="wk-h">Diese Woche</h2><span class="num" aria-label="${n} von ${goal} Trainings">${n} / ${goal}</span></div>
+    <ol class="wkdays">${days.map((d, i) => `<li class="${d.n ? "on" : ""}${d.key === todayKey ? " today" : ""}"><span aria-hidden="true">${WD[i]}</span><span class="dot" aria-hidden="true">${d.n > 1 ? d.n : ""}</span>
+      <span class="sr">${WDL[i]}${d.key === todayKey ? " (heute)" : ""}: ${d.n ? trainings(d.n) : "kein Training"}</span></li>`).join("")}</ol>
+    <p class="meta wkmsg">${esc(msg.trim())}</p>
+    ${n < goal ? `<button type="button" class="linkbtn" data-act="pauseweek">${paused ? "Pause aufheben" : "Diese Woche pausieren (Urlaub, krank)"}</button>` : ""}
+  </section>`;
+}
 function viewToday() {
   const p = St.activePlan();
+  if (!p && needsOnboarding()) return viewOnboarding();
   if (!p) {
     view.innerHTML = `<h1 class="big">Willkommen bei SATZ.</h1>
       <p>SATZ ist dein Trainingsheft: Plan wählen, Satz für Satz eintragen, und die App sagt dir, wann du steigern kannst.</p>
@@ -209,12 +267,11 @@ function viewToday() {
   const d = p.days[di], sets = d.slots.reduce((a, s) => a + dsl(s).sets, 0);
   const mins = Math.round(d.slots.reduce((a, s) => a + dsl(s).sets * (St.restFor(s) + 45), 0) / 60);
   const last = St.lastSession(), gap = last ? St.daysSince(last.date) : null;
-  const week = D().sessions.filter(s => St.daysSince(s.date) < 7).length;
   view.innerHTML = `
     <p class="eyebrow">Plan: ${esc(p.name)}</p>
     <h1 class="big">${di === St.nextDayIndex(p) ? "Heute:<br>" : ""}${esc(d.name)}</h1>
     ${gap != null && gap > 14 ? `<p class="note">Willkommen zurück. Dein letztes Training ist ${gap} Tage her. Die Vorschläge starten heute etwas leichter.</p>` : ""}
-    <p class="meta">Letzte 7 Tage: ${week} von ${p.perWeek} geplanten Trainings.</p>
+    ${weekCard()}
     ${cycleNote(p)}
     ${backupDue() ? `<div class="note"><b>Zeit für eine Sicherung.</b> ${D().settings.lastBackup ? `Die letzte ist ${St.daysSince(D().settings.lastBackup)} Tage alt.` : "Du hast noch keine."} Deine Trainings liegen nur auf diesem Gerät.
       <div class="row-btns"><button class="btn small primary" data-act="export">Jetzt sichern</button><button class="btn small" data-act="snoozebackup">Später</button></div></div>` : ""}
@@ -223,7 +280,7 @@ function viewToday() {
     <ol class="exlist" aria-label="Übungen">
       ${d.slots.map(sl => { const e = St.ex(sl.exId), l = St.lastSetsFor(sl.exId);
         return `<li><span class="t">${esc(e.name)}</span><span class="s"><span aria-hidden="true">${scheme(dsl(sl))}</span><span class="sr">${schemeSr(dsl(sl))}</span></span>
-        ${l ? `<span class="l">Zuletzt: ${St.fmtW(e, Math.max(...l.sets.map(x => x.kg)))}, ${l.sets.map(x => x.reps).join(" + ")} Wdh.</span>` : ""}</li>`; }).join("")}
+        ${l ? `<span class="l">Zuletzt: ${noLoad(e) ? "" : St.fmtW(e, Math.max(...l.sets.map(x => x.kg))) + ", "}${l.sets.map(x => x.reps).join(" + ")} ${St.repShort(e)}</span>` : ""}</li>`; }).join("")}
     </ol>
     ${d.slots.length ? `<div class="actionbar"><button class="btn primary" data-act="start" data-i="${di}">${D().active ? "Training fortsetzen" : "Training starten"}</button></div>`
       : `<p class="meta">Dieser Tag hat noch keine Übungen.</p><a class="btn" href="#/plan/${p.id}">Plan bearbeiten</a>`}`;
@@ -321,6 +378,10 @@ function viewEditor(id) {
 const curPlan = () => St.plan(location.hash.split("/")[2]);
 
 /* ---------- Slot-Dialog ---------- */
+// Halteübungen bis 100 s (so groß darf ein gespeicherter Satz sein), sonst bis 50 Wdh.
+const maxReps = e => e.unit === "s" ? 100 : 50;
+// Satzschema, wenn eine Übung neu in den Plan kommt: Halten und Mobility in Sekunden, sonst 3 × 8–12
+const slotDefault = e => isMobility(e) ? {sets: 2, min: 30, max: 45, rest: 15} : e.unit === "s" ? {sets: 3, min: 20, max: 45, rest: 60} : {sets: 3, min: 8, max: 12, rest: 0};
 function openSlot() {
   const sl = ui.draft, e = St.ex(sl.exId);
   openDialog(`<h2 id="dlg-h">${ui.draftNew ? "Übung hinzufügen" : "Übung im Plan"}</h2>
@@ -331,18 +392,19 @@ function openSlot() {
     <div class="pair">
       <label class="field">Sätze <input id="f-sets" type="number" inputmode="numeric" min="1" max="10" value="${sl.sets}"></label>
       <label class="field">Pause <select id="f-rest">
-        ${[0, 60, 90, 120, 150, 180, 240].map(r => `<option value="${r}" ${sl.rest === r ? "selected" : ""}>${r ? r + " s" : "Standard"}</option>`).join("")}
+        ${[...new Set([0, 15, 30, 45, 60, 90, 120, 150, 180, 240, sl.rest || 0])].sort((a, b) => a - b).map(r => `<option value="${r}" ${sl.rest === r ? "selected" : ""}>${r ? r + " s" : "Standard"}</option>`).join("")}
       </select></label></div>
-    <fieldset><legend>Wiederholungen</legend><div class="pair">
-      <label class="field">von <input id="f-min" type="number" inputmode="numeric" min="1" max="50" value="${sl.min}"></label>
-      <label class="field">bis <input id="f-max" type="number" inputmode="numeric" min="1" max="50" value="${sl.max}"></label></div></fieldset>
+    <fieldset><legend>${St.repWord(e)}</legend><div class="pair">
+      <label class="field">von <input id="f-min" type="number" inputmode="numeric" min="1" max="${maxReps(e)}" value="${sl.min}"></label>
+      <label class="field">bis <input id="f-max" type="number" inputmode="numeric" min="1" max="${maxReps(e)}" value="${sl.max}"></label></div></fieldset>
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="slotsave">Speichern</button></div>`,
     ui.draftNew ? "#f-sets" : "#dlg-h");
 }
 function saveSlot() {
   const sets = +$("#f-sets").value, min = +$("#f-min").value, max = +$("#f-max").value, rest = +$("#f-rest").value;
   if (!(sets >= 1 && sets <= 10)) return dlgError("Sätze: bitte eine Zahl von 1 bis 10.");
-  if (!(min >= 1 && max <= 50 && min <= max)) return dlgError("Wiederholungen: „von“ muss zwischen 1 und „bis“ liegen, „bis“ höchstens 50.");
+  const mx = maxReps(St.ex(ui.draft.exId));
+  if (!(min >= 1 && max <= mx && min <= max)) return dlgError(`${St.repWord(St.ex(ui.draft.exId))}: „von“ muss zwischen 1 und „bis“ liegen, „bis“ höchstens ${mx}.`);
   const p = curPlan(), d = p.days[ui.eday];
   Object.assign(ui.draft, {sets, min, max, rest});
   if (ui.draftNew) d.slots.push(ui.draft); else d.slots[d.slots.findIndex(s => s.id === ui.draft.id)] = ui.draft;
@@ -354,11 +416,12 @@ function saveSlot() {
 
 /* ---------- Übungsauswahl ---------- */
 let pickCb = null;
-function openPicker(cb) {
-  pickCb = cb; ui.pq = ""; ui.pm = "";
+function openPicker(cb, swapFrom) {
+  pickCb = cb; ui.pq = ""; ui.pm = ""; ui.swapFrom = swapFrom || null;
   openDialog(`<h2 id="dlg-h">Übung wählen</h2>
     <label class="field">Suchen oder eigenen Namen eingeben <input id="pq" type="search" data-on="pq" autocomplete="off" enterkeyhint="search"></label>
-    <label class="field">Muskel <select data-on="pm"><option value="">Alle Muskeln</option>${MUSCLES.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></label>
+    <div class="pair"><label class="field">Muskel <select data-on="pm"><option value="">Alle Muskeln</option>${MUSCLES.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></label>
+    ${kitSelect("kitp")}</div>
     <div id="pres"></div>
     <button class="btn" data-act="close">Abbrechen</button>`, "#pq");
   renderPickList();
@@ -366,13 +429,18 @@ function openPicker(cb) {
 function renderPickList() {
   const q = ui.pq.trim().toLowerCase();
   const list = Object.values(D().exercises)
-    .filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)))
+    .filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)) && kitMatch(e, ui.kit))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
   const exact = list.some(e => e.name.toLowerCase() === q);
+  // Beim Tauschen: Alternativen für denselben Hauptmuskel zuerst, im gewählten Gerätefilter
+  const from = ui.swapFrom && St.ex(ui.swapFrom);
+  const alts = from && !q && !ui.pm ? Object.values(D().exercises).filter(e => !e.archived && e.id !== from.id && e.primary[0] === from.primary[0] && isMobility(e) === isMobility(from) && kitMatch(e, ui.kit))
+    .sort((a, b) => (St.setCount(b.id) - St.setCount(a.id)) || a.name.localeCompare(b.name, "de")).slice(0, 6) : [];
   $("#pres").innerHTML = `
     ${q && !exact ? `<button class="btn primary" data-act="newex" style="margin-bottom:12px">„${esc(ui.pq.trim())}“ als eigene Übung anlegen</button>` : ""}
-    <p class="meta" aria-live="polite">${list.length} ${list.length === 1 ? "Treffer" : "Treffer"}</p>
-    <ul class="plist">${list.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b><small>${esc(muscleList(e))}</small></button></li>`).join("")}</ul>`;
+    ${alts.length ? `<h3 class="sec" id="alt-h">Alternativen für ${esc(from.name)}</h3><ul class="plist" aria-labelledby="alt-h">${alts.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}</b><small>${esc(exMeta(e))}</small></button></li>`).join("")}</ul><h3 class="sec">Alle Übungen</h3>` : ""}
+    <p class="meta" aria-live="polite">${list.length} Treffer${ui.kit ? ". Eigene Übungen erscheinen nur bei „Alle Geräte“." : ""}</p>
+    <ul class="plist">${list.map(e => `<li><button data-act="pick" data-id="${e.id}"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b><small>${esc(exMeta(e))}</small></button></li>`).join("")}</ul>`;
 }
 
 /* ---------- Übung anlegen / bearbeiten ---------- */
@@ -391,7 +459,7 @@ function openExForm(exId, name, after) {
       ${MUSCLES.map(m => `<label class="check"><input type="checkbox" name="x-sec" value="${m.id}" ${e.secondary.includes(m.id) ? "checked" : ""}>${m.name}</label>`).join("")}
     </div></fieldset>`}
     <div class="pair">
-      <label class="field">Einheit <select id="x-unit"><option value="kg" ${e.unit === "kg" ? "selected" : ""}>Gewicht</option><option value="bw" ${e.unit === "bw" ? "selected" : ""}>Körpergewicht</option></select></label>
+      <label class="field">Einheit <select id="x-unit"><option value="kg" ${e.unit === "kg" ? "selected" : ""}>Gewicht</option><option value="bw" ${e.unit === "bw" ? "selected" : ""}>Körpergewicht</option><option value="band" ${e.unit === "band" ? "selected" : ""}>Widerstandsband</option><option value="s" ${e.unit === "s" ? "selected" : ""}>Halten (Sekunden)</option></select></label>
       <label class="field">Steigerung <select id="x-step">${[1, 1.25, 2, 2.5, 5, 10].map(s => `<option value="${s}" ${e.step === s ? "selected" : ""}>${fmt(s)} kg</option>`).join("")}</select></label>
     </div>
     ${exId ? `<p class="meta">Umbenennen ändert nichts am Verlauf: ${St.setCount(exId)} gespeicherte Sätze bleiben dieser Übung zugeordnet.</p>` : ""}
@@ -423,13 +491,15 @@ function saveEx() {
 /* ============ Übungen ============ */
 function viewExercises() {
   const q = ui.exq.trim().toLowerCase();
-  const list = Object.values(D().exercises).filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q))).sort((a, b) => (b.custom - a.custom) || a.name.localeCompare(b.name, "de"));
+  const list = Object.values(D().exercises).filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && kitMatch(e, ui.kit)).sort((a, b) => (b.custom - a.custom) || a.name.localeCompare(b.name, "de"));
   view.innerHTML = `<p class="eyebrow"><a href="#/plaene">Pläne</a></p><h1 class="big">Übungen</h1>
     <p class="meta">Umbenennen und Tauschen lassen deinen Verlauf unverändert. Jede Übung behält ihre eigenen Sätze.</p>
     <button class="btn primary" data-act="newexlist">Eigene Übung anlegen</button>
-    <label class="field" style="margin-top:14px">Suchen <input type="search" data-on="exq" value="${esc(ui.exq)}" autocomplete="off"></label>
+    <div class="pair" style="margin-top:14px"><label class="field">Suchen <input type="search" data-on="exq" value="${esc(ui.exq)}" autocomplete="off"></label>
+    ${kitSelect("kitx")}</div>
+    <p class="meta" aria-live="polite">${list.length} ${list.length === 1 ? "Übung" : "Übungen"}${ui.kit ? ". Eigene Übungen erscheinen nur bei „Alle Geräte“." : ""}</p>
     <ul class="plist" style="max-height:none">${list.map(e => `<li><button data-act="editex" data-id="${e.id}" aria-label="${esc(e.name)} bearbeiten"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b>
-      <small>${esc(muscleList(e))} · ${St.setCount(e.id)} Sätze im Verlauf</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
+      <small>${esc(exMeta(e))} · ${St.setCount(e.id)} Sätze im Verlauf</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
 }
 
 /* ============ Ausführung: Gerät und Bewegungsablauf ============ */
@@ -491,7 +561,9 @@ function pickMuscle(id, from3d) {
 }
 function setSide(v) { ui.bside = v; view.querySelectorAll('[data-act="bside"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
 // Standard-Satzschema nach Ziel des Plans (ACSM 2009)
-const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? [3, 4, 6, 150] : [3, 8, 12, 0];
+const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? [3, 4, 6, 150] : g === "mobil" ? [2, 30, 45, 15] : [3, 8, 12, 0];
+// Halte- und Mobility-Übungen behalten ihr Sekunden-Schema, egal welches Ziel der Plan hat
+const schemeFor = (e, g) => e.unit === "s" ? (({sets, min, max, rest}) => [sets, min, max, rest])(slotDefault(e)) : goalScheme(g);
 
 /* ============ Training ============ */
 function viewTraining() {
@@ -519,7 +591,7 @@ function viewTraining() {
     <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.workFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
     <div class="exnav"><button type="button" class="linkbtn" data-act="exprev" ${i === 0 ? "disabled" : ""}><span aria-hidden="true">‹</span> Vorherige Übung</button>
       <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>Nächste Übung <span aria-hidden="true">›</span></button></div>
-    <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · ${done ? `erledigt, ${logged.length} von ${target} Sätzen` : `Satz ${logged.length + 1} von ${target}`} · Ziel ${it.min}–${it.max} Wdh.</p>
+    <p class="eyebrow">Übung ${i + 1} von ${a.queue.length} · ${done ? `erledigt, ${logged.length} von ${target} Sätzen` : `Satz ${logged.length + 1} von ${target}`} · Ziel ${it.min}–${it.max} ${St.repShort(e)}</p>
     <h1 class="big">${esc(e.name)}</h1>
     <p class="hint" ${done ? "hidden" : ""}>${esc(sug.text)}${lastNote && !note ? `<br><b>Notiz vom ${dateDe(lastNote.date)}:</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>Notiz:</b> ${esc(note)}` : ""}</p>
     ${D().settings.showFig !== false ? exFigure(e, true) : ""}
@@ -531,15 +603,16 @@ function viewTraining() {
     <div class="actionbar"><button class="btn primary" data-act="exgo" id="saveset">${St.firstOpen(a, 0) >= 0 ? "Weiter zur offenen Übung" : "Zur Zusammenfassung"}</button></div>` : `
     <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:10px">
       ${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="stype" data-v="${v}" aria-pressed="${st === v}">${l}</button>`).join("")}</div>
-    <div class="stepper" role="group" aria-labelledby="kg-l">
+    ${noLoad(e) ? "" : `<div class="stepper" role="group" aria-labelledby="kg-l">
       <button data-act="kg" data-d="-1" aria-label="Gewicht um ${fmt(e.step)} Kilo verringern">−</button>
       <div class="val"><input id="kgIn" class="v num" data-on="kgin" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(ui.kg)}" aria-describedby="kg-l"><label id="kg-l" for="kgIn" class="u">${bw ? "kg zusätzlich" : "kg"} · antippen zum Eintippen</label></div>
-      <button data-act="kg" data-d="1" aria-label="Gewicht um ${fmt(e.step)} Kilo erhöhen">+</button></div>
+      <button data-act="kg" data-d="1" aria-label="Gewicht um ${fmt(e.step)} Kilo erhöhen">+</button></div>`}
+    ${e.unit === "band" ? `<p class="meta">Bandstärke: schreib sie in die Notiz, dann steht sie beim nächsten Mal hier.</p>` : ""}
     <div class="stepper" role="group" aria-labelledby="reps-l">
-      <button data-act="reps" data-d="-1" aria-label="Eine Wiederholung weniger">−</button>
-      <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">Wiederholungen</label></div>
-      <button data-act="reps" data-d="1" aria-label="Eine Wiederholung mehr">+</button></div>
-    ${D().settings.rir && st !== "warm" ? `<fieldset><legend>Wie viele Wdh. wären noch gegangen? <span style="font-weight:500">(optional)</span></legend>
+      <button data-act="reps" data-d="-1" aria-label="${e.unit === "s" ? "5 Sekunden weniger" : "Eine Wiederholung weniger"}">−</button>
+      <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">${St.repWord(e)}</label></div>
+      <button data-act="reps" data-d="1" aria-label="${e.unit === "s" ? "5 Sekunden mehr" : "Eine Wiederholung mehr"}">+</button></div>
+    ${D().settings.rir && st !== "warm" && !isMobility(e) ? `<fieldset><legend>Wie viele Wdh. wären noch gegangen? <span style="font-weight:500">(optional)</span></legend>
       <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></fieldset>` : ""}
     <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? "Aufwärmsatz speichern" : st === "drop" ? "Drop-Satz speichern" : `Satz ${logged.length + 1} speichern`}</button></div>`}
     ${setTable(a, i, it, e, all, logged, target, done, st, sug, form)}
@@ -568,9 +641,9 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
     else rows.push({open: true, lab: `Satz ${k + 1}`, kind: "work", extra: k >= it.sets});
   }
   if (!rows.length) return "";
-  const kgTxt = v => e.unit === "bw" ? (v ? `+${fmt(v)}` : "KG") : fmt(v);
-  const kgSay = v => e.unit === "bw" ? (v ? `Körpergewicht plus ${fmt(v)} Kilo` : "Körpergewicht") : `${fmt(v)} Kilo`;
-  const showRir = D().settings.rir !== false;
+  const kgTxt = v => e.unit === "band" ? "Band" : e.unit === "s" ? "–" : e.unit === "bw" ? (v ? `+${fmt(v)}` : "KG") : fmt(v);
+  const kgSay = v => e.unit === "band" ? "Band" : e.unit === "s" ? "Halten" : e.unit === "bw" ? (v ? `Körpergewicht plus ${fmt(v)} Kilo` : "Körpergewicht") : `${fmt(v)} Kilo`;
+  const showRir = D().settings.rir !== false && !isMobility(e);
   const rirCell = v => showRir ? `<span class="c-n c-rir">${v}</span>` : "";
   const lab = r => r.kind === "drop" ? `<span aria-hidden="true">↳ </span>${r.lab}` : r.lab;
   const body = rows.map(r => {
@@ -585,8 +658,8 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
   }).join("");
   const wDone = logged.length, summary = done ? `${wDone} von ${target} Sätzen erledigt` : `Satz ${Math.min(wDone + 1, target)} von ${target}${target - wDone - 1 > 0 ? `, danach noch ${target - wDone - 1} offen` : ", der letzte"}`;
   return `<h2 class="sec" id="sets-h" style="margin-top:8px">Sätze <span class="sec-sub">${summary}</span></h2>
-    <div class="sethead ${D().settings.rir !== false ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">Wdh.</span>${D().settings.rir !== false ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
-    <ol class="setlist ${D().settings.rir !== false ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
+    <div class="sethead ${showRir ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${noLoad(e) ? "" : e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">${St.repShort(e)}</span>${showRir ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
+    <ol class="setlist ${showRir ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
 }
 const fmtSec = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 function restLeft() {
@@ -692,7 +765,7 @@ function readSetInputs() {
 function syncCur() {
   const k = $("#curKg"), r = $("#curReps"), a = D() && D().active; if (!a || (!k && !r)) return;
   const e = St.ex(a.queue[a.idx].exId);
-  if (k) k.textContent = e.unit === "bw" ? (ui.kg ? `+${fmt(ui.kg)}` : "KG") : fmt(ui.kg);
+  if (k) k.textContent = e.unit === "band" ? "Band" : e.unit === "s" ? "–" : e.unit === "bw" ? (ui.kg ? `+${fmt(ui.kg)}` : "KG") : fmt(ui.kg);
   if (r) r.textContent = ui.reps;
 }
 function saveSet() {
@@ -700,7 +773,7 @@ function saveSet() {
   const a = D().active, i = a.idx, it = a.queue[i], e = St.ex(it.exId), type = ui.stype || "work";
   a.sets.push({q: i, exId: it.exId, kg: ui.kg, reps: ui.reps, rir: type === "warm" ? null : ui.rir, t: Date.now(), ...(type !== "work" ? {type} : {})});
   const n = St.workFor(a, i).length, target = St.targetSets(it);
-  let msg = `Gespeichert: ${type === "warm" ? "Aufwärmsatz, " : type === "drop" ? "Drop-Satz, " : ""}${St.fmtW(e, ui.kg)}, ${ui.reps} Wiederholungen.`;
+  let msg = `Gespeichert: ${type === "warm" ? "Aufwärmsatz, " : type === "drop" ? "Drop-Satz, " : ""}${noLoad(e) ? "" : St.fmtW(e, ui.kg) + ", "}${ui.reps} ${St.repWord(e)}.`;
   if (type === "work" && ui.reps < it.min) msg += ` Unter dem Ziel von ${it.min}.`;
   if (type === "drop") { ui.stype = "work"; ui.addAfter = false; }
   const nextIdx = St.firstOpen(a, i);
@@ -728,11 +801,11 @@ function openSetEdit(k) {
   openDialog(`<h2 id="dlg-h">Satz korrigieren</h2><p class="meta" style="text-align:center;margin-top:-10px">${esc(e.name)}</p>
     <p class="err" role="alert" hidden></p>
     <div class="seg" role="group" aria-label="Satztyp" style="margin-bottom:12px">${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="setype" data-v="${v}" aria-pressed="${(x.type || "work") === v}">${l}</button>`).join("")}</div>
-    <div class="pair"><label class="field">${e.unit === "bw" ? "kg zusätzlich" : "kg"} <input id="se-kg" inputmode="decimal" autocomplete="off" value="${fmt(x.kg)}"></label>
-      <label class="field">Wiederholungen <input id="se-reps" inputmode="numeric" autocomplete="off" value="${x.reps}"></label></div>
+    <div class="pair"><label class="field" ${noLoad(e) ? "hidden" : ""}>${e.unit === "bw" ? "kg zusätzlich" : "kg"} <input id="se-kg" inputmode="decimal" autocomplete="off" value="${fmt(x.kg)}"></label>
+      <label class="field">${St.repWord(e)} <input id="se-reps" inputmode="numeric" autocomplete="off" value="${x.reps}"></label></div>
     ${D().settings.rir ? `<label class="field">Wdh. in Reserve <select id="se-rir"><option value="">keine Angabe</option>${[0, 1, 2, 3, 4].map(r => `<option value="${r}" ${x.rir === r ? "selected" : ""}>${r === 4 ? "4+" : r}</option>`).join("")}</select></label>` : ""}
     <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="setsave">Speichern</button></div>
-    <button class="btn destructive" data-act="setdel" style="margin-top:10px">Satz löschen</button>`, "#se-kg");
+    <button class="btn destructive" data-act="setdel" style="margin-top:10px">Satz löschen</button>`, noLoad(e) ? "#se-reps" : "#se-kg");
 }
 function saveSetEdit() {
   const a = D().active, x = a.sets[ui.setEdit]; if (!x) return closeDialog();
@@ -768,10 +841,12 @@ function viewSummary() {
     else if (q.extra > 0) devs.push({k, kind: "sets", label: `${name}: dauerhaft ${q.sets + q.extra} statt ${q.sets} Sätze`});
   });
   const byEx = a.queue.map((q, k) => ({q, sets: St.loggedFor(a, k)})).filter(x => x.sets.length);
+  const recs = St.newRecords(a.sets);
   view.innerHTML = `<p class="eyebrow">${esc(a.dayName)} · ${mins} Min.</p>
     <h1 class="big">${open ? "Training beenden?" : "Geschafft."}</h1>
     <p>${a.sets.length} ${a.sets.length === 1 ? "Satz" : "Sätze"} eingetragen${open ? ", einige Übungen sind noch offen" : ""}.</p>
-    ${byEx.length ? `<ul class="logged">${byEx.map(x => { const e = St.ex(x.q.exId); return `<li><span>${esc(e.name)}</span><span class="num">${x.sets.map(s => `${fmt(s.kg)}×${s.reps}`).join(", ")}</span></li>`; }).join("")}</ul>` : ""}
+    ${recs.length ? `<section class="card recs" aria-labelledby="rec-h"><h2 id="rec-h">Neue Bestwerte</h2><ul>${recs.map(r => `<li><b>${esc(r.name)}</b><span>${esc(r.text)}</span></li>`).join("")}</ul></section>` : ""}
+    ${byEx.length ? `<ul class="logged">${byEx.map(x => { const e = St.ex(x.q.exId); return `<li><span>${esc(e.name)}</span><span class="num">${x.sets.map(s => noLoad(e) ? `${s.reps}${e.unit === "s" ? " s" : ""}` : `${fmt(s.kg)}×${s.reps}`).join(", ")}</span></li>`; }).join("")}</ul>` : ""}
     ${devs.length ? `<fieldset style="margin-top:16px"><legend>Abweichungen für künftige Trainings übernehmen?</legend>
       ${devs.map((d, n) => `<label class="check"><input type="checkbox" name="dev" value="${n}">${esc(d.label)}</label>`).join("")}
       <p class="meta">Ohne Haken bleibt dein Plan, wie er ist.</p></fieldset>` : ""}
@@ -784,6 +859,20 @@ function viewSummary() {
 }
 
 /* ============ Verlauf ============ */
+// Monatsrückblick: Zahlen des gewählten Monats, darunter der Vormonat zum Vergleich. Ohne Bewertung, nur Überblick.
+function monthCard() {
+  const now = new Date(), off = ui.mOff || 0, d = new Date(now.getFullYear(), now.getMonth() - off, 1), pd = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  const m = St.monthStats(d.getFullYear(), d.getMonth()), pm = St.monthStats(pd.getFullYear(), pd.getMonth());
+  const name = d.toLocaleDateString("de-DE", {month: "long", year: "numeric"}), hm = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")} h`;
+  const cell = (v, l, pv) => `<div><b class="num">${v}</b><span>${l}</span><small>Vormonat ${pv}</small></div>`;
+  return `<section class="card monthcard" aria-labelledby="mo-h">
+    <div class="wkhead"><h2 id="mo-h">Rückblick ${esc(name)}</h2>
+      <span class="mnav"><button type="button" class="linkbtn" data-act="mprev" aria-label="Vorheriger Monat">‹</button><button type="button" class="linkbtn" data-act="mnext" aria-label="Nächster Monat" ${off ? "" : "disabled"}>›</button></span></div>
+    ${m.sessions ? `<div class="mstats">${cell(m.sessions, m.sessions === 1 ? "Training" : "Trainings", pm.sessions)}${cell(m.hard, "harte Sätze", pm.hard)}${cell(m.mins ? hm(m.mins) : "–", "Trainingszeit", pm.mins ? hm(pm.mins) : "–")}${cell(m.records, m.records === 1 ? "Bestwert" : "Bestwerte", pm.records)}</div>
+    ${m.top.length ? `<p class="meta">Am meisten trainiert: ${m.top.map(t => `${esc(t.name)} (${fmt(t.sets)} Sätze)`).join(", ")}.</p>` : ""}`
+    : `<p class="meta">In diesem Monat gibt es noch kein Training.</p>`}
+  </section>`;
+}
 function viewHistory() {
   const s = D(), ses = [...s.sessions].reverse();
   if (!ses.length) {
@@ -791,7 +880,7 @@ function viewHistory() {
     return;
   }
   const exIds = [...new Set(s.sessions.flatMap(x => x.sets.map(y => y.exId)))];
-  const changes = exIds.map(id => {
+  const changes = exIds.filter(id => !noLoad(St.ex(id))).map(id => {
     const hist = s.sessions.filter(x => x.sets.some(y => y.exId === id));
     if (hist.length < 2) return null;
     const top = x => Math.max(...x.sets.filter(y => y.exId === id && St.isWork(y)).map(y => y.kg), 0);
@@ -800,6 +889,7 @@ function viewHistory() {
   if (!ui.histEx || !exIds.includes(ui.histEx)) ui.histEx = exIds[0];
   const p = St.activePlan();
   view.innerHTML = `<h1 class="big">Verlauf</h1>
+    ${monthCard()}
     ${weightSection()}
     ${measureSection()}
     ${changes.length ? `<h2 class="sec" style="margin-top:4px">Was sich verändert hat</h2><ul class="logged">
@@ -812,7 +902,7 @@ function viewHistory() {
     ${volumeTable(St.recentVolume(7), "Sätze pro Muskel in den letzten 7 Tagen, verglichen mit dem Plan", p ? St.planVolume(p) : null)}
     <h2 class="sec">Trainings</h2>
     ${ses.map(x => `<details><summary>${dateDe(x.date)} · ${esc(x.dayName)} · ${x.sets.length} Sätze</summary>
-      <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(St.ex(g.exId).name)}</span><span class="num">${g.sets.map(y => `${y.type === "warm" ? "A " : y.type === "drop" ? "D " : ""}${fmt(y.kg)}×${y.reps}`).join(", ")}</span></li>`).join("")}</ul>
+      <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(St.ex(g.exId).name)}</span><span class="num">${g.sets.map(y => `${y.type === "warm" ? "A " : y.type === "drop" ? "D " : ""}${noLoad(St.ex(g.exId)) ? `${y.reps}${St.ex(g.exId).unit === "s" ? " s" : ""}` : `${fmt(y.kg)}×${y.reps}`}`).join(", ")}</span></li>`).join("")}</ul>
       ${x.notes ? `<p class="meta" style="margin:8px 0 0">${Object.entries(x.notes).map(([k, v]) => `<b>${esc(St.ex(k).name)}:</b> ${esc(v)}`).join("<br>")}</p>` : ""}
       <div class="row-btns" style="margin:10px 0"><button class="btn small" data-act="sessedit" data-id="${esc(x.id)}" aria-haspopup="dialog">Korrigieren</button><button class="btn small destructive" data-act="delsession" data-id="${esc(x.id)}">Training löschen</button></div></details>`).join("")}
     <div style="height:24px"></div>`;
@@ -852,11 +942,11 @@ function exDetail(id) {
   });
   const pts = hist.slice(-12);
   // Bei Körpergewichtsübungen ohne Zusatzlast zählen die Wiederholungen, sonst das geschätzte 1RM (Epley)
-  const useReps = bw && pts.every(h => h.best.kg === 0);
-  const svg = chart(pts.map(h => useReps ? h.reps : h.e1), pts.map(h => shortDate(h.date)), useReps ? "Wdh." : "kg",
-    useReps ? "Wiederholungen gesamt pro Training" : "Geschätztes 1RM (Epley) aus dem besten Satz");
-  return `${svg}<div class="table-wrap"><table><caption class="sr">Arbeitssätze pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col">Sätze</th><th scope="col" class="n">${useReps ? "Wdh." : "1RM ca."}</th></tr></thead>
-    <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="num">${h.sets.map(y => `${fmt(y.kg)}×${y.reps}`).join(", ")}</td><td class="n">${useReps ? h.reps : fmt(Math.round(h.e1 * 10) / 10) + " kg"}</td></tr>`).join("")}</tbody></table></div>
+  const useReps = noLoad(e) || (bw && pts.every(h => h.best.kg === 0)), rs = St.repShort(e);
+  const svg = chart(pts.map(h => useReps ? h.reps : h.e1), pts.map(h => shortDate(h.date)), useReps ? rs : "kg",
+    useReps ? `${St.repWord(e)} gesamt pro Training` : "Geschätztes 1RM (Epley) aus dem besten Satz");
+  return `${svg}<div class="table-wrap"><table><caption class="sr">Arbeitssätze pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col">Sätze</th><th scope="col" class="n">${useReps ? rs : "1RM ca."}</th></tr></thead>
+    <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="num">${h.sets.map(y => noLoad(e) ? `${y.reps}` : `${fmt(y.kg)}×${y.reps}`).join(", ")}</td><td class="n">${useReps ? h.reps : fmt(Math.round(h.e1 * 10) / 10) + " kg"}</td></tr>`).join("")}</tbody></table></div>
     <p class="foot">1RM ca. = Gewicht × (1 + Wdh./30), Epley (1985). Steigt auch, wenn du bei gleichem Gewicht mehr Wiederholungen schaffst.</p>`;
 }
 // Gewicht: eine Karte, die überall gleich aussieht und das Eintragen-Sheet öffnet
@@ -1028,6 +1118,7 @@ function viewMore() {
     <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
       <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (schwere Grundübungen 180 s, andere 120 s, Isolation 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
+    ${remindSection()}
     <h2 class="sec">Deine Daten</h2>
     ${recoveredNote()}
     <p>Alles bleibt auf diesem Gerät. Es gibt kein Konto und keinen Server. Sichere deine Daten ab und zu als Datei, besonders vor einem Handywechsel.</p>
@@ -1041,8 +1132,35 @@ function viewMore() {
     <h2 class="sec">Über SATZ</h2>
     <p class="meta">Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).</p>
     <p class="meta">3D-Körperkarte mit three.js (MIT). Figur und Bewegungsabläufe sind selbst gezeichnete Schemata: ähnliche Übungen teilen sich eine Bewegungsvorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels.</p>
-    <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Streaks, kein Zwang: Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010).</p>
+    <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Tagesserien, kein Zwang: gezählt werden Wochen mit erreichtem Wochenziel, Pausenwochen unterbrechen nichts. Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010). Dehnen 30–45 s pro Position (ACSM 2021), zählt nicht zum Volumen.</p>
     <p class="meta">Version ${APP_VERSION} · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+}
+
+// Erinnerung über den Kalender: SATZ erzeugt einen wiederkehrenden Termin (.ics). Kein Server, keine Push-Nachrichten nötig.
+function remindCfg() {
+  const r = D().settings.remind, p = St.activePlan(), n = p ? p.perWeek : 3;
+  const preset = {1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6]}[n] || [0, 2, 4];
+  return r ? {...r, days: [...r.days]} : {days: preset, time: "18:00", before: 15};
+}
+function remindSection() {
+  const r = remindCfg();
+  return `<h2 class="sec">Erinnerung im Kalender</h2>
+    <p>Lege deine Trainingstage als wiederkehrenden Termin in deinen Kalender. Der Kalender erinnert dich, auch wenn SATZ geschlossen ist.</p>
+    <fieldset><legend>Tage</legend><div class="chips" role="group">${WD.map((w, i) => `<button type="button" class="chip daychip" data-act="icsday" data-d="${i}" aria-pressed="${r.days.includes(i)}" aria-label="${WDL[i]}">${w}</button>`).join("")}</div></fieldset>
+    <div class="pair"><label class="field">Uhrzeit <input type="time" data-on="icstime" value="${r.time}"></label>
+      <label class="field">Erinnerung <select data-on="icsbefore">${[[0, "Zur Startzeit"], [15, "15 Min. vorher"], [30, "30 Min. vorher"], [60, "1 Std. vorher"]].map(([v, l]) => `<option value="${v}" ${r.before === v ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+    <button class="btn" data-act="icsdl" ${r.days.length ? "" : "disabled"}>Kalenderdatei laden</button>
+    <p class="foot">Auf dem iPhone die Datei öffnen und „Alle hinzufügen“ tippen. Ändern oder löschen kannst du den Termin später direkt im Kalender. Eine neue Datei legt einen zweiten Termin an.</p>`;
+}
+function downloadIcs() {
+  const r = remindCfg(); if (!r.days.length) return toast("Wähle mindestens einen Tag.");
+  const p = St.activePlan(), d = p && p.days[St.nextDayIndex(p)];
+  const minutes = d ? d.slots.reduce((a, sl) => a + sl.sets * (St.restFor(sl) + 45), 0) / 60 : 60;
+  const txt = St.icsFor({days: r.days, time: r.time, before: r.before, minutes, title: p ? `Training: ${p.name}` : "Training", url: location.origin + location.pathname});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], {type: "text/calendar"}));
+  a.download = "satz-training.ics"; document.body.append(a); a.click(); a.remove();
+  D().settings.remind = r; persist();
+  say("Kalenderdatei erstellt.");
 }
 
 // Vor jedem App-Update legt SATZ den alten Stand automatisch beiseite (die letzten 3).
@@ -1115,8 +1233,10 @@ const A = {
   },
   slot: t => { ui.draft = {...curPlan().days[ui.eday].slots[+t.dataset.i]}; ui.draftNew = false; openSlot(); },
   slotsave: () => saveSlot(),
-  addslot: () => openPicker(exId => { ui.draft = {id: St.uid(), exId, sets: 3, min: 8, max: 12, rest: 0}; ui.draftNew = true; openSlot(); }),
-  swap: () => { const keep = ui.draft; openPicker(exId => { ui.draft = {...keep, exId}; openSlot(); }); },
+  addslot: () => openPicker(exId => { ui.draft = {id: St.uid(), exId, ...slotDefault(St.ex(exId))}; ui.draftNew = true; openSlot(); }),
+  // Beim Tausch in eine andere Einheit (z. B. Wdh. → Sekunden) passt das Satzschema nicht mehr: dann das Standardschema der neuen Übung
+  swap: () => { const keep = ui.draft, from = St.ex(keep.exId); openPicker(exId => { const to = St.ex(exId);
+    ui.draft = (to.unit === "s") === (from.unit === "s") && isMobility(to) === isMobility(from) ? {...keep, exId} : {...keep, exId, ...slotDefault(to)}; openSlot(); }, keep.exId); },
   pick: t => { const cb = pickCb; pickCb = null; cb(t.dataset.id); },
   newex: () => { const cb = pickCb; openExForm(null, ui.pq.trim(), id => { pickCb = null; cb(id); }); },
   newexlist: () => openExForm(null, ""),
@@ -1129,7 +1249,8 @@ const A = {
   },
   /* Training */
   kg: t => { readSetInputs(); const a = D().active, e = St.ex(a.queue[a.idx].exId); ui.kg = Math.max(0, Math.round((ui.kg + e.step * +t.dataset.d) * 100) / 100); $("#kgIn").value = fmt(ui.kg); syncCur(); sayLater(`${fmt(ui.kg)} Kilo`); },
-  reps: t => { readSetInputs(); ui.reps = Math.max(0, Math.min(100, ui.reps + +t.dataset.d)); $("#repsIn").value = ui.reps; syncCur(); sayLater(`${ui.reps} Wiederholungen`); },
+  reps: t => { readSetInputs(); const e = St.ex(D().active.queue[D().active.idx].exId), d = e.unit === "s" ? 5 : 1;
+    ui.reps = Math.max(0, Math.min(100, ui.reps + d * +t.dataset.d)); $("#repsIn").value = ui.reps; syncCur(); sayLater(`${ui.reps} ${St.repWord(e)}`); },
   stype: t => { readSetInputs(); ui.stype = t.dataset.v; rerender(`[data-act="stype"][data-v="${t.dataset.v}"]`); },
   note: () => {
     const a = D().active, exId = a.queue[a.idx].exId, cur = (a.notes || {})[exId] || "";
@@ -1190,6 +1311,19 @@ const A = {
     const n = a.sets.length; St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
     go("#/heute"); toast(n ? `Training gespeichert: ${n} Sätze.${checked.length ? " Plan angepasst." : ""}` : "Training beendet.");
   },
+  obpick: t => { const q = OB.QUESTIONS[ui.ob.step], o = q.opts.find(x => String(x[0]) === t.dataset.v); ui.ob.a[q.id] = o[0]; ui.ob.step++; rerender(); view.scrollTop = 0; const h = view.querySelector("h1"); if (h) h.focus(); },
+  obback: () => { ui.ob.step = Math.max(0, ui.ob.step - 1); rerender(); const h = view.querySelector("h1"); if (h) h.focus(); },
+  obrestart: () => { ui.ob = {step: 0, a: {}}; rerender(); const h = view.querySelector("h1"); if (h) h.focus(); },
+  obskip: () => { D().settings.onboarded = true; ui.ob = null; persist(); rerender(); view.scrollTop = 0; const h = view.querySelector("h1"); if (h) h.focus(); },
+  obadopt: () => {
+    const p = ui.ob.plan; D().plans.push(p); D().activePlanId = p.id; D().settings.onboarded = true; ui.ob = null; ui.day = null; persist();
+    rerender(); view.scrollTop = 0; toast(`„${p.name}“ übernommen. Alles lässt sich unter Pläne ändern.`);
+  },
+  mprev: () => { ui.mOff = (ui.mOff || 0) + 1; rerender('[data-act="mprev"]'); },
+  mnext: () => { ui.mOff = Math.max(0, (ui.mOff || 0) - 1); rerender(ui.mOff ? '[data-act="mnext"]' : '[data-act="mprev"]'); },
+  icsdl: () => downloadIcs(),
+  icsday: t => { const r = remindCfg(), d = +t.dataset.d; r.days = r.days.includes(d) ? r.days.filter(x => x !== d) : [...r.days, d]; D().settings.remind = r; persist(); rerender(`[data-act="icsday"][data-d="${d}"]`); },
+  pauseweek: () => { const was = St.isPaused(St.weekStart()); St.togglePause(); rerender('[data-act="pauseweek"]'); say(was ? "Pause aufgehoben." : "Diese Woche ist als Pause markiert. Deine Serie bleibt erhalten."); },
   discard: () => {
     const snap = St.snapshot(); D().active = null; persist(); ui.summary = false; cancelBeep(); go("#/heute");
     toast("Training verworfen.", () => { St.restore(snap); go("#/training"); });
@@ -1218,14 +1352,14 @@ const A = {
     const p = St.activePlan(), e = St.ex(t.dataset.id);
     if (!p) return toast("Übernimm zuerst einen Plan oder leg einen leeren an. Dann kannst du Übungen hinzufügen.");
     if (!p.days.length) return toast(`„${p.name}“ hat noch keinen Trainingstag. Leg zuerst einen an.`);
-    const [sets, min, max] = goalScheme(p.goal);
+    const [sets, min, max] = schemeFor(e, p.goal);
     openDialog(`<h2 id="dlg-h">${esc(e.name)} hinzufügen</h2>
       <p class="meta" style="text-align:center;margin-top:-10px">Zu welchem Tag in „${esc(p.name)}“? Startet mit ${sets}×${min}–${max}, im Plan änderbar.</p>
       <ul class="plist" style="max-height:none">${p.days.map((d, i) => `<li><button data-act="bmaddday" data-i="${i}" data-id="${e.id}"><b>${esc(d.name)}</b><small>${d.slots.length} Übungen${d.slots.some(s => s.exId === e.id) ? " · schon enthalten" : ""}</small></button></li>`).join("")}</ul>
       <button class="btn" data-act="close">Abbrechen</button>`);
   },
   bmaddday: t => {
-    const p = St.activePlan(), d = p.days[+t.dataset.i], e = St.ex(t.dataset.id), [sets, min, max, rest] = goalScheme(p.goal);
+    const p = St.activePlan(), d = p.days[+t.dataset.i], e = St.ex(t.dataset.id), [sets, min, max, rest] = schemeFor(e, p.goal);
     const sl = {id: St.uid(), exId: e.id, sets, min, max, rest};
     d.slots.push(sl); persist(); closeDialog();
     toast(`${e.name} zu „${d.name}“ hinzugefügt.`, () => { d.slots = d.slots.filter(x => x !== sl); persist(); });
@@ -1293,11 +1427,14 @@ document.addEventListener("input", ev => {
 document.addEventListener("change", ev => {
   const el = ev.target, k = el.dataset.on;
   if (k === "pm") { ui.pm = el.value; renderPickList(); }
+  if (k === "kitp") { ui.kit = el.value; renderPickList(); }
+  if (k === "kitx") { ui.kit = el.value; rerender('[data-on="kitx"]'); }
   if (k === "pname") { curPlan().name = el.value.trim() || "Mein Plan"; persist(); rerender('[data-on="pname"]'); }
   if (k === "dname") { const p = curPlan(); p.days[ui.eday].name = el.value.trim() || `Tag ${ui.eday + 1}`; persist(); rerender('[data-on="dname"]'); }
   if (k === "cycleweeks") { const p = curPlan(), n = +el.value; p.cycle = n ? {weeks: n, start: p.cycle && p.cycle.weeks ? p.cycle.start : dkey()} : {weeks: 0, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); }
   if (k === "msel") { ui.msel = el.value; rerender('[data-on="msel"]'); }
   if (k === "histex") { ui.histEx = el.value; rerender('[data-on="histex"]'); }
+  if (k === "icstime" || k === "icsbefore") { const r = remindCfg(); if (k === "icstime") { if (/^\d{2}:\d{2}$/.test(el.value)) r.time = el.value; } else r.before = +el.value; D().settings.remind = r; persist(); }
   if (k === "contrast" || k === "rir") { D().settings[k] = el.checked; persist(); applySettings(); }
   if (k === "rest") { D().settings.rest = +el.value; persist(); }
   if (k === "kgin" || k === "repsin") { readSetInputs(); el.value = k === "kgin" ? fmt(ui.kg) : ui.reps; }
