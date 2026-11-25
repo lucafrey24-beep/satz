@@ -4,13 +4,14 @@ import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOAL
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
+import * as PU from "./push.js";
 
 /* ============ Hilfen ============ */
 const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.9";
+export const APP_VERSION = "0.9.10";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -1212,6 +1213,7 @@ function viewMore() {
       <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (schwere Grundübungen 180 s, andere 120 s, Isolation 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
     ${remindSection()}
+    ${pushSection()}
     <h2 class="sec">Deine Daten</h2>
     ${recoveredNote()}
     <p>Alles bleibt auf diesem Gerät. Es gibt kein Konto und keinen Server. Sichere deine Daten ab und zu als Datei, besonders vor einem Handywechsel.</p>
@@ -1227,6 +1229,7 @@ function viewMore() {
     <p class="meta">3D-Körperkarte mit three.js (MIT). Figur und Bewegungsabläufe sind selbst gezeichnete Schemata: ähnliche Übungen teilen sich eine Bewegungsvorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels.</p>
     <p class="meta">Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Tagesserien, kein Zwang: gezählt werden Wochen mit erreichtem Wochenziel, Pausenwochen unterbrechen nichts. Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010). Dehnen 30–45 s pro Position (ACSM 2021), zählt nicht zum Volumen.</p>
     <p class="meta">Version ${APP_VERSION} · Daten-Version ${St.VERSION}</p><div style="height:24px"></div>`;
+  PU.verify().then(ch => { if (ch && location.hash.startsWith("#/mehr")) rerender(); });
 }
 
 // Erinnerung über den Kalender: SATZ erzeugt einen wiederkehrenden Termin (.ics). Kein Server, keine Push-Nachrichten nötig.
@@ -1253,6 +1256,55 @@ function downloadIcs() {
   a.download = "satz-training.ics"; document.body.append(a); a.click(); a.remove();
   D().settings.remind = r; persist();
   say("Kalenderdatei erstellt.");
+}
+
+// Push-Erinnerung: verschickt über GitHub Actions (push/ANLEITUNG.md). Nutzt die Trainingstage aus dem Kalender
+// und Uhrzeit/Vorlauf von oben. Liest die Trainingsdaten nur, verändert sie nie.
+const PUSH_GUIDE = "https://github.com/lucafrey24-beep/satz/blob/main/push/ANLEITUNG.md";
+const PUSH_RUN = "https://github.com/lucafrey24-beep/satz/actions/workflows/push-erinnerung.yml";
+function pushSchedule() {
+  const r = remindCfg(), today = St.dateKey(new Date()), week = St.weekStart();
+  return {sch: PU.schedule({days: St.trainDays(), dayPlan: D().dayPlan, pauses: D().pauses, time: r.time, before: r.before, today, week}), today, week};
+}
+function pushSection() {
+  const head = `<h2 class="sec">Push-Erinnerung</h2>`;
+  if (!PU.supported()) return head + `<p>${PU.isIOS() && !PU.standalone() ? "Push-Nachrichten gehen auf dem iPhone nur, wenn du SATZ vom Home-Bildschirm aus öffnest (iOS 16.4 oder neuer). In Safari: Teilen → Zum Home-Bildschirm." : "Dieser Browser kann keine Push-Nachrichten empfangen. Nutze die Kalenderdatei oben."}</p>`;
+  const rec = PU.load(), denied = PU.permission() === "denied";
+  if (!rec || !rec.sub) return head + `<p>SATZ schickt dir an Trainingstagen eine Mitteilung, auch wenn die App geschlossen ist. Verschickt wird sie über dein GitHub-Repo, ohne eigenen Server. Einmalig musst du dafür einen Code als Secret in GitHub ablegen.</p>
+    ${denied ? `<p class="err">Mitteilungen für SATZ sind ausgeschaltet. Erlaube sie in den iPhone-Einstellungen unter Mitteilungen → SATZ.</p>` : ""}
+    <button class="btn primary" data-act="pushon" ${denied ? "disabled" : ""}>Erinnerungen aktivieren</button>
+    <p class="foot">Danach kopierst du einen Code und legst ihn in GitHub ab. <a href="${PUSH_GUIDE}" target="_blank" rel="noopener">Anleitung</a></p>`;
+  const {sch, today, week} = pushSchedule(), changed = PU.changedSince(sch, today, week);
+  const days = sch.days.map(i => WD[i]).join(", ") || "keine";
+  const when = sch.before ? `${sch.before === 60 ? "1 Std." : sch.before + " Min."} vor ${sch.time}` : `um ${sch.time}`;
+  return head + `${rec.lost || denied ? `<p class="err" role="alert">Das iPhone hat das Abo beendet. Tippe auf „Neu aktivieren“ und ersetze danach den Code in GitHub.</p>` : ""}
+    <div class="group">
+      <div class="row"><span>Trainingstage</span><span class="meta">${days}</span></div>
+      <div class="row"><span>Mitteilung</span><span class="meta">${when}</span></div>
+    </div>
+    <p class="foot">Tage kommen aus deinem Wochenplan und Kalender (verschobene Trainings, Ruhetage und Pausen zählen mit), Uhrzeit und Vorlauf aus „Erinnerung im Kalender“ oben.</p>
+    ${changed ? `<p class="foot" role="status"><b>${rec.copied ? "Plan geändert seit dem letzten Kopieren." : "Noch nicht kopiert."}</b> Kopiere den Code und ersetze damit das Secret SATZ_PUSH in GitHub.</p>` : ""}
+    <button class="btn ${changed ? "primary" : ""}" data-act="pushcopy">Code kopieren</button>
+    <details><summary>Code anzeigen</summary><label class="field">Code (wie ein Passwort behandeln)<textarea readonly rows="5" id="pushCode" spellcheck="false" autocapitalize="off">${esc(PU.code(sch))}</textarea></label></details>
+    <a class="btn" href="${PUSH_GUIDE}" target="_blank" rel="noopener">Anleitung für GitHub</a>
+    <a class="btn" href="${PUSH_RUN}" target="_blank" rel="noopener">Test-Nachricht in GitHub senden</a>
+    ${rec.lost || denied ? `<button class="btn primary" data-act="pushon">Neu aktivieren</button>` : ""}
+    <button class="btn destructive" data-act="pushoff">Erinnerungen ausschalten</button>
+    <p class="foot">Ehrlich gesagt: GitHub startet zeitgesteuerte Abläufe oft 5 bis 30 Minuten zu spät, selten auch gar nicht. Für eine minutengenaue Erinnerung ist die Kalenderdatei oben zuverlässiger. Der Code enthält einen geheimen Schlüssel: Leg ihn nur als Secret in GitHub ab, nirgends sonst.</p>`;
+}
+async function pushOn() {
+  try { await PU.enable(); rerender('[data-act="pushcopy"]'); say("Erinnerungen aktiviert. Kopiere jetzt den Code."); }
+  catch (e) {
+    const m = e.message === "denied" ? "Mitteilungen wurden abgelehnt. Erlaube sie in den iPhone-Einstellungen unter Mitteilungen → SATZ."
+      : e.message === "default" ? "Keine Erlaubnis erteilt. Tippe nochmal und wähle „Erlauben“." : "Aktivieren hat nicht geklappt: " + e.message;
+    toast(m); rerender();
+  }
+}
+async function pushCopy() {
+  const {sch} = pushSchedule(), txt = PU.code(sch); if (!txt) return;
+  let ok = false; try { await navigator.clipboard.writeText(txt); ok = true; } catch (e) {}
+  if (!ok) { const ta = $("#pushCode"); if (ta) { ta.closest("details").open = true; ta.focus(); ta.select(); } return toast("Kopieren ging nicht. Der Code ist markiert, kopiere ihn von Hand."); }
+  PU.markCopied(sch); rerender('[data-act="pushcopy"]'); toast("Code kopiert. Jetzt in GitHub als Secret SATZ_PUSH einfügen.");
 }
 
 // Vor jedem App-Update legt SATZ den alten Stand automatisch beiseite (die letzten 3).
@@ -1414,6 +1466,9 @@ const A = {
   mprev: () => { ui.mOff = (ui.mOff || 0) + 1; rerender('[data-act="mprev"]'); },
   mnext: () => { ui.mOff = Math.max(0, (ui.mOff || 0) - 1); rerender(ui.mOff ? '[data-act="mnext"]' : '[data-act="mprev"]'); },
   icsdl: () => downloadIcs(),
+  pushon: () => pushOn(),
+  pushcopy: () => pushCopy(),
+  pushoff: async () => { await PU.disable(); rerender(); toast("Erinnerungen ausgeschaltet. Das Secret in GitHub kannst du löschen."); },
   icsday: t => { const r = remindCfg(), d = +t.dataset.d; r.days = r.days.includes(d) ? r.days.filter(x => x !== d) : [...r.days, d]; D().settings.remind = r; persist(); rerender(`[data-act="icsday"][data-d="${d}"]`); },
   planweek: () => openPlanWeek(),
   calday: t => openCalDay(t.dataset.k),
@@ -1541,7 +1596,7 @@ document.addEventListener("change", ev => {
   if (k === "cycleweeks") { const p = curPlan(), n = +el.value; p.cycle = n ? {weeks: n, start: p.cycle && p.cycle.weeks ? p.cycle.start : dkey()} : {weeks: 0, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); }
   if (k === "msel") { ui.msel = el.value; rerender('[data-on="msel"]'); }
   if (k === "histex") { ui.histEx = el.value; rerender('[data-on="histex"]'); }
-  if (k === "icstime" || k === "icsbefore") { const r = remindCfg(); if (k === "icstime") { if (/^\d{2}:\d{2}$/.test(el.value)) r.time = el.value; } else r.before = +el.value; D().settings.remind = r; persist(); }
+  if (k === "icstime" || k === "icsbefore") { const r = remindCfg(); if (k === "icstime") { if (/^\d{2}:\d{2}$/.test(el.value)) r.time = el.value; } else r.before = +el.value; D().settings.remind = r; persist(); if (PU.load()) rerender(`[data-on="${k}"]`); }
   if (k === "contrast" || k === "rir") { D().settings[k] = el.checked; persist(); applySettings(); }
   if (k === "rest") { D().settings.rest = +el.value; persist(); }
   if (k === "kgin" || k === "repsin") { readSetInputs(); el.value = k === "kgin" ? fmt(ui.kg) : ui.reps; }

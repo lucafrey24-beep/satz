@@ -1,0 +1,55 @@
+# Trainings-Erinnerung per Web-Push, ohne eigenen Server.
+# Läuft alle 15 Minuten, sendet aber nur an Trainingstagen ab der Erinnerungszeit und höchstens einmal pro Tag.
+# Einrichtung: push/ANLEITUNG.md. Der Code aus der App liegt nur im Repo-Secret SATZ_PUSH, nie im Repo.
+# Hinweis: GitHub startet geplante Läufe oft 5 bis 30 Minuten zu spät, bei Last auch später oder gar nicht.
+name: Trainings-Erinnerung
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Sofort eine Test-Nachricht senden (ignoriert Tag und Uhrzeit)"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: satz-push
+  cancel-in-progress: false
+jobs:
+  erinnern:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: push
+          persist-credentials: false
+      - name: Heute fällig?
+        id: check
+        env:
+          SATZ_PUSH: ${{ secrets.SATZ_PUSH }}
+          TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+        run: node push/send.mjs check
+      # Merker „heute schon gesendet“ im Actions-Cache, damit verspätete Läufe nicht doppelt senden
+      - name: Heute schon gesendet?
+        id: sent
+        if: steps.check.outputs.due == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.test)
+        uses: actions/cache/restore@v4
+        with:
+          path: .push-sent
+          key: satz-push-sent-${{ steps.check.outputs.day }}
+          lookup-only: true
+      - name: Senden
+        if: steps.check.outputs.due == 'true' && steps.sent.outputs.cache-hit != 'true'
+        env:
+          SATZ_PUSH: ${{ secrets.SATZ_PUSH }}
+          TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+        run: node push/send.mjs send && mkdir -p .push-sent && echo "${{ steps.check.outputs.day }}" > .push-sent/day
+      - name: Merken
+        if: steps.check.outputs.due == 'true' && steps.sent.outputs.cache-hit != 'true' && !(github.event_name == 'workflow_dispatch' && inputs.test)
+        uses: actions/cache/save@v4
+        with:
+          path: .push-sent
+          key: satz-push-sent-${{ steps.check.outputs.day }}

@@ -26,6 +26,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - `js/vendor/three.module.min.js` – three.js r170 (MIT, siehe `three-LICENSE`), wird nur auf der Körperkarte geladen
 - `js/app.js` – Screens und Bedienung
 - `icons/icon.svg` – einzige Quelle für das App-Icon. Ändern: SVG bearbeiten, `node tools/make-icons.js` erzeugt alle PNGs, dann veröffentlichen
+- `js/push.js`, `push/send.mjs`, `.github/workflows/push-erinnerung.yml` – Push-Erinnerung an Trainingstagen ohne eigenen Server: Die App erzeugt Schlüssel und Abo, GitHub Actions verschickt alle 15 Minuten bei Bedarf (Einrichtung: `push/ANLEITUNG.md`). Keine fremden Pakete.
 - `sw.js`, `manifest.webmanifest`, `icons/` – Offline-Betrieb und Installation; `icons/splash/` iOS-Startbilder (`node tools/make-splash.js`), `icons/screens/` Screenshots fürs Manifest (`node tools/make-screens.js`)
 - `fonts/archivo-satz.woff2` – Wortmarken-Schrift Archivo (SIL OFL), auf „SATZ.“ reduziert (1 KB), selbst gehostet
 - `docs/aufbau.md` – Aufbau der App: Bildschirme, Navigation, Darstellung, Technik
