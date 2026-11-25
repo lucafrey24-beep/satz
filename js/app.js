@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.4";
+export const APP_VERSION = "0.9.5";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -1020,11 +1020,11 @@ function viewMore() {
       <label class="row" for="s-rir"><span>„Wdh. in Reserve“ abfragen</span><input id="s-rir" class="switch" type="checkbox" role="switch" data-on="rir" ${s.rir ? "checked" : ""}></label>
       <label class="row" for="s-sound"><span>Ringglocke am Pausenende</span><input id="s-sound" class="switch" type="checkbox" role="switch" data-on="sound" ${s.sound ? "checked" : ""}></label>
       <label class="row" for="s-voice"><span>Ansage „Next Round“</span><input id="s-voice" class="switch" type="checkbox" role="switch" data-on="voice" ${s.voice !== false ? "checked" : ""} ${s.sound ? "" : "disabled"}></label>
-      <label class="row" for="s-bg"><span>Auch im Hintergrund läuten</span><input id="s-bg" class="switch" type="checkbox" role="switch" data-on="bgbell" ${s.bgBell ? "checked" : ""} ${s.sound ? "" : "disabled"}></label>
-      <div class="row"><span>Probe hören</span><button type="button" class="btn small" data-act="bellpreview" style="width:auto">Abspielen</button></div>
+      <label class="row" for="s-bg"><span>Auch im Hintergrund läuten<small class="meta" style="display:block">Pausiert Spotify und andere Musik in jeder Pause</small></span><input id="s-bg" class="switch" type="checkbox" role="switch" data-on="bgbell" ${s.bgBell ? "checked" : ""} ${s.sound ? "" : "disabled"}></label>
+      <div class="row"><span>Probe hören<small class="meta" style="display:block">${BELL.canMix() ? "Mischt sich mit Musik" : "Dieses iOS kann Töne nicht mit Musik mischen"}</small></span><button type="button" class="btn small" data-act="bellpreview" style="width:auto">Abspielen</button></div>
       <label class="row" for="s-fig"><span>Ausführung im Training zeigen</span><input id="s-fig" class="switch" type="checkbox" role="switch" data-on="showfig" ${s.showFig !== false ? "checked" : ""}></label>
     </div>
-    <p class="foot">Die Glocke mischt sich mit deiner Musik und kommt nur, wenn der Stummschalter nicht auf lautlos steht. Die Ansage spricht eine englische Stimme deines Geräts, nur solange SATZ offen ist. „Auch im Hintergrund läuten“ spielt die Pause wie Musik ab: Die Glocke kommt dann auch bei gesperrtem Bildschirm oder in einer anderen App, aber deine Musik pausiert während jeder Pause. Während des Trainings bleibt der Bildschirm an.</p>
+    <p class="foot">Die Glocke mischt sich mit deiner Musik und kommt nur, wenn der Stummschalter nicht auf lautlos steht. Die Ansage spricht eine englische Stimme deines Geräts, nur solange SATZ offen ist. „Auch im Hintergrund läuten“ spielt die Pause wie Musik ab: Die Glocke kommt dann auch bei gesperrtem Bildschirm oder in einer anderen App, aber iOS pausiert dafür deine Musik, und du musst sie danach selbst wieder starten. Wer Musik hört, lässt es aus. Während des Trainings bleibt der Bildschirm an.</p>
     <label class="field" style="margin-top:16px">Standardpause <select data-on="rest">
       <option value="0" ${!s.rest ? "selected" : ""}>Automatisch (schwere Grundübungen 180 s, andere 120 s, Isolation 90 s)</option>
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${r} s für alle</option>`).join("")}</select></label>
