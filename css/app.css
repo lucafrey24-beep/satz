@@ -585,7 +585,7 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .recs li span{color:var(--label-2); font-size:.9rem}
 .monthcard{padding:14px 16px}
 .mnav{display:flex; gap:2px}
-.mnav .linkbtn{min-width:44px; font-size:1.4rem; line-height:1}
+.mnav .linkbtn{min-width:44px; min-height:44px; font-size:1.4rem; line-height:1}
 .mnav .linkbtn:disabled{color:var(--label-2); opacity:.5}
 .mstats{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; margin:10px 0 4px}
 .mstats div{display:flex; flex-direction:column}
@@ -596,3 +596,16 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .obbar{height:4px; border-radius:2px; background:var(--fill); margin:4px 0 14px; overflow:hidden}
 .obbar span{display:block; height:100%; background:var(--tint)}
 .oblist button[aria-pressed="true"] b{color:var(--tint)}
+/* Kalender (0.9.9): Monatsraster mit denselben Tageszuständen wie die Wochenleiste. Geändert = kleiner Strich unter der Zahl. */
+.calcard{padding:14px 12px 10px}
+.calhead,.calgrid{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:2px; list-style:none; padding:0; margin:0}
+.calhead{margin-top:10px; font-size:.75rem; color:var(--label-2); text-align:center}
+.calgrid button{display:flex; flex-direction:column; align-items:center; gap:3px; width:100%; min-height:56px; padding:4px 0; border:0; background:none; border-radius:10px; color:var(--label-2); font:inherit; font-size:.78rem; cursor:pointer}
+.calgrid button:active{background:var(--fill)}
+.calgrid button:focus-visible{outline:3px solid var(--tint); outline-offset:-1px}
+:where(.calgrid) .dot{display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:2px solid var(--fill); box-sizing:border-box; font-size:.75rem; font-weight:700; color:var(--on-tint)}
+.calgrid .today .cnum{color:var(--label); font-weight:700}
+.calgrid .today .dot{box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--label-2)}
+.calgrid .ovr .cnum{text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px; color:var(--label)}
+.wklegend .ovmark{display:inline-block; width:14px; height:2px; background:var(--label)}
+.calcard p .linkbtn{min-height:44px}

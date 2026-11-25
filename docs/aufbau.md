@@ -256,5 +256,8 @@ Gespeicherte Trainings dürfen durch ein App-Update nie verloren gehen oder ver�
 
 ## Neu in 0.9.9
 
-- **Trainings- und Ruhetage planen** (`store.js`: `trainDays`, `PRESET_DAYS`; `settings.trainDays`, 0 = Montag): Auf „Heute“ → „Trainings- und Ruhetage planen“. Ohne eigene Planung verteilt SATZ die Tage nach „pro Woche“ des aktiven Plans. Die Kalender-Erinnerung übernimmt diese Tage als Vorschlag.
+- **Trainings- und Ruhetage planen** (`store.js`: `trainDays`, `PRESET_DAYS`; `settings.trainDays`, 0 = Montag): Auf „Heute“ → „Wochenmuster planen“. Ohne eigene Planung verteilt SATZ die Tage nach „pro Woche“ des aktiven Plans. Die Kalender-Erinnerung übernimmt diese Tage als Vorschlag.
 - **Wochenleiste**: jeder Tag mit Farbe und Symbol: erledigt ✓ (gefüllt), geplant ● (Ring), Ruhetag ☾ (eigene Farbe `--rest`), Pausenwoche ‖ (gestrichelt, schraffiert), vorbei ohne Training leer. Legende darunter, Screenreader-Text pro Tag.
+- **Kalender** (`#/kalender`, `viewCalendar` in `app.js`): Monatsraster mit denselben Zuständen wie die Wochenleiste. Tippen auf einen Tag: Training, Ruhetag oder Pause setzen, zurück zum Wochenmuster, oder ein geplantes Training auf einen freien Tag derselben Woche verschieben. „Zeitraum pausieren“ markiert bis zu 92 Tage (Urlaub, krank). Geänderte Tage sind unterstrichen.
+- **Datenmodell**: `S.dayPlan = {"YYYY-MM-DD": "train"|"rest"|"pause"}` speichert nur Abweichungen vom Wochenmuster (`store.js`: `planFor`, `setDay`, `moveTraining`, `pauseRange`). Fehlt das Feld (alte Daten), legt `migrate` ein leeres Objekt an; `sanitizeImport` übernimmt nur gültige Daten und Zustände. Gespeicherte Trainings werden nie verändert.
+- **Wochenziel mit Pausentagen** (`weekGoalFor`): Jeder pausierte Tag, der laut Muster ein Trainingstag ist, senkt das Ziel der Woche um 1. Ziel 0 zählt wie eine Pausenwoche: die Serie bricht nicht. Verschieben ändert das Ziel nicht.

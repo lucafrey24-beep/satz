@@ -95,7 +95,7 @@ function applySettings() {
 }
 
 /* ============ Router ============ */
-const ROUTES = {koerper: viewBody, heute: viewToday, plaene: viewPlans, vorlage: viewTemplate, plan: viewEditor, uebungen: viewExercises, verlauf: viewHistory, ernaehrung: viewNutrition, mehr: viewMore, training: viewTraining};
+const ROUTES = {koerper: viewBody, heute: viewToday, kalender: viewCalendar, plaene: viewPlans, vorlage: viewTemplate, plan: viewEditor, uebungen: viewExercises, verlauf: viewHistory, ernaehrung: viewNutrition, mehr: viewMore, training: viewTraining};
 function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   let name = parts[0] || "heute";
@@ -121,7 +121,7 @@ function route() {
   if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); }
   document.title = (h ? h.textContent.replace(/\s+/g, " ").trim() + " · " : "") + "SATZ";
 }
-const tabFor = n => ({vorlage: "plaene", plan: "plaene", uebungen: "plaene", koerper: "plaene"})[n] || n;
+const tabFor = n => ({kalender: "heute", vorlage: "plaene", plan: "plaene", uebungen: "plaene", koerper: "plaene"})[n] || n;
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 function rerender(focusSel) {
   const top = view.scrollTop;
@@ -131,7 +131,7 @@ function rerender(focusSel) {
   AN.startAnim();
   if (focusSel) { const f = view.querySelector(focusSel); if (f) f.focus({preventScroll: false}); }
 }
-const BACK = {vorlage: ["#/plaene", "Pläne"], plan: ["#/plaene", "Pläne"], uebungen: ["#/plaene", "Pläne"], koerper: ["#/plaene", "Pläne"]};
+const BACK = {kalender: ["#/heute", "Heute"], vorlage: ["#/plaene", "Pläne"], plan: ["#/plaene", "Pläne"], uebungen: ["#/plaene", "Pläne"], koerper: ["#/plaene", "Pläne"]};
 function renderBar(training, name) {
   const a = D().active, back = BACK[name];
   bar.classList.remove("titled");
@@ -234,31 +234,34 @@ const trainings = n => `${n} ${n === 1 ? "Training" : "Trainings"}`;
 // erledigt ✓ (gefüllt), Training geplant ● (Ring), Ruhetag ☾ (eigene Farbe), Pausenwoche ‖ (gestreift), vorbei ohne Training: leer.
 const DAYSYM = {done: "✓", plan: "●", rest: "☾", pause: "‖", past: ""};
 const DAYSR = {done: "", plan: "Training geplant", rest: "Ruhetag", pause: "Pause", past: "geplant, kein Training"};
-function dayState(d, i, planned, paused, todayKey) {
+// Zustand eines Tages aus Kalender (Tagesplan mit Abweichungen) und erledigten Trainings
+function dayState(d, todayKey) {
   if (d.n) return "done";
-  if (paused) return "pause";
-  if (!planned.includes(i)) return "rest";
+  const p = St.planFor(d.key);
+  if (p === "pause") return "pause";
+  if (p === "rest") return "rest";
   return d.key < todayKey ? "past" : "plan";
 }
 function weekCard() {
-  const wk = St.weekStart(), days = St.weekDays(wk), goal = St.weekGoal(), n = days.reduce((a, d) => a + d.n, 0);
-  const paused = St.isPaused(wk), st = St.weekStreak(), todayKey = dkey(), planned = St.trainDays();
+  const wk = St.weekStart(), days = St.weekDays(wk), goal = St.weekGoalFor(wk), n = days.reduce((a, d) => a + d.n, 0);
+  const paused = goal === 0, st = St.weekStreak(), todayKey = dkey(), less = St.weekGoal() - goal;
   const streak = st.weeks > 0 ? `${st.weeks === 1 ? "Eine Woche" : `${st.weeks} Wochen`} in Folge geschafft${st.paused ? `, ${st.paused === 1 ? "eine Pausenwoche" : `${st.paused} Pausenwochen`} dazwischen` : ""}.` : "";
-  const ti = days.findIndex(d => d.key === todayKey), todayState = ti >= 0 ? dayState(days[ti], ti, planned, paused, todayKey) : "";
-  const msg = n >= goal ? `Wochenziel erreicht. ${streak}`
-    : paused ? "Pausenwoche (Urlaub oder krank). Deine Serie wartet einfach, bis du wieder trainierst."
-    : `${todayState === "rest" ? "Heute ist Ruhetag. Erholung gehört zum Training. " : ""}Noch ${trainings(goal - n)} bis zum Wochenziel. ${streak}`;
-  const states = days.map((d, i) => dayState(d, i, planned, paused, todayKey));
+  const ti = days.findIndex(d => d.key === todayKey), todayState = ti >= 0 ? dayState(days[ti], todayKey) : "";
+  const msg = paused ? `Pausenwoche (Urlaub oder krank). ${n ? "Deine Trainings zählen trotzdem. " : "Deine Serie wartet einfach, bis du wieder trainierst."}`
+    : n >= goal ? `Wochenziel erreicht. ${streak}`
+    : `${todayState === "rest" ? "Heute ist Ruhetag. Erholung gehört zum Training. " : todayState === "pause" ? "Heute ist Pause. " : ""}Noch ${trainings(goal - n)} bis zum Wochenziel${less > 0 ? ` (wegen Pausentagen ${less} weniger)` : ""}. ${streak}`;
+  const states = days.map(d => dayState(d, todayKey));
   const used = ["done", "plan", "rest", "pause"].filter(k => states.includes(k));
   return `<section class="card weekcard" aria-labelledby="wk-h">
-    <div class="wkhead"><h2 id="wk-h">Diese Woche</h2><span class="num" aria-label="${n} von ${goal} Trainings">${n} / ${goal}</span></div>
+    <div class="wkhead"><h2 id="wk-h">Diese Woche</h2>${paused ? `<span class="num">Pause</span>` : `<span class="num" aria-label="${n} von ${goal} Trainings">${n} / ${goal}</span>`}</div>
     <ol class="wkdays">${days.map((d, i) => { const k = states[i];
       return `<li class="d-${k}${d.key === todayKey ? " today" : ""}"><span aria-hidden="true">${WD[i]}</span><span class="dot" aria-hidden="true">${k === "done" && d.n > 1 ? d.n : DAYSYM[k]}</span>
-      <span class="sr">${WDL[i]}${d.key === todayKey ? " (heute)" : ""}: ${d.n ? trainings(d.n) + " erledigt" : DAYSR[k]}</span></li>`; }).join("")}</ol>
+      <span class="sr">${WDL[i]}${d.key === todayKey ? " (heute)" : ""}: ${d.n ? trainings(d.n) + " erledigt" : DAYSR[k]}${St.dayOverride(d.key) ? ", geändert" : ""}</span></li>`; }).join("")}</ol>
     <ul class="wklegend" aria-hidden="true">${used.map(k => `<li class="d-${k}"><span class="dot">${DAYSYM[k]}</span>${{done: "erledigt", plan: "geplant", rest: "Ruhetag", pause: "Pause"}[k]}</li>`).join("")}</ul>
     <p class="meta wkmsg">${esc(msg.trim())}</p>
-    <div class="row-btns wkbtns"><button type="button" class="linkbtn" data-act="planweek" aria-haspopup="dialog">Trainings- und Ruhetage planen</button>
-    ${n < goal ? `<button type="button" class="linkbtn" data-act="pauseweek">${paused ? "Pause aufheben" : "Diese Woche pausieren (Urlaub, krank)"}</button>` : ""}</div>
+    <div class="row-btns wkbtns"><a class="linkbtn" href="#/kalender">Kalender: Tage pausieren oder verschieben</a>
+    <button type="button" class="linkbtn" data-act="planweek" aria-haspopup="dialog">Wochenmuster planen</button>
+    ${n < goal || St.isPaused(wk) ? `<button type="button" class="linkbtn" data-act="pauseweek">${St.isPaused(wk) ? "Pause aufheben" : "Diese Woche pausieren (Urlaub, krank)"}</button>` : ""}</div>
   </section>`;
 }
 // Trainings- und Ruhetage festlegen. Gilt jede Woche, bis du es änderst.
@@ -272,6 +275,69 @@ function openPlanWeek() {
     <div class="dlg-actions"><button class="btn" data-act="close">Fertig</button></div>`, "#dlg-h");
 }
 const pwNote = (planned, goal) => `${planned.length} Trainingstage, ${7 - planned.length} Ruhetage. ${planned.length === goal ? "Passt zu deinem Wochenziel." : `Dein Plan sieht ${trainings(goal)} pro Woche vor${planned.length < goal ? ", plane also mehr Tage ein oder senke das Ziel im Plan" : ""}.`}`;
+/* ============ Kalender ============
+   Monatsansicht. Jeder Tag folgt dem Wochenmuster, außer du änderst ihn hier (Training, Ruhetag, Pause).
+   Gespeichert werden nur die Abweichungen (S.dayPlan); trainierte Tage bleiben unverändert. */
+const CALNAME = {train: "Training", rest: "Ruhetag", pause: "Pause"};
+function viewCalendar() {
+  const now = new Date(), off = ui.cOff || 0, first = new Date(now.getFullYear(), now.getMonth() + off, 1);
+  const y = first.getFullYear(), m = first.getMonth(), len = new Date(y, m + 1, 0).getDate(), lead = (first.getDay() + 6) % 7;
+  const todayKey = dkey(), byDay = {};
+  D().sessions.forEach(x => { const k = St.sessionDay(x); byDay[k] = (byDay[k] || 0) + 1; });
+  const name = first.toLocaleDateString("de-DE", {month: "long", year: "numeric"});
+  const cells = Array.from({length: len}, (_, i) => {
+    const key = St.dateKey(new Date(y, m, i + 1, 12)), d = {key, n: byDay[key] || 0}, k = dayState(d, todayKey), ov = St.dayOverride(key);
+    const long = new Date(key + "T12:00:00").toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "long"});
+    return `<li class="d-${k}${key === todayKey ? " today" : ""}${ov ? " ovr" : ""}"${i === 0 ? ` style="grid-column-start:${lead + 1}"` : ""}>
+      <button type="button" data-act="calday" data-k="${key}" aria-haspopup="dialog" aria-label="${long}${key === todayKey ? ", heute" : ""}: ${d.n ? trainings(d.n) + " erledigt" : DAYSR[k] || "kein Training"}${ov ? ", geändert" : ""}">
+      <span class="cnum">${i + 1}</span><span class="dot" aria-hidden="true">${k === "done" && d.n > 1 ? d.n : DAYSYM[k]}</span></button></li>`;
+  }).join("");
+  const wk = St.weekStart(), goal = St.weekGoalFor(wk);
+  view.innerHTML = `<h1 class="big">Kalender</h1>
+    <p class="meta">Tippe auf einen Tag, um ihn zu ändern oder ein Training zu verschieben. Das Wochenmuster bleibt dabei gleich.</p>
+    <section class="card calcard" aria-labelledby="cal-h">
+      <div class="wkhead"><h2 id="cal-h">${esc(name)}</h2>
+        <span class="mnav"><button type="button" class="linkbtn" data-act="cprev" aria-label="Vorheriger Monat">‹</button><button type="button" class="linkbtn" data-act="cnext" aria-label="Nächster Monat">›</button></span></div>
+      <ol class="calhead" aria-hidden="true">${WD.map(w => `<li>${w}</li>`).join("")}</ol>
+      <ol class="calgrid">${cells}</ol>
+      <ul class="wklegend" aria-hidden="true">${["done", "plan", "rest", "pause"].map(k => `<li class="d-${k}"><span class="dot">${DAYSYM[k]}</span>${{done: "erledigt", plan: "geplant", rest: "Ruhetag", pause: "Pause"}[k]}</li>`).join("")}<li class="ovr"><span class="ovmark"></span>geändert</li></ul>
+      <p class="meta">Diese Woche: ${goal ? `Ziel ${trainings(goal)}` : "Pausenwoche"}. ${off ? `<button type="button" class="linkbtn" data-act="ctoday">Zum heutigen Monat</button>` : ""}</p>
+    </section>
+    <div class="row-btns"><button type="button" class="btn" data-act="calrange" aria-haspopup="dialog">Zeitraum pausieren (Urlaub, krank)</button>
+    <button type="button" class="btn" data-act="planweek" aria-haspopup="dialog">Wochenmuster planen</button></div>
+    <div style="height:24px"></div>`;
+}
+function openCalDay(key) {
+  const todayKey = dkey(), n = D().sessions.filter(x => St.sessionDay(x) === key).length, cur = St.planFor(key), ov = St.dayOverride(key);
+  const weekPaused = St.isPaused(St.weekStart(new Date(key + "T12:00:00")));
+  const long = new Date(key + "T12:00:00").toLocaleDateString("de-DE", {weekday: "long", day: "numeric", month: "long"});
+  const wk = St.weekStart(new Date(key + "T12:00:00"));
+  const targets = Array.from({length: 7}, (_, i) => St.keyAdd(wk, i)).filter(k => k !== key && k >= todayKey && St.planFor(k) !== "train" && St.planFor(k) !== "pause");
+  const opt = v => `<li><button type="button" data-act="calset" data-k="${key}" data-v="${v}" aria-pressed="${cur === v}"><b>${CALNAME[v]}</b><span class="pwstate d-${v === "train" ? "plan" : v}"><span class="dot" aria-hidden="true">${DAYSYM[v === "train" ? "plan" : v]}</span>${cur === v ? "ausgewählt" : ""}</span></button></li>`;
+  openDialog(`<h2 id="dlg-h">${esc(long)}</h2>
+    <p class="meta" style="text-align:center;margin-top:-10px">${n ? `${trainings(n)} erledigt. ` : ""}${weekPaused ? "Die ganze Woche ist pausiert." : ov ? `Geändert. Laut Wochenmuster: ${CALNAME[St.patternFor(key)]}.` : "Folgt dem Wochenmuster."}</p>
+    ${weekPaused ? "" : `<ul class="plist planweek" style="max-height:none">${["train", "rest", "pause"].map(opt).join("")}</ul>
+    ${ov ? `<button type="button" class="linkbtn" data-act="calset" data-k="${key}" data-v="">Wie im Wochenmuster</button>` : ""}
+    ${cur === "train" && !n && key >= todayKey ? `<h3 class="sec">Training verschieben</h3>
+      ${targets.length ? `<p class="meta">Nur für diese Woche. Der Tag wird zum Ruhetag.</p><div class="row-btns">${targets.map(k => `<button type="button" class="btn small" data-act="calmove" data-from="${key}" data-to="${k}">${new Date(k + "T12:00:00").toLocaleDateString("de-DE", {weekday: "short", day: "numeric", month: "numeric"})}</button>`).join("")}</div>`
+        : `<p class="meta">In dieser Woche ist kein freier Tag mehr übrig.</p>`}` : ""}`}
+    <div class="dlg-actions"><button class="btn" data-act="close">Fertig</button></div>`, "#dlg-h");
+}
+function openCalRange() {
+  const t = dkey();
+  openDialog(`<h2 id="dlg-h">Zeitraum pausieren</h2>
+    <p class="meta" style="text-align:center;margin-top:-10px">Urlaub oder krank: Pausentage senken dein Wochenziel, deine Serie bleibt erhalten.</p>
+    <label class="field">Von <input type="date" id="cr-from" value="${t}"></label>
+    <label class="field">Bis <input type="date" id="cr-to" value="${St.keyAdd(t, 6)}"></label>
+    <p class="meta" id="cr-note" aria-live="polite">Höchstens 3 Monate am Stück.</p>
+    <div class="dlg-actions"><button class="btn" data-act="crclear">Pause aufheben</button><button class="btn primary" data-act="crset">Pausieren</button></div>`, "#dlg-h");
+}
+function calRangeApply(on) {
+  const f = $("#cr-from").value, t = $("#cr-to").value, re = /^\d{4}-\d{2}-\d{2}$/;
+  if (!re.test(f) || !re.test(t)) { $("#cr-note").textContent = "Bitte zwei Daten wählen."; return; }
+  St.pauseRange(f, t, on); dlg.close(); rerender();
+  say(on ? "Zeitraum ist als Pause markiert." : "Pause im Zeitraum aufgehoben.");
+}
 function viewToday() {
   const p = St.activePlan();
   if (!p && needsOnboarding()) return viewOnboarding();
@@ -1350,6 +1416,16 @@ const A = {
   icsdl: () => downloadIcs(),
   icsday: t => { const r = remindCfg(), d = +t.dataset.d; r.days = r.days.includes(d) ? r.days.filter(x => x !== d) : [...r.days, d]; D().settings.remind = r; persist(); rerender(`[data-act="icsday"][data-d="${d}"]`); },
   planweek: () => openPlanWeek(),
+  calday: t => openCalDay(t.dataset.k),
+  calset: t => { const k = t.dataset.k; St.setDay(k, t.dataset.v || null); rerender(); openCalDay(k); say(t.dataset.v ? `Als ${CALNAME[t.dataset.v]} markiert.` : "Folgt wieder dem Wochenmuster."); },
+  calmove: t => { St.moveTraining(t.dataset.from, t.dataset.to); dlg.close(); rerender(`[data-k="${t.dataset.to}"]`);
+    say(`Training auf ${new Date(t.dataset.to + "T12:00:00").toLocaleDateString("de-DE", {weekday: "long"})} verschoben.`); },
+  calrange: () => openCalRange(),
+  crset: () => calRangeApply(true),
+  crclear: () => calRangeApply(false),
+  cprev: () => { ui.cOff = (ui.cOff || 0) - 1; rerender('[data-act="cprev"]'); },
+  cnext: () => { ui.cOff = (ui.cOff || 0) + 1; rerender('[data-act="cnext"]'); },
+  ctoday: () => { ui.cOff = 0; rerender('[data-act="cnext"]'); },
   pwday: t => { const d = +t.dataset.d, cur = St.trainDays(); D().settings.trainDays = (cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d]).sort(); persist();
     const on = D().settings.trainDays.includes(d), st = t.querySelector(".pwstate");
     t.setAttribute("aria-pressed", on); st.className = `pwstate d-${on ? "plan" : "rest"}`; st.innerHTML = `<span class="dot" aria-hidden="true">${on ? DAYSYM.plan : DAYSYM.rest}</span>${on ? "Training" : "Ruhetag"}`;
