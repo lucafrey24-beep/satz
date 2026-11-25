@@ -43,7 +43,17 @@ export let scheduledUntil = 0;   // Zeitpunkt, zu dem die geplante Glocke läute
 function setSrc(blob) { if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob); el.src = url; }
 
 let ctx = null, node = null, abuf = null;
-function session(type) { try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {} }
+// iOS-Audiosession: „ambient“ mischt sich mit Spotify & Co., „playback“ übernimmt das Audio und pausiert fremde Musik.
+// Die Art muss feststehen, BEVOR irgendein Ton oder eine Sprachausgabe startet, sonst greift iOS' Standard und stoppt die Musik.
+let curType = "";
+function session(type) {
+  if (curType === type) return;
+  // Ein AudioContext, der unter „playback“ lief, kann diese Art behalten: dann neu anlegen
+  if (curType === "playback" && type === "ambient" && ctx) { try { ctx.close(); } catch (e) {} ctx = null; abuf = null; }
+  curType = type;
+  try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {}
+}
+session("ambient");
 function webBell(sec) {
   ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === "suspended") ctx.resume();
@@ -54,13 +64,13 @@ function webBell(sec) {
 export function schedule(sec, background) {
   cancel();
   if (sec <= 0) return;
+  const bg = background && el && sec <= MAX_SEC;
+  session(bg ? "playback" : "ambient");
   unlockVoice();
-  if (!background || !el || sec > MAX_SEC) {
-    session("ambient");
+  if (!bg) {
     try { webBell(sec); scheduledUntil = Date.now() + sec * 1000; } catch (e) {}
     return;
   }
-  session("playback");
   try {
     setSrc(wav(sec)); el.currentTime = 0;
     const p = el.play(); if (p && p.catch) p.catch(() => {});
@@ -72,7 +82,15 @@ export function cancel() {
   scheduledUntil = 0;
   if (node) { try { node.stop(); } catch (e) {} node = null; }
   if (el && !el.paused) { try { el.pause(); } catch (e) {} }
+  release();
 }
+// Nach der Hintergrund-Pause das Audio wieder freigeben, damit die nächsten Töne sich mit Musik mischen
+function release() {
+  if (curType !== "playback") return;
+  if ("mediaSession" in navigator) { try { navigator.mediaSession.metadata = null; } catch (e) {} }
+  session("ambient");
+}
+if (el) el.addEventListener("ended", release);
 // Sofort läuten (Probe, Ersatz ohne geplante Glocke)
 export function ring() { session("ambient"); try { webBell(0); } catch (e) {} }
 
@@ -92,6 +110,7 @@ function unlockVoice() {
 }
 export function announce() {
   if (!window.speechSynthesis) return;
+  release();
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance("Next round!"), v = voice();
@@ -99,5 +118,5 @@ export function announce() {
     speechSynthesis.speak(u);
   } catch (e) {}
 }
-export function preview(withVoice) { unlockVoice(); ring(); if (withVoice) setTimeout(announce, 1400); }
+export function preview(withVoice) { session("ambient"); unlockVoice(); ring(); if (withVoice) setTimeout(announce, 1400); }
 if (window.speechSynthesis) speechSynthesis.getVoices();
