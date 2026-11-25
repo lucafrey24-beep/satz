@@ -578,3 +578,6 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .mstats span{font-size:.9rem}
 .mstats small{color:var(--label-2); font-size:.78rem}
 .daychip{min-width:44px; padding:0 10px}
+.obbar{height:4px; border-radius:2px; background:var(--fill); margin:4px 0 14px; overflow:hidden}
+.obbar span{display:block; height:100%; background:var(--tint)}
+.oblist button[aria-pressed="true"] b{color:var(--tint)}

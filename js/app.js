@@ -1,4 +1,5 @@
 import * as St from "./store.js";
+import * as OB from "./onboarding.js";
 import {MUSCLES, MUSCLE_NAME, TEMPLATES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch, noLoad, isMobility} from "./data.js";
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
@@ -191,6 +192,40 @@ function bodyCard() {
 }
 function emptyPlanBtn() { return `<button class="btn" data-act="newplan">Leeren Plan anlegen</button>`; }
 
+/* ============ Einstieg für neue Nutzer ============ */
+// Nur ganz neue Daten: kein Plan, kein Training, Einstieg noch nicht erledigt. Wer schon Daten hat, sieht ihn nie.
+// Eine Sprachauswahl beim ersten Start (Splash) kommt davor und stört den Ablauf nicht.
+const needsOnboarding = () => !D().plans.length && !D().sessions.length && !D().settings.onboarded;
+function viewOnboarding() {
+  const ob = ui.ob || (ui.ob = {step: 0, a: {}}), Q = OB.QUESTIONS;
+  if (ob.step < Q.length) {
+    const q = Q[ob.step], cur = ob.a[q.id];
+    view.innerHTML = `${ob.step === 0 ? `<p class="eyebrow">Willkommen bei SATZ</p>` : ""}
+      <p class="meta" aria-hidden="true">Frage ${ob.step + 1} von ${Q.length}</p>
+      <div class="obbar" aria-hidden="true"><span style="width:${(ob.step / Q.length) * 100}%"></span></div>
+      <h1 class="big" tabindex="-1"><span class="sr">Frage ${ob.step + 1} von ${Q.length}: </span>${esc(q.q)}</h1>
+      ${ob.step === 0 ? `<p>Fünf kurze Fragen, dann schlägt SATZ dir einen passenden Plan vor. Du kannst danach alles ändern.</p>` : ""}
+      <ul class="plist oblist" style="max-height:none">${q.opts.map(([v, l, d]) => `<li><button type="button" data-act="obpick" data-v="${v}" aria-pressed="${String(cur) === String(v)}"><b>${esc(l)}</b>${d ? `<small>${esc(d)}</small>` : ""}</button></li>`).join("")}</ul>
+      <div class="row-btns" style="margin-top:12px">${ob.step ? `<button type="button" class="btn small" data-act="obback">Zurück</button>` : ""}<button type="button" class="btn small" data-act="obskip">Überspringen und selbst wählen</button></div>
+      <div style="height:24px"></div>`;
+    return;
+  }
+  const r = OB.recommend(ob.a), plan = St.instantiate(r.tpl);
+  plan.perWeek = r.perWeek;
+  const fit = OB.fitToTime(plan, ob.a.mins, St.restFor, sl => St.ex(sl.exId).unit === "s");
+  ob.plan = plan;
+  view.innerHTML = `<p class="eyebrow">Dein Vorschlag</p>
+    <h1 class="big" tabindex="-1">${esc(plan.name)}</h1>
+    <p>${esc(r.why)}</p>
+    <p class="meta">${plan.perWeek}× pro Woche · ${plan.days.length} ${plan.days.length === 1 ? "Trainingstag" : "Trainingstage im Wechsel"} · ca. ${fit.minutes} Min. pro Training</p>
+    ${fit.cut ? `<p class="note">Damit es in deine Zeit passt, hat SATZ einige Übungen auf 2 Sätze gekürzt. Mit mehr Zeit kannst du sie im Plan wieder erhöhen.</p>`
+      : fit.minutes > ob.a.mins * 1.1 ? `<p class="note">Der Plan dauert etwas länger als deine Zeit. Lass im Plan eine Übung weg oder nimm weniger Sätze.</p>` : ""}
+    ${plan.days.map(d => `<h2 class="sec">${esc(d.name)}</h2><ol class="exlist">${d.slots.map(sl => `<li><span class="t">${esc(St.ex(sl.exId).name)}</span><span class="s"><span aria-hidden="true">${scheme(sl)}</span><span class="sr">${schemeSr(sl)}</span></span></li>`).join("")}</ol>`).join("")}
+    <div class="actionbar"><button class="btn primary" data-act="obadopt">Plan übernehmen</button></div>
+    <div class="row-btns" style="margin-top:12px"><button type="button" class="btn small" data-act="obrestart">Antworten ändern</button><button type="button" class="btn small" data-act="obskip">Andere Pläne ansehen</button></div>
+    <div style="height:24px"></div>`;
+}
+
 /* ============ Heute ============ */
 // Wochenkalender mit Wochenziel. Bewusst ohne Tagesserie und ohne Schuldgefühle: Pausenwochen halten die Serie an.
 const WD = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], WDL = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
@@ -212,6 +247,7 @@ function weekCard() {
 }
 function viewToday() {
   const p = St.activePlan();
+  if (!p && needsOnboarding()) return viewOnboarding();
   if (!p) {
     view.innerHTML = `<h1 class="big">Willkommen bei SATZ.</h1>
       <p>SATZ ist dein Trainingsheft: Plan wählen, Satz für Satz eintragen, und die App sagt dir, wann du steigern kannst.</p>
@@ -607,7 +643,7 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
   if (!rows.length) return "";
   const kgTxt = v => e.unit === "band" ? "Band" : e.unit === "s" ? "–" : e.unit === "bw" ? (v ? `+${fmt(v)}` : "KG") : fmt(v);
   const kgSay = v => e.unit === "band" ? "Band" : e.unit === "s" ? "Halten" : e.unit === "bw" ? (v ? `Körpergewicht plus ${fmt(v)} Kilo` : "Körpergewicht") : `${fmt(v)} Kilo`;
-  const showRir = D().settings.rir !== false;
+  const showRir = D().settings.rir !== false && !isMobility(e);
   const rirCell = v => showRir ? `<span class="c-n c-rir">${v}</span>` : "";
   const lab = r => r.kind === "drop" ? `<span aria-hidden="true">↳ </span>${r.lab}` : r.lab;
   const body = rows.map(r => {
@@ -622,8 +658,8 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
   }).join("");
   const wDone = logged.length, summary = done ? `${wDone} von ${target} Sätzen erledigt` : `Satz ${Math.min(wDone + 1, target)} von ${target}${target - wDone - 1 > 0 ? `, danach noch ${target - wDone - 1} offen` : ", der letzte"}`;
   return `<h2 class="sec" id="sets-h" style="margin-top:8px">Sätze <span class="sec-sub">${summary}</span></h2>
-    <div class="sethead ${D().settings.rir !== false ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${noLoad(e) ? "" : e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">${St.repShort(e)}</span>${D().settings.rir !== false ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
-    <ol class="setlist ${D().settings.rir !== false ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
+    <div class="sethead ${showRir ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${noLoad(e) ? "" : e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">${St.repShort(e)}</span>${showRir ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
+    <ol class="setlist ${showRir ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
 }
 const fmtSec = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 function restLeft() {
@@ -1274,6 +1310,14 @@ const A = {
     });
     const n = a.sets.length; St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
     go("#/heute"); toast(n ? `Training gespeichert: ${n} Sätze.${checked.length ? " Plan angepasst." : ""}` : "Training beendet.");
+  },
+  obpick: t => { const q = OB.QUESTIONS[ui.ob.step], o = q.opts.find(x => String(x[0]) === t.dataset.v); ui.ob.a[q.id] = o[0]; ui.ob.step++; rerender(); view.scrollTop = 0; const h = view.querySelector("h1"); if (h) h.focus(); },
+  obback: () => { ui.ob.step = Math.max(0, ui.ob.step - 1); rerender(); const h = view.querySelector("h1"); if (h) h.focus(); },
+  obrestart: () => { ui.ob = {step: 0, a: {}}; rerender(); const h = view.querySelector("h1"); if (h) h.focus(); },
+  obskip: () => { D().settings.onboarded = true; ui.ob = null; persist(); rerender(); view.scrollTop = 0; const h = view.querySelector("h1"); if (h) h.focus(); },
+  obadopt: () => {
+    const p = ui.ob.plan; D().plans.push(p); D().activePlanId = p.id; D().settings.onboarded = true; ui.ob = null; ui.day = null; persist();
+    rerender(); view.scrollTop = 0; toast(`„${p.name}“ übernommen. Alles lässt sich unter Pläne ändern.`);
   },
   mprev: () => { ui.mOff = (ui.mOff || 0) + 1; rerender('[data-act="mprev"]'); },
   mnext: () => { ui.mOff = Math.max(0, (ui.mOff || 0) - 1); rerender(ui.mOff ? '[data-act="mnext"]' : '[data-act="mprev"]'); },
