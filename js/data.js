@@ -286,6 +286,8 @@ export const GOALS = [
   {id: "kraft", l: "Kraft & Muskeln", d: "6–12 Wiederholungen, 2–3 Minuten Pause. Für Kraft und Muskelaufbau."},
   {id: "ausdauer", l: "Kraftausdauer", d: "15–25 Wiederholungen, kurze Pausen unter einer Minute. Für Ausdauer der Muskeln und Fitness."},
   {id: "athletik", l: "Athletik", d: "Sprünge und explosive Übungen mit 3–6 Wiederholungen und langen Pausen, dazu Grundkraft. Für Schnellkraft und Sport."},
+  // Dehnungen 30–60 s pro Position (ACSM Guidelines 2021: 10–30 s, ältere Menschen 30–60 s, insgesamt 60 s pro Muskelgruppe)
+  {id: "mobil", l: "Mobility", d: "Dehnen und Beweglichkeit, je 30–45 Sekunden pro Position. Gut an Ruhetagen oder nach dem Training."},
 ];
 
 // Slot: [Übungs-ID, Sätze, Wdh. von, Wdh. bis, Pause in s (optional)]
@@ -348,6 +350,36 @@ export const TEMPLATES = [
     days: [
       {name: "Athletik A", slots: [["box_jump",4,3,5,150],["kb_swing",3,6,8,120],["kniebeugen",4,3,6,180],["klimmzuege",3,4,6,150],["hip_thrust",3,6,8,120],["leg_raises",2,8,12,60]]},
       {name: "Athletik B", slots: [["sprung_kb",4,3,5,150],["kreuzheben",3,3,5,180],["schulterdruecken",3,4,6,150],["bulgarian",3,5,8,120],["lh_rudern",3,6,8,120],["kabel_crunches",2,10,12,60]]},
+    ],
+  },
+  {
+    id: "zuhause_kh", name: "Zu Hause mit Kurzhanteln", perWeek: 3, level: "Einstieg bis Fortgeschritten", goal: "kraft", home: true,
+    desc: "Zwei Ganzkörper-Tage im Wechsel, nur mit Kurzhanteln und Boden, ohne Bank. Mit verstellbaren Kurzhanteln lässt sich lange steigern.",
+    days: [
+      {name: "Zuhause A", slots: [["goblet",3,8,12],["kh_floorpress",3,8,12],["kh_rudern",3,8,12],["kh_rdl",3,8,12],["kh_schulterdruecken",2,8,12],["bizepscurls",2,10,15],["plank",2,20,45,60]]},
+      {name: "Zuhause B", slots: [["rueckw_ausfall",3,8,12],["liegestuetze",3,6,15],["kh_rudern_beid",3,8,12],["glute_bridge",3,10,15],["seitheben",2,12,15],["trizeps_overhead",2,10,15],["reverse_crunch",2,10,15]]},
+    ],
+  },
+  {
+    id: "zuhause_ohne", name: "Zu Hause ohne Gerät", perWeek: 3, level: "Einstieg", goal: "kraft", home: true,
+    desc: "Nur Körpergewicht, ein Tisch und ein Stuhl. Gut zum Einstieg und für unterwegs. Wird es zu leicht: langsamer, einbeinig oder mit Kurzhanteln weitermachen.",
+    days: [
+      {name: "Ohne Gerät A", slots: [["kniebeuge_kg",3,12,20],["liegestuetze",3,6,15],["tischrudern",3,8,15],["bridge_einbeinig",3,10,15],["pike_liegestuetze",2,6,12],["plank",2,20,45,60]]},
+      {name: "Ohne Gerät B", slots: [["split_squat",3,10,15],["liegestuetze_eng",3,6,12],["tischrudern",3,8,15],["superman",2,10,15],["bank_dips",2,8,15],["waden_einbeinig",2,10,20],["seitstuetz",2,20,40,60]]},
+    ],
+  },
+  {
+    id: "zuhause_band", name: "Zu Hause mit Band", perWeek: 3, level: "Einstieg", goal: "kraft", home: true,
+    desc: "Ganzkörper mit Widerstandsband und Körpergewicht. Das Band ersetzt die Zugübungen, für die sonst ein Kabelzug nötig wäre.",
+    days: [
+      {name: "Band Ganzkörper", slots: [["kniebeuge_kg",3,12,20],["band_rudern",3,10,15],["liegestuetze",3,6,15],["band_face_pull",2,12,20],["band_schulterdruecken",2,10,15],["band_seitschritte",2,10,15],["band_curls",2,12,15],["band_pushdown",2,12,15]]},
+    ],
+  },
+  {
+    id: "mobility15", name: "Mobility 15 Minuten", perWeek: 3, level: "Für alle", goal: "mobil", home: true,
+    desc: "Hüfte, Rücken, Schultern und Waden, je 30–45 Sekunden pro Seite. Für Ruhetage oder nach dem Training. Zählt nicht zum Trainingsvolumen.",
+    days: [
+      {name: "Mobility", slots: [["mob_katze_kuh",1,45,60,15],["mob_bws_rotation",2,30,45,15],["dehn_kind",1,45,60,15],["dehn_hueftbeuger",2,30,45,15],["dehn_taube",2,30,45,15],["dehn_beinbeuger",2,30,45,15],["mob_tiefe_hocke",2,30,45,15],["dehn_brust",2,30,45,15],["dehn_wade",2,30,45,15]]},
     ],
   },
   {

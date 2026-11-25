@@ -179,10 +179,10 @@ function templateCard(t, compact) {
 const goalLabel = g => (TGOALS.find(x => x.id === g) || TGOALS[0]).l;
 // Fertige Pläne mit Filter nach Trainingsziel
 function templatesBlock(compact) {
-  const g = ui.tgoal || "all", list = TEMPLATES.filter(t => g === "all" || t.goal === g), gd = TGOALS.find(x => x.id === g);
+  const g = ui.tgoal || "all", list = TEMPLATES.filter(t => g === "all" || (g === "home" ? t.home : t.goal === g)), gd = TGOALS.find(x => x.id === g);
   return `<div class="seg wrap" role="group" aria-label="Trainingsziel" style="margin-bottom:10px">
-      ${[["all", "Alle"], ...TGOALS.map(x => [x.id, x.l])].map(([v, l]) => `<button type="button" data-act="tgoal" data-v="${v}" aria-pressed="${g === v}">${l}</button>`).join("")}</div>
-    <p class="meta" aria-live="polite">${gd ? esc(gd.d) + " " : ""}${list.length} ${list.length === 1 ? "Plan" : "Pläne"}.</p>
+      ${[["all", "Alle"], ["home", "Zu Hause"], ...TGOALS.map(x => [x.id, x.l])].map(([v, l]) => `<button type="button" data-act="tgoal" data-v="${v}" aria-pressed="${g === v}">${l}</button>`).join("")}</div>
+    <p class="meta" aria-live="polite">${gd ? esc(gd.d) + " " : g === "home" ? "Pläne mit Kurzhanteln, Band oder ganz ohne Gerät. " : ""}${list.length} ${list.length === 1 ? "Plan" : "Pläne"}.</p>
     ${list.map(t => templateCard(t, compact)).join("")}`;
 }
 function bodyCard() {
@@ -508,7 +508,9 @@ function pickMuscle(id, from3d) {
 }
 function setSide(v) { ui.bside = v; view.querySelectorAll('[data-act="bside"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
 // Standard-Satzschema nach Ziel des Plans (ACSM 2009)
-const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? [3, 4, 6, 150] : [3, 8, 12, 0];
+const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? [3, 4, 6, 150] : g === "mobil" ? [2, 30, 45, 15] : [3, 8, 12, 0];
+// Halte- und Mobility-Übungen behalten ihr Sekunden-Schema, egal welches Ziel der Plan hat
+const schemeFor = (e, g) => e.unit === "s" ? (({sets, min, max, rest}) => [sets, min, max, rest])(slotDefault(e)) : goalScheme(g);
 
 /* ============ Training ============ */
 function viewTraining() {
@@ -1239,14 +1241,14 @@ const A = {
     const p = St.activePlan(), e = St.ex(t.dataset.id);
     if (!p) return toast("Übernimm zuerst einen Plan oder leg einen leeren an. Dann kannst du Übungen hinzufügen.");
     if (!p.days.length) return toast(`„${p.name}“ hat noch keinen Trainingstag. Leg zuerst einen an.`);
-    const [sets, min, max] = goalScheme(p.goal);
+    const [sets, min, max] = schemeFor(e, p.goal);
     openDialog(`<h2 id="dlg-h">${esc(e.name)} hinzufügen</h2>
       <p class="meta" style="text-align:center;margin-top:-10px">Zu welchem Tag in „${esc(p.name)}“? Startet mit ${sets}×${min}–${max}, im Plan änderbar.</p>
       <ul class="plist" style="max-height:none">${p.days.map((d, i) => `<li><button data-act="bmaddday" data-i="${i}" data-id="${e.id}"><b>${esc(d.name)}</b><small>${d.slots.length} Übungen${d.slots.some(s => s.exId === e.id) ? " · schon enthalten" : ""}</small></button></li>`).join("")}</ul>
       <button class="btn" data-act="close">Abbrechen</button>`);
   },
   bmaddday: t => {
-    const p = St.activePlan(), d = p.days[+t.dataset.i], e = St.ex(t.dataset.id), [sets, min, max, rest] = goalScheme(p.goal);
+    const p = St.activePlan(), d = p.days[+t.dataset.i], e = St.ex(t.dataset.id), [sets, min, max, rest] = schemeFor(e, p.goal);
     const sl = {id: St.uid(), exId: e.id, sets, min, max, rest};
     d.slots.push(sl); persist(); closeDialog();
     toast(`${e.name} zu „${d.name}“ hinzugefügt.`, () => { d.slots = d.slots.filter(x => x !== sl); persist(); });

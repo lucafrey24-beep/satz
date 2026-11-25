@@ -340,7 +340,7 @@ export function sanitizeImport(d) {
       step: optNum(e.step, 0.1, 50, 2.5), unit: ["bw", "band", "s"].includes(e.unit) ? e.unit : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};
     if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
   }
-  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik"].includes(p.goal) ? p.goal : "kraft",
+  const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik", "mobil"].includes(p.goal) ? p.goal : "kraft",
     ...(p.cycle && typeof p.cycle === "object" ? {cycle: {weeks: CYCLES.includes(p.cycle.weeks) ? p.cycle.weeks : DEFAULT_CYCLE, start: day(p.cycle.start)}} : {}),
     days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
       slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
