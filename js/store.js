@@ -303,6 +303,9 @@ export function weekDays(wk = weekStart()) {
   S.sessions.forEach(s => { const k = sessionDay(s); byDay[k] = (byDay[k] || 0) + 1; });
   return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); const k = ymd(d); return {key: k, date: d, n: byDay[k] || 0}; });
 }
+// Geplante Trainingstage (0 = Montag). Ohne eigene Planung: gleichmäßig verteilt nach „pro Woche“ des aktiven Plans.
+export const PRESET_DAYS = {1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6]};
+export const trainDays = () => Array.isArray(S.settings.trainDays) ? [...S.settings.trainDays] : [...(PRESET_DAYS[weekGoal()] || PRESET_DAYS[3])];
 export const weekCount = wk => weekDays(wk).reduce((a, d) => a + d.n, 0);
 // Serie: Wochen in Folge mit erreichtem Ziel, rückwärts ab der laufenden (zählt nur, wenn schon erreicht) bzw. der letzten Woche
 export function weekStreak() {
@@ -459,6 +462,7 @@ export function sanitizeImport(d) {
     accent: ["graphit", "gruen", "kobalt", "signal", "petrol", "violett", "beere", "kupfer", "ocker"].includes(s.accent) ? s.accent : "gruen", accentSet: true,
     ...(s.lastBackup ? {lastBackup: iso(s.lastBackup, "Sicherung")} : {}),
     ...(s.onboarded ? {onboarded: true} : {}),
+    ...(Array.isArray(s.trainDays) ? {trainDays: [...new Set(s.trainDays.filter(v => Number.isInteger(v) && v >= 0 && v <= 6))].sort()} : {}),
     ...(s.remind && typeof s.remind === "object" ? {remind: {days: arr(s.remind.days || [], "Erinnerung").filter(v => Number.isInteger(v) && v >= 0 && v <= 6),
       time: typeof s.remind.time === "string" && /^\d{2}:\d{2}$/.test(s.remind.time) ? s.remind.time : "18:00", before: [0, 15, 30, 60].includes(s.remind.before) ? s.remind.before : 15}} : {})};
   const pr = d.profile || {};

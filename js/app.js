@@ -10,7 +10,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.8";
+export const APP_VERSION = "0.9.9";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -230,21 +230,48 @@ function viewOnboarding() {
 // Wochenkalender mit Wochenziel. Bewusst ohne Tagesserie und ohne Schuldgefühle: Pausenwochen halten die Serie an.
 const WD = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], WDL = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const trainings = n => `${n} ${n === 1 ? "Training" : "Trainings"}`;
+// Jeder Tag hat einen Zustand mit Farbe UND Symbol (nie Farbe allein):
+// erledigt ✓ (gefüllt), Training geplant ● (Ring), Ruhetag ☾ (eigene Farbe), Pausenwoche ‖ (gestreift), vorbei ohne Training: leer.
+const DAYSYM = {done: "✓", plan: "●", rest: "☾", pause: "‖", past: ""};
+const DAYSR = {done: "", plan: "Training geplant", rest: "Ruhetag", pause: "Pause", past: "geplant, kein Training"};
+function dayState(d, i, planned, paused, todayKey) {
+  if (d.n) return "done";
+  if (paused) return "pause";
+  if (!planned.includes(i)) return "rest";
+  return d.key < todayKey ? "past" : "plan";
+}
 function weekCard() {
   const wk = St.weekStart(), days = St.weekDays(wk), goal = St.weekGoal(), n = days.reduce((a, d) => a + d.n, 0);
-  const paused = St.isPaused(wk), st = St.weekStreak(), todayKey = dkey();
+  const paused = St.isPaused(wk), st = St.weekStreak(), todayKey = dkey(), planned = St.trainDays();
   const streak = st.weeks > 0 ? `${st.weeks === 1 ? "Eine Woche" : `${st.weeks} Wochen`} in Folge geschafft${st.paused ? `, ${st.paused === 1 ? "eine Pausenwoche" : `${st.paused} Pausenwochen`} dazwischen` : ""}.` : "";
+  const ti = days.findIndex(d => d.key === todayKey), todayState = ti >= 0 ? dayState(days[ti], ti, planned, paused, todayKey) : "";
   const msg = n >= goal ? `Wochenziel erreicht. ${streak}`
     : paused ? "Pausenwoche (Urlaub oder krank). Deine Serie wartet einfach, bis du wieder trainierst."
-    : `Noch ${trainings(goal - n)} bis zum Wochenziel. ${streak}`;
+    : `${todayState === "rest" ? "Heute ist Ruhetag. Erholung gehört zum Training. " : ""}Noch ${trainings(goal - n)} bis zum Wochenziel. ${streak}`;
+  const states = days.map((d, i) => dayState(d, i, planned, paused, todayKey));
+  const used = ["done", "plan", "rest", "pause"].filter(k => states.includes(k));
   return `<section class="card weekcard" aria-labelledby="wk-h">
     <div class="wkhead"><h2 id="wk-h">Diese Woche</h2><span class="num" aria-label="${n} von ${goal} Trainings">${n} / ${goal}</span></div>
-    <ol class="wkdays">${days.map((d, i) => `<li class="${d.n ? "on" : ""}${d.key === todayKey ? " today" : ""}"><span aria-hidden="true">${WD[i]}</span><span class="dot" aria-hidden="true">${d.n > 1 ? d.n : ""}</span>
-      <span class="sr">${WDL[i]}${d.key === todayKey ? " (heute)" : ""}: ${d.n ? trainings(d.n) : "kein Training"}</span></li>`).join("")}</ol>
+    <ol class="wkdays">${days.map((d, i) => { const k = states[i];
+      return `<li class="d-${k}${d.key === todayKey ? " today" : ""}"><span aria-hidden="true">${WD[i]}</span><span class="dot" aria-hidden="true">${k === "done" && d.n > 1 ? d.n : DAYSYM[k]}</span>
+      <span class="sr">${WDL[i]}${d.key === todayKey ? " (heute)" : ""}: ${d.n ? trainings(d.n) + " erledigt" : DAYSR[k]}</span></li>`; }).join("")}</ol>
+    <ul class="wklegend" aria-hidden="true">${used.map(k => `<li class="d-${k}"><span class="dot">${DAYSYM[k]}</span>${{done: "erledigt", plan: "geplant", rest: "Ruhetag", pause: "Pause"}[k]}</li>`).join("")}</ul>
     <p class="meta wkmsg">${esc(msg.trim())}</p>
-    ${n < goal ? `<button type="button" class="linkbtn" data-act="pauseweek">${paused ? "Pause aufheben" : "Diese Woche pausieren (Urlaub, krank)"}</button>` : ""}
+    <div class="row-btns wkbtns"><button type="button" class="linkbtn" data-act="planweek" aria-haspopup="dialog">Trainings- und Ruhetage planen</button>
+    ${n < goal ? `<button type="button" class="linkbtn" data-act="pauseweek">${paused ? "Pause aufheben" : "Diese Woche pausieren (Urlaub, krank)"}</button>` : ""}</div>
   </section>`;
 }
+// Trainings- und Ruhetage festlegen. Gilt jede Woche, bis du es änderst.
+function openPlanWeek() {
+  const planned = St.trainDays(), goal = St.weekGoal();
+  openDialog(`<h2 id="dlg-h">Woche planen</h2>
+    <p class="meta" style="text-align:center;margin-top:-10px">Tippe auf einen Tag, um zwischen Training und Ruhetag zu wechseln. Gilt jede Woche.</p>
+    <ul class="plist planweek" style="max-height:none">${WDL.map((w, i) => { const on = planned.includes(i);
+      return `<li><button type="button" data-act="pwday" data-d="${i}" aria-pressed="${on}"><b>${w}</b><span class="pwstate d-${on ? "plan" : "rest"}"><span class="dot" aria-hidden="true">${on ? DAYSYM.plan : DAYSYM.rest}</span>${on ? "Training" : "Ruhetag"}</span></button></li>`; }).join("")}</ul>
+    <p class="meta" id="pw-note" aria-live="polite">${pwNote(planned, goal)}</p>
+    <div class="dlg-actions"><button class="btn" data-act="close">Fertig</button></div>`, "#dlg-h");
+}
+const pwNote = (planned, goal) => `${planned.length} Trainingstage, ${7 - planned.length} Ruhetage. ${planned.length === goal ? "Passt zu deinem Wochenziel." : `Dein Plan sieht ${trainings(goal)} pro Woche vor${planned.length < goal ? ", plane also mehr Tage ein oder senke das Ziel im Plan" : ""}.`}`;
 function viewToday() {
   const p = St.activePlan();
   if (!p && needsOnboarding()) return viewOnboarding();
@@ -1138,9 +1165,8 @@ function viewMore() {
 
 // Erinnerung über den Kalender: SATZ erzeugt einen wiederkehrenden Termin (.ics). Kein Server, keine Push-Nachrichten nötig.
 function remindCfg() {
-  const r = D().settings.remind, p = St.activePlan(), n = p ? p.perWeek : 3;
-  const preset = {1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6]}[n] || [0, 2, 4];
-  return r ? {...r, days: [...r.days]} : {days: preset, time: "18:00", before: 15};
+  const r = D().settings.remind;
+  return r ? {...r, days: [...r.days]} : {days: St.trainDays(), time: "18:00", before: 15};
 }
 function remindSection() {
   const r = remindCfg();
@@ -1323,6 +1349,11 @@ const A = {
   mnext: () => { ui.mOff = Math.max(0, (ui.mOff || 0) - 1); rerender(ui.mOff ? '[data-act="mnext"]' : '[data-act="mprev"]'); },
   icsdl: () => downloadIcs(),
   icsday: t => { const r = remindCfg(), d = +t.dataset.d; r.days = r.days.includes(d) ? r.days.filter(x => x !== d) : [...r.days, d]; D().settings.remind = r; persist(); rerender(`[data-act="icsday"][data-d="${d}"]`); },
+  planweek: () => openPlanWeek(),
+  pwday: t => { const d = +t.dataset.d, cur = St.trainDays(); D().settings.trainDays = (cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d]).sort(); persist();
+    const on = D().settings.trainDays.includes(d), st = t.querySelector(".pwstate");
+    t.setAttribute("aria-pressed", on); st.className = `pwstate d-${on ? "plan" : "rest"}`; st.innerHTML = `<span class="dot" aria-hidden="true">${on ? DAYSYM.plan : DAYSYM.rest}</span>${on ? "Training" : "Ruhetag"}`;
+    $("#pw-note").textContent = pwNote(D().settings.trainDays, St.weekGoal()); rerender(); },
   pauseweek: () => { const was = St.isPaused(St.weekStart()); St.togglePause(); rerender('[data-act="pauseweek"]'); say(was ? "Pause aufgehoben." : "Diese Woche ist als Pause markiert. Deine Serie bleibt erhalten."); },
   discard: () => {
     const snap = St.snapshot(); D().active = null; persist(); ui.summary = false; cancelBeep(); go("#/heute");

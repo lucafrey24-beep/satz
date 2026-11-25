@@ -253,3 +253,8 @@ Gespeicherte Trainings dürfen durch ein App-Update nie verloren gehen oder ver�
 - **Monatsrückblick** (`monthStats`): Trainings, harte Sätze, Zeit, Bestwerte, meisttrainierte Muskeln, mit Vormonat. Oben im Verlauf, Monate blätterbar.
 - **Kalenderdatei** (`icsFor`, Mehr → Erinnerung im Kalender): wiederkehrender Termin nach RFC 5545 mit Erinnerung. Auswahl in `settings.remind`.
 - **Einstieg** (`onboarding.js`): nur wenn kein Plan, kein Training und `settings.onboarded` fehlt. Fünf Fragen (Ziel, Erfahrung, Ort, Tage, Minuten), `recommend` wählt eine Vorlage, `fitToTime` kürzt Sätze auf mindestens 2, bis der längste Tag in die Zeit passt. Eine Sprachauswahl im Splash kommt davor.
+
+## Neu in 0.9.9
+
+- **Trainings- und Ruhetage planen** (`store.js`: `trainDays`, `PRESET_DAYS`; `settings.trainDays`, 0 = Montag): Auf „Heute“ → „Trainings- und Ruhetage planen“. Ohne eigene Planung verteilt SATZ die Tage nach „pro Woche“ des aktiven Plans. Die Kalender-Erinnerung übernimmt diese Tage als Vorschlag.
+- **Wochenleiste**: jeder Tag mit Farbe und Symbol: erledigt ✓ (gefüllt), geplant ● (Ring), Ruhetag ☾ (eigene Farbe `--rest`), Pausenwoche ‖ (gestrichelt, schraffiert), vorbei ohne Training leer. Legende darunter, Screenreader-Text pro Tag.
