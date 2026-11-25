@@ -167,9 +167,9 @@ Alle Farben sind als Variablen definiert (`:root` in `css/app.css`) und gelten i
 | Karte | #FFFFFF | #1C1C1E |
 | Text | #000000 | #FFFFFF |
 | Text sekundär | #6C6C70 | #AEAEB2 |
-| Akzent (Grün, Standard) | #0B6B46 | #3DDC97 |
+| Akzent (Grün, Standard) | #00703A | #3DDC97 |
 
-- Es gibt neun weitere Akzentfarben zur Wahl: Gras (kräftiges Grün), Petrol, Kobalt, Violett, Beere, Signal, Kupfer, Ocker und Graphit. Jede erreicht in Hell und Dunkel mindestens 4,5:1 (Akzent auf Hintergrund und Schrift auf Akzent).
+- Es gibt acht weitere Akzentfarben zur Wahl: Petrol, Kobalt, Violett, Beere, Signal, Kupfer, Ocker und Graphit. Jede erreicht in Hell und Dunkel mindestens 4,5:1 (Akzent auf Hintergrund und Schrift auf Akzent).
 - Das Erscheinungsbild lässt sich auf Automatisch, Hell oder Dunkel stellen.
 - „Kontrast erhöhen“ macht sekundären Text und Trennlinien kräftiger.
 

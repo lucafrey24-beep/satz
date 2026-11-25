@@ -5,7 +5,7 @@ const fs = require("fs"), path = require("path");
 const root = path.join(__dirname, ".."), out = path.join(root, "icons", "splash");
 // [CSS-Breite, CSS-Höhe, Pixeldichte] gängiger iPhones
 const DEV = [[320, 568, 2], [375, 667, 2], [414, 896, 2], [375, 812, 3], [414, 896, 3], [390, 844, 3], [428, 926, 3], [393, 852, 3], [430, 932, 3], [402, 874, 3], [440, 956, 3]];
-const THEMES = {light: {bg: "#F2F2F7", fg: "#000000", tint: "#0B6B46"}, dark: {bg: "#000000", fg: "#FFFFFF", tint: "#3DDC97"}};
+const THEMES = {light: {bg: "#F2F2F7", fg: "#000000", tint: "#00703A"}, dark: {bg: "#000000", fg: "#FFFFFF", tint: "#3DDC97"}};
 const font = "data:font/woff2;base64," + fs.readFileSync(path.join(root, "fonts", "archivo-satz.woff2")).toString("base64");
 (async () => {
   fs.mkdirSync(out, {recursive: true});
