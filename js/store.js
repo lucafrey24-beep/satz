@@ -263,12 +263,14 @@ export function startSession(p, dayIdx) {
   save();
 }
 export const loggedFor = (a, i) => a.sets.filter(x => x.q === i && x.type !== "warm");
+// Arbeitssätze, die zum Satzziel zählen. Aufwärm- und Drop-Sätze kommen zusätzlich dazu (seit 0.9.2).
+export const workFor = (a, i) => a.sets.filter(x => x.q === i && !x.type);
 export const warmupsFor = (a, i) => a.sets.filter(x => x.q === i && x.type === "warm");
 export const targetSets = item => item.sets + item.extra;
 export function firstOpen(a, from = 0) {
   for (let k = 0; k < a.queue.length; k++) {
     const i = (from + k) % a.queue.length, it = a.queue[i];
-    if (!it.skipped && loggedFor(a, i).length < targetSets(it)) return i;
+    if (!it.skipped && workFor(a, i).length < targetSets(it)) return i;
   }
   return -1;
 }
