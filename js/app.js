@@ -9,7 +9,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.6";
+export const APP_VERSION = "0.9.7";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}`;
@@ -1861,5 +1861,14 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   // Neue Version übernommen: einmal neu laden, damit das Update sofort sichtbar ist (nicht mitten im Training).
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !D().active) location.reload(); });
-  navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).then(r => r.update()).catch(() => {});
+  navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).then(r => {
+    r.update();
+    // iOS lässt eine installierte App im Hintergrund weiterlaufen; "Schließen" lädt sie oft nicht neu.
+    // Deshalb beim Zurückkehren nach Updates schauen (höchstens alle 30 s). Ein neuer Service Worker
+    // übernimmt dann und löst oben den einmaligen Neustart aus (nie während eines Trainings).
+    let last = Date.now();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && Date.now() - last > 30000) { last = Date.now(); r.update().catch(() => {}); }
+    });
+  }).catch(() => {});
 }
