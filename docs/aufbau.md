@@ -146,6 +146,8 @@ Bearbeiten, Auswählen und Bestätigen passiert in **Sheets**, die von unten her
   - Der Service Worker holt Dateien bevorzugt frisch aus dem Netz. Nach 3 Sekunden ohne Antwort nimmt er die gespeicherte Version.
   - Kommt eine neue Version an, lädt die App einmal neu, aber nie mitten im Training.
   - Jede Veröffentlichung erhöht die Cache-Version in `sw.js`.
+  - Ab 0.9.7 sucht die installierte App auch beim Zurückkehren aus dem Hintergrund nach Updates (höchstens alle 30 s), weil iOS sie beim „Schließen“ oft nicht neu lädt.
+  - Zeigt das Handy eine alte Version, zuerst unter Actions den Lauf „pages build and deployment“ prüfen: Schlägt die Veröffentlichung bei GitHub fehl, ist nichts live.
 
 ---
 
