@@ -551,3 +551,20 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .setlist .nowtag{font-size:.7rem; font-weight:700; color:var(--on-tint); background:var(--tint); border-radius:6px; padding:2px 6px}
 .setlist .xtag{font-size:.68rem; color:var(--label-2); border:1px solid var(--sep); border-radius:5px; padding:0 4px; margin-left:4px}
 @media (max-width:360px){ .sethead,.setlist .srow{grid-template-columns:minmax(0,1fr) 3.2em 2.8em 2.2em 2.4em; column-gap:4px} .setlist .srow{padding-left:12px; padding-right:12px} }
+/* ab 0.9.8: Wochenkalender mit Wochenziel, Bestwerte, Rückblick, Einstieg */
+.weekcard{padding:14px 16px 8px}
+.wkhead{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+.wkhead h2{font-size:1.06rem; font-weight:600; margin:0}
+.wkhead .num{font-weight:600; color:var(--tint); font-variant-numeric:tabular-nums}
+.wkdays{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; list-style:none; padding:0; margin:12px 0 4px}
+.wkdays li{display:flex; flex-direction:column; align-items:center; gap:6px; font-size:.8rem; color:var(--label-2)}
+.wkdays .dot{display:grid; place-items:center; width:30px; height:30px; border-radius:50%; border:2px solid var(--fill); box-sizing:border-box; font-size:.75rem; font-weight:700; color:var(--on-tint)}
+.wkdays li.on .dot{background:var(--tint); border-color:var(--tint)}
+.wkdays li.today{color:var(--label); font-weight:600}
+.wkdays li.today:not(.on) .dot{border-color:var(--tint)}
+.wkmsg{margin:8px 0 0}
+.recs h2{font-size:1.06rem; font-weight:600; margin:0 0 6px}
+.recs ul{list-style:none; padding:0; margin:0}
+.recs li{display:flex; flex-direction:column; padding:6px 0; border-top:.5px solid var(--sep)}
+.recs li:first-child{border-top:0}
+.recs li span{color:var(--label-2); font-size:.9rem}

@@ -64,6 +64,8 @@ function migrate() {
   // Ab 0.9: Körpermaße und Entlastungsrhythmus. Bestehende Pläne starten ihren Zyklus am Tag des Updates,
   // damit kein laufender Plan plötzlich mitten in einer Entlastungswoche steht.
   S.measures = S.measures || [];
+  // Ab 0.9.8: Pausenwochen fürs Wochenziel (Wochenanfang Montag, YYYY-MM-DD)
+  S.pauses = S.pauses || [];
   S.plans.forEach(p => { if (!p.cycle) p.cycle = {weeks: DEFAULT_CYCLE, start: today()}; });
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
   if (S.settings.sound == null) S.settings.sound = true;
@@ -278,6 +280,67 @@ export function suggest(slot) {
     text: `${prev} Gewicht halten und eine Wiederholung mehr schaffen. Ziel: ${slot.sets} × ${slot.max}.`};
 }
 
+/* ---------- Motivation: Wochenziel statt Tagesserie ----------
+   Keine Streaks pro Tag: Ruhetage und Entlastungswochen gehören zum Training (Lally et al. 2010: ein verpasster Tag schadet der Gewohnheit nicht).
+   Gezählt werden Wochen (Mo–So), in denen das Wochenziel des aktiven Plans erreicht wurde. Als Pause markierte Wochen (Urlaub, krank)
+   unterbrechen die Serie nicht und zählen nicht mit. Die laufende Woche zählt erst, wenn ihr Ziel erreicht ist. */
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export function weekStart(date = new Date()) {
+  const d = new Date(date); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d);
+}
+export const sessionDay = s => ymd(new Date(s.date));
+export const weekGoal = () => (activePlan() || {perWeek: 3}).perWeek;
+export const isPaused = wk => (S.pauses || []).includes(wk);
+export function togglePause(wk = weekStart()) {
+  S.pauses = S.pauses || [];
+  S.pauses = isPaused(wk) ? S.pauses.filter(x => x !== wk) : [...S.pauses, wk].sort();
+  save();
+}
+export function weekDays(wk = weekStart()) {
+  const start = new Date(wk + "T12:00:00");
+  const byDay = {};
+  S.sessions.forEach(s => { const k = sessionDay(s); byDay[k] = (byDay[k] || 0) + 1; });
+  return Array.from({length: 7}, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); const k = ymd(d); return {key: k, date: d, n: byDay[k] || 0}; });
+}
+export const weekCount = wk => weekDays(wk).reduce((a, d) => a + d.n, 0);
+// Serie: Wochen in Folge mit erreichtem Ziel, rückwärts ab der laufenden (zählt nur, wenn schon erreicht) bzw. der letzten Woche
+export function weekStreak() {
+  if (!S.sessions.length) return {weeks: 0, paused: 0};
+  const goal = weekGoal(), first = weekStart(new Date(Math.min(...S.sessions.map(x => new Date(x.date).getTime()))));
+  let wk = weekStart(), weeks = 0, paused = 0;
+  const prev = k => { const d = new Date(k + "T12:00:00"); d.setDate(d.getDate() - 7); return ymd(d); };
+  if (weekCount(wk) < goal) wk = prev(wk);
+  while (wk >= first) {
+    if (isPaused(wk) && weekCount(wk) < goal) { paused++; wk = prev(wk); continue; }
+    if (weekCount(wk) < goal) break;
+    weeks++; wk = prev(wk);
+  }
+  return {weeks, paused};
+}
+// Neue Bestwerte im laufenden Training gegenüber allen gespeicherten Trainings.
+// Mit Gewicht: geschätztes 1RM (Epley). Ohne Gewicht: meiste Wdh. in einem Satz. Halten: längste Zeit. Mobility: keine Rekorde.
+export function newRecords(sets) {
+  const out = [], seen = new Set();
+  for (const x of sets) {
+    if (x.type === "warm" || seen.has(x.exId)) continue;
+    seen.add(x.exId);
+    const e = ex(x.exId); if (isMobility(e)) continue;
+    const mine = sets.filter(y => y.exId === x.exId && y.type !== "warm");
+    const old = S.sessions.flatMap(s => s.sets.filter(y => y.exId === x.exId && y.type !== "warm"));
+    if (!old.length) continue;
+    const weighted = e.unit === "kg" || (e.unit === "bw" && (mine.some(y => y.kg > 0) || old.some(y => y.kg > 0)));
+    if (weighted) {
+      const now = Math.max(...mine.map(y => e1rm(y.kg, y.reps))), before = Math.max(...old.map(y => e1rm(y.kg, y.reps)));
+      if (now > before + 0.01) { const b = mine.find(y => e1rm(y.kg, y.reps) === now); out.push({exId: x.exId, name: e.name, text: `${fmtW(e, b.kg)} × ${b.reps}, 1RM ca. ${fmt(Math.round(now * 10) / 10)} kg (vorher ${fmt(Math.round(before * 10) / 10)})`}); }
+    } else {
+      const now = Math.max(...mine.map(y => y.reps)), before = Math.max(...old.map(y => y.reps));
+      if (now > before) out.push({exId: x.exId, name: e.name, text: e.unit === "s" ? `${now} s gehalten (vorher ${before} s)` : `${now} Wdh. in einem Satz (vorher ${before})`});
+    }
+  }
+  return out;
+}
+
 /* ---------- Training ---------- */
 export function startSession(p, dayIdx) {
   const d = p.days[dayIdx], dl = deloadNow(p);
@@ -368,6 +431,7 @@ export function sanitizeImport(d) {
   for (const [k, f] of Object.entries(d.foods || {})) { id(k, "Lebensmittel"); foods[k] = {id: k, name: str(f.name, 120) || "Lebensmittel", brand: str(f.brand, 80), barcode: /^\d{0,14}$/.test(f.barcode || "") ? f.barcode || "" : "", per100: per100(f.per100), serving: optNum(f.serving, 0, 5000, 0), source: f.source === "off" ? "off" : "own", ...(f.fav ? {fav: true} : {})}; }
   const food = arr(d.food || [], "Tagebuch").map(e => ({id: id(e.id, "Eintrag"), date: day(e.date), meal: ["fruehstueck", "mittag", "abend", "snack"].includes(e.meal) ? e.meal : "snack",
     foodId: optId(e.foodId, "Eintrag"), name: str(e.name, 120) || "Lebensmittel", brand: str(e.brand, 80), per100: per100(e.per100), grams: num(e.grams, 0, 5000, "Menge"), ...(e.quick ? {quick: true} : {})}));
+  const pauses = [...new Set(arr(d.pauses || [], "Pausenwochen").filter(v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)))].sort();
   const activePlanId = d.activePlanId && plans.some(p => p.id === d.activePlanId) ? d.activePlanId : plans[0]?.id || null;
-  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food};
+  return {version: VERSION, exercises, plans, activePlanId, sessions, active: null, settings, profile, weights, measures, foods, food, pauses};
 }

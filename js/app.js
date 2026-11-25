@@ -192,6 +192,24 @@ function bodyCard() {
 function emptyPlanBtn() { return `<button class="btn" data-act="newplan">Leeren Plan anlegen</button>`; }
 
 /* ============ Heute ============ */
+// Wochenkalender mit Wochenziel. Bewusst ohne Tagesserie und ohne Schuldgefühle: Pausenwochen halten die Serie an.
+const WD = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], WDL = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const trainings = n => `${n} ${n === 1 ? "Training" : "Trainings"}`;
+function weekCard() {
+  const wk = St.weekStart(), days = St.weekDays(wk), goal = St.weekGoal(), n = days.reduce((a, d) => a + d.n, 0);
+  const paused = St.isPaused(wk), st = St.weekStreak(), todayKey = dkey();
+  const streak = st.weeks > 0 ? `${st.weeks === 1 ? "Eine Woche" : `${st.weeks} Wochen`} in Folge geschafft${st.paused ? `, ${st.paused === 1 ? "eine Pausenwoche" : `${st.paused} Pausenwochen`} dazwischen` : ""}.` : "";
+  const msg = n >= goal ? `Wochenziel erreicht. ${streak}`
+    : paused ? "Pausenwoche (Urlaub oder krank). Deine Serie wartet einfach, bis du wieder trainierst."
+    : `Noch ${trainings(goal - n)} bis zum Wochenziel. ${streak}`;
+  return `<section class="card weekcard" aria-labelledby="wk-h">
+    <div class="wkhead"><h2 id="wk-h">Diese Woche</h2><span class="num" aria-label="${n} von ${goal} Trainings">${n} / ${goal}</span></div>
+    <ol class="wkdays">${days.map((d, i) => `<li class="${d.n ? "on" : ""}${d.key === todayKey ? " today" : ""}"><span aria-hidden="true">${WD[i]}</span><span class="dot" aria-hidden="true">${d.n > 1 ? d.n : ""}</span>
+      <span class="sr">${WDL[i]}${d.key === todayKey ? " (heute)" : ""}: ${d.n ? trainings(d.n) : "kein Training"}</span></li>`).join("")}</ol>
+    <p class="meta wkmsg">${esc(msg.trim())}</p>
+    ${n < goal ? `<button type="button" class="linkbtn" data-act="pauseweek">${paused ? "Pause aufheben" : "Diese Woche pausieren (Urlaub, krank)"}</button>` : ""}
+  </section>`;
+}
 function viewToday() {
   const p = St.activePlan();
   if (!p) {
@@ -213,12 +231,11 @@ function viewToday() {
   const d = p.days[di], sets = d.slots.reduce((a, s) => a + dsl(s).sets, 0);
   const mins = Math.round(d.slots.reduce((a, s) => a + dsl(s).sets * (St.restFor(s) + 45), 0) / 60);
   const last = St.lastSession(), gap = last ? St.daysSince(last.date) : null;
-  const week = D().sessions.filter(s => St.daysSince(s.date) < 7).length;
   view.innerHTML = `
     <p class="eyebrow">Plan: ${esc(p.name)}</p>
     <h1 class="big">${di === St.nextDayIndex(p) ? "Heute:<br>" : ""}${esc(d.name)}</h1>
     ${gap != null && gap > 14 ? `<p class="note">Willkommen zurück. Dein letztes Training ist ${gap} Tage her. Die Vorschläge starten heute etwas leichter.</p>` : ""}
-    <p class="meta">Letzte 7 Tage: ${week} von ${p.perWeek} geplanten Trainings.</p>
+    ${weekCard()}
     ${cycleNote(p)}
     ${backupDue() ? `<div class="note"><b>Zeit für eine Sicherung.</b> ${D().settings.lastBackup ? `Die letzte ist ${St.daysSince(D().settings.lastBackup)} Tage alt.` : "Du hast noch keine."} Deine Trainings liegen nur auf diesem Gerät.
       <div class="row-btns"><button class="btn small primary" data-act="export">Jetzt sichern</button><button class="btn small" data-act="snoozebackup">Später</button></div></div>` : ""}
@@ -788,10 +805,12 @@ function viewSummary() {
     else if (q.extra > 0) devs.push({k, kind: "sets", label: `${name}: dauerhaft ${q.sets + q.extra} statt ${q.sets} Sätze`});
   });
   const byEx = a.queue.map((q, k) => ({q, sets: St.loggedFor(a, k)})).filter(x => x.sets.length);
+  const recs = St.newRecords(a.sets);
   view.innerHTML = `<p class="eyebrow">${esc(a.dayName)} · ${mins} Min.</p>
     <h1 class="big">${open ? "Training beenden?" : "Geschafft."}</h1>
     <p>${a.sets.length} ${a.sets.length === 1 ? "Satz" : "Sätze"} eingetragen${open ? ", einige Übungen sind noch offen" : ""}.</p>
-    ${byEx.length ? `<ul class="logged">${byEx.map(x => { const e = St.ex(x.q.exId); return `<li><span>${esc(e.name)}</span><span class="num">${x.sets.map(s => `${fmt(s.kg)}×${s.reps}`).join(", ")}</span></li>`; }).join("")}</ul>` : ""}
+    ${recs.length ? `<section class="card recs" aria-labelledby="rec-h"><h2 id="rec-h">Neue Bestwerte</h2><ul>${recs.map(r => `<li><b>${esc(r.name)}</b><span>${esc(r.text)}</span></li>`).join("")}</ul></section>` : ""}
+    ${byEx.length ? `<ul class="logged">${byEx.map(x => { const e = St.ex(x.q.exId); return `<li><span>${esc(e.name)}</span><span class="num">${x.sets.map(s => noLoad(e) ? `${s.reps}${e.unit === "s" ? " s" : ""}` : `${fmt(s.kg)}×${s.reps}`).join(", ")}</span></li>`; }).join("")}</ul>` : ""}
     ${devs.length ? `<fieldset style="margin-top:16px"><legend>Abweichungen für künftige Trainings übernehmen?</legend>
       ${devs.map((d, n) => `<label class="check"><input type="checkbox" name="dev" value="${n}">${esc(d.label)}</label>`).join("")}
       <p class="meta">Ohne Haken bleibt dein Plan, wie er ist.</p></fieldset>` : ""}
@@ -1213,6 +1232,7 @@ const A = {
     const n = a.sets.length; St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
     go("#/heute"); toast(n ? `Training gespeichert: ${n} Sätze.${checked.length ? " Plan angepasst." : ""}` : "Training beendet.");
   },
+  pauseweek: () => { const was = St.isPaused(St.weekStart()); St.togglePause(); rerender('[data-act="pauseweek"]'); say(was ? "Pause aufgehoben." : "Diese Woche ist als Pause markiert. Deine Serie bleibt erhalten."); },
   discard: () => {
     const snap = St.snapshot(); D().active = null; persist(); ui.summary = false; cancelBeep(); go("#/heute");
     toast("Training verworfen.", () => { St.restore(snap); go("#/training"); });
