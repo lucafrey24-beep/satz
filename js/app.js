@@ -10,7 +10,7 @@ const $ = s => document.querySelector(s);
 const view = $("#view"), dlg = $("#dlg"), tabs = $("#tabs"), bar = $("#appbar");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.9.9";
+export const APP_VERSION = "0.9.11";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -121,6 +121,8 @@ function route() {
   if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); }
   document.title = (h ? h.textContent.replace(/\s+/g, " ").trim() + " · " : "") + "SATZ";
 }
+// Heute ist Trainingstag laut Kalender und es gibt heute noch kein Training. Sonst heißt der Tag oben „Als Nächstes“.
+const todayIsTraining = () => { const k = dkey(); return St.planFor(k) === "train" && !(St.weekDays().find(x => x.key === k) || {n: 0}).n; };
 const tabFor = n => ({kalender: "heute", vorlage: "plaene", plan: "plaene", uebungen: "plaene", koerper: "plaene"})[n] || n;
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 function rerender(focusSel) {
@@ -362,7 +364,7 @@ function viewToday() {
   const last = St.lastSession(), gap = last ? St.daysSince(last.date) : null;
   view.innerHTML = `
     <p class="eyebrow">Plan: ${esc(p.name)}</p>
-    <h1 class="big">${di === St.nextDayIndex(p) ? "Heute:<br>" : ""}${esc(d.name)}</h1>
+    <h1 class="big">${di === St.nextDayIndex(p) ? (todayIsTraining() ? "Heute:<br>" : "Als Nächstes:<br>") : ""}${esc(d.name)}</h1>
     ${gap != null && gap > 14 ? `<p class="note">Willkommen zurück. Dein letztes Training ist ${gap} Tage her. Die Vorschläge starten heute etwas leichter.</p>` : ""}
     ${weekCard()}
     ${cycleNote(p)}
@@ -751,8 +753,8 @@ function setTable(a, i, it, e, all, logged, target, done, st, sug, form) {
   }).join("");
   const wDone = logged.length, summary = done ? `${wDone} von ${target} Sätzen erledigt` : `Satz ${Math.min(wDone + 1, target)} von ${target}${target - wDone - 1 > 0 ? `, danach noch ${target - wDone - 1} offen` : ", der letzte"}`;
   return `<h2 class="sec" id="sets-h" style="margin-top:8px">Sätze <span class="sec-sub">${summary}</span></h2>
-    <div class="sethead ${showRir ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${noLoad(e) ? "" : e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">${St.repShort(e)}</span>${showRir ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
-    <ol class="setlist ${showRir ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol>`;
+    <div class="sets"><div class="sethead ${showRir ? "" : "norir"}" aria-hidden="true"><span class="c-lab"></span><span class="c-n">${noLoad(e) ? "" : e.unit === "bw" ? "+kg" : "kg"}</span><span class="c-n">${St.repShort(e)}</span>${showRir ? `<span class="c-n c-rir">RIR</span>` : ""}<span class="c-st"></span></div>
+    <ol class="setlist ${showRir ? "" : "norir"}" aria-labelledby="sets-h">${body}</ol></div>`;
 }
 const fmtSec = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 function restLeft() {
@@ -956,7 +958,7 @@ function viewSummary() {
 function monthCard() {
   const now = new Date(), off = ui.mOff || 0, d = new Date(now.getFullYear(), now.getMonth() - off, 1), pd = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const m = St.monthStats(d.getFullYear(), d.getMonth()), pm = St.monthStats(pd.getFullYear(), pd.getMonth());
-  const name = d.toLocaleDateString("de-DE", {month: "long", year: "numeric"}), hm = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")} h`;
+  const name = d.toLocaleDateString("de-DE", {month: "long", year: "numeric"}), hm = n => n < 60 ? `${n}<small class="u"> Min.</small>` : `${Math.floor(n / 60)}<small class="u"> Std.</small>${n % 60 ? ` ${n % 60}<small class="u"> Min.</small>` : ""}`;
   const cell = (v, l, pv) => `<div><b class="num">${v}</b><span>${l}</span><small>Vormonat ${pv}</small></div>`;
   return `<section class="card monthcard" aria-labelledby="mo-h">
     <div class="wkhead"><h2 id="mo-h">Rückblick ${esc(name)}</h2>
@@ -1048,7 +1050,7 @@ function weightCard() {
   const w = D().weights, today = dkey(), last = w.at(-1), done = last && last.date === today;
   const prev = done ? w.at(-2) : last, d = done && prev ? Math.round((last.kg - prev.kg) * 10) / 10 : null;
   return `<button type="button" class="card wcard" data-act="wopen" aria-haspopup="dialog">
-    <span class="wl"><span class="eyebrow">Gewicht heute</span><b class="num">${done ? `${fmt(last.kg)} kg` : "Noch nicht eingetragen"}</b>
+    <span class="wl"><span class="eyebrow">Gewicht heute</span><b class="${done ? "num" : "nonum"}">${done ? `${fmt(last.kg)} kg` : "Noch nicht eingetragen"}</b>
       <small>${done ? (d != null ? `${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} kg seit ${dl(prev.date)}` : "Erster Eintrag") : last ? `Zuletzt ${fmt(last.kg)} kg, ${dl(last.date)}` : "Am besten morgens, vor dem Frühstück"}</small></span>
     <span class="wbtn">${done ? "Ändern" : "Eintragen"}</span></button>`;
 }
@@ -1112,7 +1114,7 @@ function measureSection() {
   const sel = series(ui.msel);
   return `<h2 class="sec">Körpermaße</h2>${card}
     <ul class="logged">${ids.map(id => { const sr = series(id), a = sr[0], b = sr.at(-1), d = Math.round((b.v - a.v) * 10) / 10;
-      return `<li><span>${esc(ML[id].l)}</span><span class="num">${fmt(b.v)} cm${sr.length > 1 ? ` <small class="meta">(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} seit ${shortDate(a.date + "T12:00:00")})</small>` : ""}</span></li>`; }).join("")}</ul>
+      return `<li><span>${esc(ML[id].l)}</span><span class="num">${fmt(b.v)} cm${sr.length > 1 ? ` <small class="meta chg">${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} seit ${shortDate(a.date + "T12:00:00")}</small>` : ""}</span></li>`; }).join("")}</ul>
     ${h && waist ? (() => { const r = waist / h; return `<p class="meta" style="margin-top:6px">Taille ÷ Größe: ${fmt(Math.round(r * 100) / 100)}. Unter 0,5 gilt als günstig für die Gesundheit (Ashwell et al. 2012).</p>`; })() : ""}
     ${ids.length > 1 ? `<label class="field" style="margin-top:12px">Verlauf <select data-on="msel">${ids.map(id => `<option value="${id}" ${id === ui.msel ? "selected" : ""}>${esc(ML[id].l)}</option>`).join("")}</select></label>` : ""}
     ${sel.length >= 2 ? chart(sel.map(x => x.v), sel.map(x => shortDate(x.date + "T12:00:00")), "cm", ML[ui.msel].l) : `<p class="meta">Nach der zweiten Messung erscheint hier der Verlauf.</p>`}`;
@@ -1964,7 +1966,7 @@ function profileSection() {
     </div>
     <label class="field">Geschlecht <small style="display:inline">(für die Grundumsatz-Formel)</small><select data-on="psex">
       ${[["", "Bitte wählen"], ["m", "Männlich"], ["w", "Weiblich"], ["x", "Keine Angabe (Mittelwert)"]].map(([v, l]) => `<option value="${v}" ${pr.sex === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-    <label class="field">Aktivität im Alltag <select data-on="ppal">${N.PAL.map(a => `<option value="${a.v}" ${pr.pal === a.v ? "selected" : ""}>${a.l}: ${a.d}</option>`).join("")}</select></label>
+    <label class="field">Aktivität im Alltag <select data-on="ppal" aria-describedby="p-pal">${N.PAL.map(a => `<option value="${a.v}" ${pr.pal === a.v ? "selected" : ""}>${a.l}</option>`).join("")}</select><small id="p-pal">${(N.PAL.find(a => a.v === pr.pal) || {d: ""}).d}</small></label>
     <div class="field" style="margin-bottom:8px"><span id="l-goal">Ziel</span>
       <div class="seg" role="group" aria-labelledby="l-goal" style="margin-top:6px">${Object.entries(N.GOALS).map(([id, g]) => `<button type="button" data-act="pgoal" data-v="${id}" aria-pressed="${pr.goal === id}">${g.l}</button>`).join("")}</div></div>
     <p class="foot">${lastW ? `Gewicht zuletzt eingetragen am ${new Date(lastW.date + "T12:00:00").toLocaleDateString("de-DE")}. ` : ""}Das Alter rechnet sich an deinem Geburtstag automatisch hoch. Die Angaben bleiben auf diesem Gerät und dienen nur der Berechnung deines Bedarfs unter Ernährung.</p>`;
@@ -2052,7 +2054,7 @@ document.addEventListener("change", ev => {
   queueMicrotask(() => { if (!hadT && targets() && location.hash.startsWith("#/ernaehrung")) { rerender(); say("Dein Bedarf ist jetzt berechnet."); } });
   if (k === "pbirth") { pr.birth = el.value; const y = N.age(pr.birth); $("#p-age").textContent = y != null ? `${y} Jahre` : "–"; }
   if (k === "psex") pr.sex = el.value;
-  if (k === "ppal") pr.pal = +el.value;
+  if (k === "ppal") { pr.pal = +el.value; const a = N.PAL.find(x => x.v === pr.pal); if ($("#p-pal")) $("#p-pal").textContent = a ? a.d : ""; }
   if (k === "pheight") { const v = num(el.value); if (v && (v < 100 || v > 250)) { toast("Größe bitte in Zentimetern, zwischen 100 und 250."); el.value = pr.height || ""; return; } pr.height = v; }
   if (k === "pweight") {
     const v = Math.round(num(el.value) * 10) / 10;
