@@ -677,3 +677,39 @@ h1.big,.exlist .t,.fbtn b,.plist b,.exsel,.mstats span,.logged li > span:first-c
 /* Zwei Felder nebeneinander (Geburtsdatum/Alter, Größe/Gewicht): bei großer Schrift untereinander */
 .pair{grid-template-columns:repeat(auto-fit, minmax(min(100%, 8em), 1fr))}
 @media (max-width:360px){ .tabs{width:calc(100vw - 16px); padding:4px 2px} .tabs .pill{left:2px; width:calc((100% - 4px) / 5)} .tabs a{letter-spacing:-.02em} }
+
+/* ---------- 0.9.12: schlanker. Info-Knöpfe, Mehr als Liste, Training und Heute aufgeräumt ---------- */
+.ibtn{display:inline-grid; place-items:center; width:44px; height:44px; margin:-12px -10px -12px -4px; padding:0; border:0; background:transparent; color:var(--tint); vertical-align:middle; border-radius:50%; cursor:pointer}
+.ibtn .iico{width:1.15em; height:1.15em; min-width:18px; min-height:18px}
+h2.sec .ibtn{font-size:1rem; text-transform:none}
+.ilink{display:inline-flex; align-items:center; gap:6px; min-height:44px; margin:2px 0 0; padding:0 4px 0 0; border:0; background:transparent; color:var(--tint); font:inherit; font-size:.88rem; text-align:left; cursor:pointer}
+.ilink .iico{flex:none; width:1.1em; height:1.1em; min-width:18px; min-height:18px}
+.ilink span{overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto}
+.ibtn:active,.ilink:active{opacity:.6}
+.infotext{font-size:1rem; line-height:1.45; margin:0 0 12px}
+.infotext p{margin:0 0 10px}
+.wklegend.big{flex-direction:column; gap:10px; font-size:1rem; color:var(--label); margin:4px 0 12px}
+.wklegend.big li{gap:10px; align-items:flex-start}
+.wklegend.big .dot{width:max(24px, 1.4em); height:max(24px, 1.4em); font-size:.8rem}
+.wkbtns{display:flex; flex-wrap:wrap; gap:0 16px; margin-top:4px}
+.wkbtns .linkbtn{min-height:44px; display:inline-flex; align-items:center; gap:4px}
+.planname{text-transform:none; letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bkline{display:flex; flex-wrap:wrap; align-items:center; gap:8px; background:var(--card); border-radius:var(--r); padding:8px 12px 8px 16px; margin:0 0 16px; font-size:.88rem}
+.bkline > span{flex:1 1 12em; min-width:0}
+.bkline .btn{width:auto; flex:none; margin:0}
+.figbox{margin:0 0 12px}
+.figbox > summary{min-height:44px; color:var(--tint); font-size:.88rem; font-weight:500; cursor:pointer}
+.figbox > summary::-webkit-details-marker{display:none}
+.figbox[open] > summary{margin-bottom:4px}
+.restnext{text-align:center; margin:-2px 0 10px}
+.exmore{display:flex; flex-direction:column; gap:10px; margin:4px 0 14px}
+.morelist{padding-left:16px}
+.morelist li{border-bottom:.5px solid var(--sep)}
+.morelist li:last-child{border-bottom:0}
+.morerow{display:flex; align-items:center; gap:10px; min-height:60px; padding:8px 16px 8px 0; color:inherit; text-decoration:none}
+.morerow > span:first-child{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px}
+.morerow small{color:var(--label-2); font-size:.8rem; overflow-wrap:break-word}
+.morerow .chev{color:var(--label-2); font-size:1.4rem; line-height:1}
+.morerow:active{background:var(--fill-2)}
+.dotbadge{flex:none; width:10px; height:10px; border-radius:50%; background:var(--red)}
+.dlg-actions > :only-child{grid-column:1 / -1}

@@ -18,7 +18,8 @@ for (const m of read("index.html").matchAll(/aria-label="([^"]+)"[^>]*data-t-ari
 // Laufzeit-Schlüssel: Namen aus Listen (Akzentfarben, Aktivität, Ziele, Zurück-Ziele, Gründe beim Laden)
 const DYNAMIC = ["Grün", "Petrol", "Kobalt", "Violett", "Beere", "Signal", "Kupfer", "Ocker", "Graphit", "Pläne",
   "Bitte wählen", "Männlich", "Weiblich", "Keine Angabe (Mittelwert)", "unlesbar", "neuere Version", "unbekanntes Format", "früherer Start",
-  "Arbeitssatz", "Zur Startzeit", "15 Min. vorher", "30 Min. vorher", "1 Std. vorher", "kein Training", "regelmäßig", "Alle", "Zu Hause", "erledigt", "geplant", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+  "Arbeitssatz", "Zur Startzeit", "15 Min. vorher", "30 Min. vorher", "1 Std. vorher", "kein Training", "regelmäßig", "Alle", "Zu Hause", "erledigt", "geplant", "Training geplant", "Pause (Urlaub, krank): senkt das Wochenziel, die Serie bleibt", "Persönliche Daten", "Darstellung", "Training", "Erinnerung im Kalender", "Deine Daten", "Über SATZ", "Mehr",
+  "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const nut = read("js/nutrition.js");
 for (const m of nut.matchAll(/\b[ld]: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 // Listen in data.js, die über tx() angezeigt werden: Muskeln, Trainingsziele, Niveau der Vorlagen, Körpermaße
