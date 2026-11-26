@@ -21,13 +21,14 @@ const DYNAMIC = ["Grün", "Petrol", "Kobalt", "Violett", "Beere", "Signal", "Kup
   "Arbeitssatz", "Zur Startzeit", "15 Min. vorher", "30 Min. vorher", "1 Std. vorher", "kein Training", "regelmäßig", "Alle", "Zu Hause", "erledigt", "geplant", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const nut = read("js/nutrition.js");
 for (const m of nut.matchAll(/\b[ld]: "([^"]+)"/g)) DYNAMIC.push(m[1]);
-// Listen in data.js, die über tx() angezeigt werden: Muskeln, Trainingsziele, Niveau der Vorlagen
+// Listen in data.js, die über tx() angezeigt werden: Muskeln, Trainingsziele, Niveau der Vorlagen, Körpermaße
 const data = read("js/data.js");
 const block = (src, start) => { const i = src.indexOf(start); return i < 0 ? "" : src.slice(i, src.indexOf("];", i)); };
 for (const m of block(data, "export const MUSCLES").matchAll(/name: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 for (const m of block(data, "export const GOALS").matchAll(/\b[ld]: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 for (const m of data.matchAll(/level: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 for (const m of block(data, "export const KIT_FILTERS").matchAll(/\bl: "([^"]+)"/g)) DYNAMIC.push(m[1]);
+for (const m of block(data, "export const MEASURES").matchAll(/\b(?:l|how): "([^"]+)"/g)) DYNAMIC.push(m[1]);
 for (const m of (data.match(/export const KIT_LABEL = \{[^}]*\}/) || [""])[0].matchAll(/: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 // Einstieg: alle Texte in onboarding.js (Fragen, Antworten, Begründungen). Kennungen sind kleingeschrieben ohne Leerzeichen.
 for (const m of read("js/onboarding.js").matchAll(/"((?:[^"\\]|\\.)*)"/g)) if (/[A-ZÄÖÜ ]/.test(m[1]) && !/^\.\//.test(m[1])) DYNAMIC.push(unq(m[1]));

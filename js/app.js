@@ -529,7 +529,7 @@ function openPicker(cb, swapFrom) {
 function renderPickList() {
   const q = ui.pq.trim().toLowerCase();
   const list = Object.values(D().exercises)
-    .filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)) && kitMatch(e, ui.kit))
+    .filter(e => !e.archived && (!q || (exName(e) + " " + e.name).toLowerCase().includes(q)) && (!ui.pm || e.primary.includes(ui.pm) || e.secondary.includes(ui.pm)) && kitMatch(e, ui.kit))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
   const exact = list.some(e => e.name.toLowerCase() === q);
   // Beim Tauschen: Alternativen für denselben Hauptmuskel zuerst, im gewählten Gerätefilter
@@ -591,15 +591,15 @@ function saveEx() {
 /* ============ Übungen ============ */
 function viewExercises() {
   const q = ui.exq.trim().toLowerCase();
-  const list = Object.values(D().exercises).filter(e => !e.archived && (!q || e.name.toLowerCase().includes(q)) && kitMatch(e, ui.kit)).sort((a, b) => (b.custom - a.custom) || a.name.localeCompare(b.name, "de"));
-  view.innerHTML = `<p class="eyebrow"><a href="#/plaene">Pläne</a></p><h1 class="big">Übungen</h1>
-    <p class="meta">Umbenennen und Tauschen lassen deinen Verlauf unverändert. Jede Übung behält ihre eigenen Sätze.</p>
-    <button class="btn primary" data-act="newexlist">Eigene Übung anlegen</button>
-    <div class="pair" style="margin-top:14px"><label class="field">Suchen <input type="search" data-on="exq" value="${esc(ui.exq)}" autocomplete="off"></label>
+  const list = Object.values(D().exercises).filter(e => !e.archived && (!q || (exName(e) + " " + e.name).toLowerCase().includes(q)) && kitMatch(e, ui.kit)).sort((a, b) => (b.custom - a.custom) || a.name.localeCompare(b.name, L()));
+  view.innerHTML = `<p class="eyebrow"><a href="#/plaene">${tx("Pläne")}</a></p><h1 class="big">${tx("Übungen")}</h1>
+    <p class="meta">${tx("Umbenennen und Tauschen lassen deinen Verlauf unverändert. Jede Übung behält ihre eigenen Sätze.")}</p>
+    <button class="btn primary" data-act="newexlist">${tx("Eigene Übung anlegen")}</button>
+    <div class="pair" style="margin-top:14px"><label class="field">${tx("Suchen")} <input type="search" data-on="exq" value="${esc(ui.exq)}" autocomplete="off"></label>
     ${kitSelect("kitx")}</div>
-    <p class="meta" aria-live="polite">${list.length} ${list.length === 1 ? "Übung" : "Übungen"}${ui.kit ? ". Eigene Übungen erscheinen nur bei „Alle Geräte“." : ""}</p>
-    <ul class="plist" style="max-height:none">${list.map(e => `<li><button data-act="editex" data-id="${e.id}" aria-label="${esc(e.name)} bearbeiten"><b>${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</b>
-      <small>${esc(exMeta(e))} · ${St.setCount(e.id)} Sätze im Verlauf</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
+    <p class="meta" aria-live="polite">${txn(list.length, "{n} Übung", "{n} Übungen")}${ui.kit ? tx(". Eigene Übungen erscheinen nur bei „Alle Geräte“.") : ""}</p>
+    <ul class="plist" style="max-height:none">${list.map(e => `<li><button data-act="editex" data-id="${e.id}" aria-label="${esc(tx("{name} bearbeiten", {name: exName(e)}))}"><b>${esc(exName(e))}${e.custom ? `<span class="badge">${tx("eigene")}</span>` : ""}</b>
+      <small>${esc(exMeta(e))} · ${txn(St.setCount(e.id), "{n} Satz im Verlauf", "{n} Sätze im Verlauf")}</small></button></li>`).join("")}</ul><div style="height:24px"></div>`;
 }
 
 /* ============ Ausführung: Gerät und Bewegungsablauf ============ */
@@ -609,8 +609,8 @@ function exInfo(e) {
 }
 function exFigure(e, small) {
   const x = exInfo(e);
-  return `<figure class="exfig${small ? " small" : ""}">${AN.svgFor(x.pat, e.primary, esc(`Bewegungsablauf ${e.name}, schematisch`))}
-    <figcaption>${x.eq ? `<b>${esc(x.eq)}.</b> ${esc(x.cue)}` : "Eigene Übung: grober Ablauf nach Hauptmuskel, nicht genau deine Übung."}</figcaption></figure>`;
+  return `<figure class="exfig${small ? " small" : ""}">${AN.svgFor(x.pat, e.primary, esc(tx("Bewegungsablauf {name}, schematisch", {name: exName(e)})))}
+    <figcaption>${x.eq ? `<b>${esc(x.eq)}.</b> ${esc(x.cue)}` : tx("Eigene Übung: grober Ablauf nach Hauptmuskel, nicht genau deine Übung.")}</figcaption></figure>`;
 }
 
 /* ============ Körperkarte ============ */
@@ -621,14 +621,14 @@ function dropBody() { if (body3d) { body3d.destroy(); body3d = null; } }
 function viewBody() {
   dropBody();
   const m = ui.bm || null, side = ui.bside || "front";
-  view.innerHTML = `<p class="eyebrow"><a href="#/plaene">Pläne</a></p><h1 class="big">Körperkarte</h1>
-    <p class="meta">Tippe auf einen Muskel oder wähle ihn unten in der Liste. Zum Drehen seitlich ziehen.</p>
-    <div class="b3wrap"><div class="body3d" id="body3d"><p class="meta b3load">Figur wird geladen …</p></div>
-      <button type="button" class="b3tag" id="b3tag" data-act="b3go" ${m ? "" : "hidden"}>${m ? `${MUSCLE_NAME[m]} <span aria-hidden="true">↓</span>` : ""}</button></div>
-    <div class="seg" role="group" aria-label="Figur drehen" style="margin:10px 0 4px">
-      <button type="button" data-act="bside" data-v="front" aria-pressed="${side === "front"}">Vorne</button><button type="button" data-act="bside" data-v="back" aria-pressed="${side === "back"}">Hinten</button></div>
-    <h2 class="sec" id="bm-h">Muskelgruppe</h2>
-    <div class="chips" role="group" aria-labelledby="bm-h">${MUSCLES.map(x => `<button type="button" class="chip" data-act="bm" data-m="${x.id}" aria-pressed="${x.id === m}">${x.name}</button>`).join("")}</div>
+  view.innerHTML = `<p class="eyebrow"><a href="#/plaene">${tx("Pläne")}</a></p><h1 class="big">${tx("Körperkarte")}</h1>
+    <p class="meta">${tx("Tippe auf einen Muskel oder wähle ihn unten in der Liste. Zum Drehen seitlich ziehen.")}</p>
+    <div class="b3wrap"><div class="body3d" id="body3d"><p class="meta b3load">${tx("Figur wird geladen …")}</p></div>
+      <button type="button" class="b3tag" id="b3tag" data-act="b3go" ${m ? "" : "hidden"}>${m ? `${tx(MUSCLE_NAME[m])} <span aria-hidden="true">↓</span>` : ""}</button></div>
+    <div class="seg" role="group" aria-label="${tx("Figur drehen")}" style="margin:10px 0 4px">
+      <button type="button" data-act="bside" data-v="front" aria-pressed="${side === "front"}">${tx("Vorne")}</button><button type="button" data-act="bside" data-v="back" aria-pressed="${side === "back"}">${tx("Hinten")}</button></div>
+    <h2 class="sec" id="bm-h">${tx("Muskelgruppe")}</h2>
+    <div class="chips" role="group" aria-labelledby="bm-h">${MUSCLES.map(x => `<button type="button" class="chip" data-act="bm" data-m="${x.id}" aria-pressed="${x.id === m}">${tx(x.name)}</button>`).join("")}</div>
     <div id="bmList">${muscleExList(m)}</div><div style="height:24px"></div>`;
   const host = $("#body3d");
   import("./body3d.js").then(mod => {
@@ -636,17 +636,17 @@ function viewBody() {
     host.innerHTML = "";
     body3d = mod.mountBody(host, {selected: m, onPick: id => pickMuscle(id, true)});
     if (body3d && side === "back") body3d.back();
-  }).catch(() => { host.innerHTML = `<p class="meta b3load">Die 3D-Figur ließ sich nicht laden. Nutze die Liste darunter.</p>`; });
+  }).catch(() => { host.innerHTML = `<p class="meta b3load">${tx("Die 3D-Figur ließ sich nicht laden. Nutze die Liste darunter.")}</p>`; });
 }
 function muscleExList(m) {
-  if (!m) return `<p class="meta" style="margin-top:12px">Noch kein Muskel gewählt.</p>`;
-  const all = Object.values(D().exercises).filter(e => !e.archived), byName = (a, b) => a.name.localeCompare(b.name, "de");
+  if (!m) return `<p class="meta" style="margin-top:12px">${tx("Noch kein Muskel gewählt.")}</p>`;
+  const all = Object.values(D().exercises).filter(e => !e.archived), byName = (a, b) => exName(a).localeCompare(exName(b), L());
   const prim = all.filter(e => e.primary.includes(m)).sort(byName), sec = all.filter(e => !e.primary.includes(m) && e.secondary.includes(m)).sort(byName);
-  return `<h2 class="sec" id="bx-h" tabindex="-1">${MUSCLE_NAME[m]}: ${prim.length} ${prim.length === 1 ? "Übung" : "Übungen"}</h2>
-    ${prim.map(e => `<article class="card exsug" aria-labelledby="bx-${e.id}"><h3 id="bx-${e.id}">${esc(e.name)}${e.custom ? `<span class="badge">eigene</span>` : ""}</h3>${exFigure(e)}
+  return `<h2 class="sec" id="bx-h" tabindex="-1">${tx(MUSCLE_NAME[m])}: ${txn(prim.length, "{n} Übung", "{n} Übungen")}</h2>
+    ${prim.map(e => `<article class="card exsug" aria-labelledby="bx-${e.id}"><h3 id="bx-${e.id}">${esc(exName(e))}${e.custom ? `<span class="badge">${tx("eigene")}</span>` : ""}</h3>${exFigure(e)}
       <p class="meta">${esc(muscleList(e))}</p>
-      <div class="row-btns"><button class="btn small primary" data-act="bmadd" data-id="${e.id}" aria-haspopup="dialog" aria-label="${esc(e.name)} zum Plan hinzufügen">Zum Plan hinzufügen</button></div></article>`).join("")}
-    ${sec.length ? `<p class="meta">Arbeitet außerdem mit bei: ${sec.map(e => esc(e.name)).join(", ")}.</p>` : ""}`;
+      <div class="row-btns"><button class="btn small primary" data-act="bmadd" data-id="${e.id}" aria-haspopup="dialog" aria-label="${esc(tx("{name} zum Plan hinzufügen", {name: exName(e)}))}">${tx("Zum Plan hinzufügen")}</button></div></article>`).join("")}
+    ${sec.length ? `<p class="meta">${tx("Arbeitet außerdem mit bei: {list}.", {list: sec.map(e => esc(exName(e))).join(", ")})}</p>` : ""}`;
 }
 function pickMuscle(id, from3d) {
   ui.bm = id;
@@ -655,9 +655,9 @@ function pickMuscle(id, from3d) {
   AN.startAnim();
   if (body3d) { body3d.select(id); if (!from3d) { const back = BACKSIDE.has(id); back ? body3d.back() : body3d.front(); setSide(back ? "back" : "front"); } }
   const n = Object.values(D().exercises).filter(e => !e.archived && e.primary.includes(id)).length;
-  say(`${MUSCLE_NAME[id]} gewählt. ${n} passende Übungen.`);
+  say(txn(n, "{muscle} gewählt. {n} passende Übung.", "{muscle} gewählt. {n} passende Übungen.", {muscle: tx(MUSCLE_NAME[id])}));
   const tag = $("#b3tag");
-  if (tag) { tag.hidden = false; tag.innerHTML = `${MUSCLE_NAME[id]} · ${n} ${n === 1 ? "Übung" : "Übungen"} <span aria-hidden="true">↓</span>`; }
+  if (tag) { tag.hidden = false; tag.innerHTML = `${tx(MUSCLE_NAME[id])} · ${txn(n, "{n} Übung", "{n} Übungen")} <span aria-hidden="true">↓</span>`; }
 }
 function setSide(v) { ui.bside = v; view.querySelectorAll('[data-act="bside"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
 // Standard-Satzschema nach Ziel des Plans (ACSM 2009)
@@ -966,19 +966,19 @@ function monthCard() {
   const now = new Date(), off = ui.mOff || 0, d = new Date(now.getFullYear(), now.getMonth() - off, 1), pd = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const m = St.monthStats(d.getFullYear(), d.getMonth()), pm = St.monthStats(pd.getFullYear(), pd.getMonth());
   const name = d.toLocaleDateString(L(), {month: "long", year: "numeric"}), hm = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")} h`;
-  const cell = (v, l, pv) => `<div><b class="num">${v}</b><span>${l}</span><small>Vormonat ${pv}</small></div>`;
+  const cell = (v, l, pv) => `<div><b class="num">${v}</b><span>${l}</span><small>${tx("Vormonat {v}", {v: pv})}</small></div>`;
   return `<section class="card monthcard" aria-labelledby="mo-h">
-    <div class="wkhead"><h2 id="mo-h">Rückblick ${esc(name)}</h2>
-      <span class="mnav"><button type="button" class="linkbtn" data-act="mprev" aria-label="Vorheriger Monat">‹</button><button type="button" class="linkbtn" data-act="mnext" aria-label="Nächster Monat" ${off ? "" : "disabled"}>›</button></span></div>
-    ${m.sessions ? `<div class="mstats">${cell(m.sessions, m.sessions === 1 ? "Training" : "Trainings", pm.sessions)}${cell(m.hard, "harte Sätze", pm.hard)}${cell(m.mins ? hm(m.mins) : "–", "Trainingszeit", pm.mins ? hm(pm.mins) : "–")}${cell(m.records, m.records === 1 ? "Bestwert" : "Bestwerte", pm.records)}</div>
-    ${m.top.length ? `<p class="meta">Am meisten trainiert: ${m.top.map(t => `${esc(t.name)} (${fmt(t.sets)} Sätze)`).join(", ")}.</p>` : ""}`
-    : `<p class="meta">In diesem Monat gibt es noch kein Training.</p>`}
+    <div class="wkhead"><h2 id="mo-h">${tx("Rückblick {month}", {month: esc(name)})}</h2>
+      <span class="mnav"><button type="button" class="linkbtn" data-act="mprev" aria-label="${tx("Vorheriger Monat")}">‹</button><button type="button" class="linkbtn" data-act="mnext" aria-label="${tx("Nächster Monat")}" ${off ? "" : "disabled"}>›</button></span></div>
+    ${m.sessions ? `<div class="mstats">${cell(m.sessions, m.sessions === 1 ? tx("Training") : tx("Trainings"), pm.sessions)}${cell(m.hard, tx("harte Sätze"), pm.hard)}${cell(m.mins ? hm(m.mins) : "–", tx("Trainingszeit"), pm.mins ? hm(pm.mins) : "–")}${cell(m.records, m.records === 1 ? tx("Bestwert") : tx("Bestwerte"), pm.records)}</div>
+    ${m.top.length ? `<p class="meta">${tx("Am meisten trainiert: {list}.", {list: m.top.map(t => `${esc(tx(t.name))} (${txn(t.sets, "{n} Satz", "{n} Sätze", {n: fmt(t.sets)})})`).join(", ")})}</p>` : ""}`
+    : `<p class="meta">${tx("In diesem Monat gibt es noch kein Training.")}</p>`}
   </section>`;
 }
 function viewHistory() {
   const s = D(), ses = [...s.sessions].reverse();
   if (!ses.length) {
-    view.innerHTML = `<h1 class="big">Verlauf</h1><p>Noch keine Trainings. Nach deinem ersten Training siehst du hier, was sich bei jeder Übung verändert.</p>${weightSection()}${measureSection()}<div style="height:24px"></div>`;
+    view.innerHTML = `<h1 class="big">${tx("Verlauf")}</h1><p>${tx("Noch keine Trainings. Nach deinem ersten Training siehst du hier, was sich bei jeder Übung verändert.")}</p>${weightSection()}${measureSection()}<div style="height:24px"></div>`;
     return;
   }
   const exIds = [...new Set(s.sessions.flatMap(x => x.sets.map(y => y.exId)))];
@@ -990,23 +990,23 @@ function viewHistory() {
   }).filter(Boolean).sort((a, b) => new Date(b.last) - new Date(a.last)).slice(0, 8);
   if (!ui.histEx || !exIds.includes(ui.histEx)) ui.histEx = exIds[0];
   const p = St.activePlan();
-  view.innerHTML = `<h1 class="big">Verlauf</h1>
+  view.innerHTML = `<h1 class="big">${tx("Verlauf")}</h1>
     ${monthCard()}
     ${weightSection()}
     ${measureSection()}
-    ${changes.length ? `<h2 class="sec" style="margin-top:4px">Was sich verändert hat</h2><ul class="logged">
-      ${changes.map(c => { const e = St.ex(c.id), d = c.to - c.from; return `<li><span>${esc(e.name)}</span><span class="num">${fmt(c.from)} → ${fmt(c.to)} kg <span class="sr">,</span>(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))})</span></li>`; }).join("")}
-    </ul><p class="meta" style="margin-top:6px">Schwerster Satz im ersten und im letzten Training.</p>` : ""}
-    <h2 class="sec">Übung im Detail</h2>
-    <label class="field">Übung <select data-on="histex">${exIds.map(id => `<option value="${id}" ${id === ui.histEx ? "selected" : ""}>${esc(St.ex(id).name)}</option>`).join("")}</select></label>
+    ${changes.length ? `<h2 class="sec" style="margin-top:4px">${tx("Was sich verändert hat")}</h2><ul class="logged">
+      ${changes.map(c => { const e = St.ex(c.id), d = c.to - c.from; return `<li><span>${esc(exName(e))}</span><span class="num">${fmt(c.from)} → ${fmt(c.to)} kg <span class="sr">,</span>(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))})</span></li>`; }).join("")}
+    </ul><p class="meta" style="margin-top:6px">${tx("Schwerster Satz im ersten und im letzten Training.")}</p>` : ""}
+    <h2 class="sec">${tx("Übung im Detail")}</h2>
+    <label class="field">${tx("Übung")} <select data-on="histex">${exIds.map(id => `<option value="${id}" ${id === ui.histEx ? "selected" : ""}>${esc(exName(St.ex(id)))}</option>`).join("")}</select></label>
     ${exDetail(ui.histEx)}
-    <h2 class="sec">Letzte 7 Tage</h2>
-    ${volumeTable(St.recentVolume(7), "Sätze pro Muskel in den letzten 7 Tagen, verglichen mit dem Plan", p ? St.planVolume(p) : null)}
-    <h2 class="sec">Trainings</h2>
-    ${ses.map(x => `<details><summary>${dateDe(x.date)} · ${esc(x.dayName)} · ${x.sets.length} Sätze</summary>
-      <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(St.ex(g.exId).name)}</span><span class="num">${g.sets.map(y => `${y.type === "warm" ? "A " : y.type === "drop" ? "D " : ""}${noLoad(St.ex(g.exId)) ? `${y.reps}${St.ex(g.exId).unit === "s" ? " s" : ""}` : `${fmt(y.kg)}×${y.reps}`}`).join(", ")}</span></li>`).join("")}</ul>
-      ${x.notes ? `<p class="meta" style="margin:8px 0 0">${Object.entries(x.notes).map(([k, v]) => `<b>${esc(St.ex(k).name)}:</b> ${esc(v)}`).join("<br>")}</p>` : ""}
-      <div class="row-btns" style="margin:10px 0"><button class="btn small" data-act="sessedit" data-id="${esc(x.id)}" aria-haspopup="dialog">Korrigieren</button><button class="btn small destructive" data-act="delsession" data-id="${esc(x.id)}">Training löschen</button></div></details>`).join("")}
+    <h2 class="sec">${tx("Letzte 7 Tage")}</h2>
+    ${volumeTable(St.recentVolume(7), tx("Sätze pro Muskel in den letzten 7 Tagen, verglichen mit dem Plan"), p ? St.planVolume(p) : null)}
+    <h2 class="sec">${tx("Trainings")}</h2>
+    ${ses.map(x => `<details><summary>${dateDe(x.date)} · ${esc(x.dayName)} · ${txn(x.sets.length, "{n} Satz", "{n} Sätze")}</summary>
+      <ul class="logged">${groupSets(x.sets).map(g => `<li><span>${esc(exName(St.ex(g.exId)))}</span><span class="num">${g.sets.map(y => `${y.type === "warm" ? tx("A") + " " : y.type === "drop" ? tx("D") + " " : ""}${noLoad(St.ex(g.exId)) ? `${y.reps}${St.ex(g.exId).unit === "s" ? " s" : ""}` : `${fmt(y.kg)}×${y.reps}`}`).join(", ")}</span></li>`).join("")}</ul>
+      ${x.notes ? `<p class="meta" style="margin:8px 0 0">${Object.entries(x.notes).map(([k, v]) => `<b>${esc(exName(St.ex(k)))}:</b> ${esc(v)}`).join("<br>")}</p>` : ""}
+      <div class="row-btns" style="margin:10px 0"><button class="btn small" data-act="sessedit" data-id="${esc(x.id)}" aria-haspopup="dialog">${tx("Korrigieren")}</button><button class="btn small destructive" data-act="delsession" data-id="${esc(x.id)}">${tx("Training löschen")}</button></div></details>`).join("")}
     <div style="height:24px"></div>`;
 }
 function groupSets(sets) {
@@ -1023,7 +1023,7 @@ function chart(vals, labels, unit, caption, trend) {
   const path = arr => "M" + arr.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(" L");
   const ax = v => hi - lo < 5 ? Math.round(v * 10) / 10 : Math.round(v);
   const ring = !trend && vals.indexOf(Math.max(...vals)) !== vals.length - 1;
-  return `<figure class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(caption)}: von ${fmt(Math.round(vals[0] * 10) / 10)} auf ${fmt(Math.round(vals.at(-1) * 10) / 10)} ${unit}">
+  return `<figure class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tx("{caption}: von {from} auf {to} {unit}", {caption, from: fmt(Math.round(vals[0] * 10) / 10), to: fmt(Math.round(vals.at(-1) * 10) / 10), unit}))}">
     <line x1="${L}" x2="${W - R}" y1="${Y(hi)}" y2="${Y(hi)}" class="grid"/><line x1="${L}" x2="${W - R}" y1="${Y(lo)}" y2="${Y(lo)}" class="grid"/>
     <text x="${L - 6}" y="${Y(hi) + 4}" text-anchor="end">${fmt(ax(hi))}</text><text x="${L - 6}" y="${Y(lo) + 4}" text-anchor="end">${fmt(ax(lo))}</text>
     <text x="${L}" y="${H - 6}">${esc(labels[0])}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${esc(labels.at(-1))}</text>
@@ -1032,7 +1032,7 @@ function chart(vals, labels, unit, caption, trend) {
     ${(() => { const bi = vals.indexOf(Math.max(...vals)), lx = X(vals.length - 1), ly = Y(vals.at(-1));
       return (ring ? `<circle cx="${X(bi).toFixed(1)}" cy="${Y(vals[bi]).toFixed(1)}" r="6" class="best"/>` : "")
         + `<text x="${(lx - 8).toFixed(1)}" y="${(ly < T + 14 ? ly + 16 : ly - 9).toFixed(1)}" text-anchor="end" class="val">${fmt(Math.round(vals.at(-1) * 10) / 10)} ${esc(unit)}</text>`; })()}
-  </svg><figcaption class="meta">${esc(caption)}${trend ? " · gestrichelt: 7-Tage-Mittel" : ring ? " · Ring: bisheriger Bestwert" : ""}</figcaption></figure>`;
+  </svg><figcaption class="meta">${esc(caption)}${trend ? " · " + tx("gestrichelt: 7-Tage-Mittel") : ring ? " · " + tx("Ring: bisheriger Bestwert") : ""}</figcaption></figure>`;
 }
 const shortDate = iso => new Date(iso).toLocaleDateString(L(), {day: "numeric", month: "numeric"});
 function exDetail(id) {
@@ -1046,59 +1046,62 @@ function exDetail(id) {
   // Bei Körpergewichtsübungen ohne Zusatzlast zählen die Wiederholungen, sonst das geschätzte 1RM (Epley)
   const useReps = noLoad(e) || (bw && pts.every(h => h.best.kg === 0)), rs = St.repShort(e);
   const svg = chart(pts.map(h => useReps ? h.reps : h.e1), pts.map(h => shortDate(h.date)), useReps ? rs : "kg",
-    useReps ? `${St.repWord(e)} gesamt pro Training` : "Geschätztes 1RM (Epley) aus dem besten Satz");
-  return `${svg}<div class="table-wrap"><table><caption class="sr">Arbeitssätze pro Training</caption><thead><tr><th scope="col">Datum</th><th scope="col">Sätze</th><th scope="col" class="n">${useReps ? rs : "1RM ca."}</th></tr></thead>
+    useReps ? tx("{word} gesamt pro Training", {word: St.repWord(e)}) : tx("Geschätztes 1RM (Epley) aus dem besten Satz"));
+  return `${svg}<div class="table-wrap"><table><caption class="sr">${tx("Arbeitssätze pro Training")}</caption><thead><tr><th scope="col">${tx("Datum")}</th><th scope="col">${tx("Sätze")}</th><th scope="col" class="n">${useReps ? rs : tx("1RM ca.")}</th></tr></thead>
     <tbody>${[...pts].reverse().map(h => `<tr><td>${dateDe(h.date)}</td><td class="num">${h.sets.map(y => noLoad(e) ? `${y.reps}` : `${fmt(y.kg)}×${y.reps}`).join(", ")}</td><td class="n">${useReps ? h.reps : fmt(Math.round(h.e1 * 10) / 10) + " kg"}</td></tr>`).join("")}</tbody></table></div>
-    <p class="foot">1RM ca. = Gewicht × (1 + Wdh./30), Epley (1985). Steigt auch, wenn du bei gleichem Gewicht mehr Wiederholungen schaffst.</p>`;
+    <p class="foot">${tx("1RM ca. = Gewicht × (1 + Wdh./30), Epley (1985). Steigt auch, wenn du bei gleichem Gewicht mehr Wiederholungen schaffst.")}</p>`;
 }
 // Gewicht: eine Karte, die überall gleich aussieht und das Eintragen-Sheet öffnet
-const dl = k => { const l = dayLabel(k); return l === "Gestern" || l === "Heute" ? l.toLowerCase() : "am " + l.replace(/^\w+, /, ""); };
+const dmd = k => new Date(k + "T12:00:00").toLocaleDateString(L(), {day: "numeric", month: "long"});
+const dl = k => k === dkey() ? tx("heute") : k === shiftDay(dkey(), -1) ? tx("gestern") : tx("am {date}", {date: dmd(k)});
+const dSince = k => k === dkey() ? tx("seit heute") : k === shiftDay(dkey(), -1) ? tx("seit gestern") : tx("seit dem {date}", {date: dmd(k)});
 function weightCard() {
   const w = D().weights, today = dkey(), last = w.at(-1), done = last && last.date === today;
   const prev = done ? w.at(-2) : last, d = done && prev ? Math.round((last.kg - prev.kg) * 10) / 10 : null;
   return `<button type="button" class="card wcard" data-act="wopen" aria-haspopup="dialog">
-    <span class="wl"><span class="eyebrow">Gewicht heute</span><b class="num">${done ? `${fmt(last.kg)} kg` : "Noch nicht eingetragen"}</b>
-      <small>${done ? (d != null ? `${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} kg seit ${dl(prev.date)}` : "Erster Eintrag") : last ? `Zuletzt ${fmt(last.kg)} kg, ${dl(last.date)}` : "Am besten morgens, vor dem Frühstück"}</small></span>
-    <span class="wbtn">${done ? "Ändern" : "Eintragen"}</span></button>`;
+    <span class="wl"><span class="eyebrow">${tx("Gewicht heute")}</span><b class="num">${done ? `${fmt(last.kg)} kg` : tx("Noch nicht eingetragen")}</b>
+      <small>${done ? (d != null ? `${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} kg ${dSince(prev.date)}` : tx("Erster Eintrag")) : last ? tx("Zuletzt {kg} kg, {when}", {kg: fmt(last.kg), when: dl(last.date)}) : tx("Am besten morgens, vor dem Frühstück")}</small></span>
+    <span class="wbtn">${done ? tx("Ändern") : tx("Eintragen")}</span></button>`;
 }
 function openWeight(date) {
   const w = D().weights, k = date || dkey(), cur = w.find(x => x.date === k), base = cur ? cur.kg : St.currentWeight() || 70;
   ui.wkg = base; ui.wdate = k;
-  openDialog(`<h2 id="dlg-h">Gewicht eintragen</h2>
+  openDialog(`<h2 id="dlg-h">${tx("Gewicht eintragen")}</h2>
     <p class="err" role="alert" hidden></p>
     <div class="stepper" role="group" aria-labelledby="w-l">
-      <button type="button" data-act="wstep" data-d="-1" aria-label="100 Gramm weniger">−</button>
-      <div class="val"><input id="wIn" class="v num" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(base)}"><label id="w-l" for="wIn" class="u">kg · antippen zum Eintippen</label></div>
-      <button type="button" data-act="wstep" data-d="1" aria-label="100 Gramm mehr">+</button></div>
-    <label class="field">Datum <input id="wDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
-    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="wsave">Speichern</button></div>
-    ${w.length ? `<h3 class="meta" style="margin:16px 0 6px">Letzte Einträge</h3><ul class="logged">${w.slice(-7).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${fmt(x.kg)} kg <button type="button" class="linkbtn" data-act="wdel" data-d="${x.date}" aria-label="Eintrag ${esc(dayLabel(x.date))} löschen">Löschen</button></span></li>`).join("")}</ul>` : ""}`, "#wIn");
+      <button type="button" data-act="wstep" data-d="-1" aria-label="${tx("100 Gramm weniger")}">−</button>
+      <div class="val"><input id="wIn" class="v num" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(base)}"><label id="w-l" for="wIn" class="u">${tx("kg · antippen zum Eintippen")}</label></div>
+      <button type="button" data-act="wstep" data-d="1" aria-label="${tx("100 Gramm mehr")}">+</button></div>
+    <label class="field">${tx("Datum")} <input id="wDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
+    <div class="dlg-actions"><button class="btn" data-act="close">${tx("Abbrechen")}</button><button class="btn primary" data-act="wsave">${tx("Speichern")}</button></div>
+    ${w.length ? `<h3 class="meta" style="margin:16px 0 6px">${tx("Letzte Einträge")}</h3><ul class="logged">${w.slice(-7).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${fmt(x.kg)} kg <button type="button" class="linkbtn" data-act="wdel" data-d="${x.date}" aria-label="${esc(tx("Eintrag {day} löschen", {day: dayLabel(x.date)}))}">${tx("Löschen")}</button></span></li>`).join("")}</ul>` : ""}`, "#wIn");
 }
 function saveWeight() {
   const v = Math.round(num($("#wIn").value) * 10) / 10, k = $("#wDate").value || dkey();
-  if (!(v >= 30 && v <= 300)) return dlgError("Bitte ein Gewicht zwischen 30 und 300 kg eintragen.");
-  if (k > dkey()) return dlgError("Das Datum liegt in der Zukunft.");
+  if (!(v >= 30 && v <= 300)) return dlgError(tx("Bitte ein Gewicht zwischen 30 und 300 kg eintragen."));
+  if (k > dkey()) return dlgError(tx("Das Datum liegt in der Zukunft."));
   const w = D().weights, cur = w.find(x => x.date === k);
   if (cur) cur.kg = v; else w.push({date: k, kg: v});
   w.sort((a, b) => a.date.localeCompare(b.date));
-  persist(); opener = null; closeDialog(); rerender(); say(`${fmt(v)} Kilo für ${dayLabel(k)} gespeichert.`);
+  persist(); opener = null; closeDialog(); rerender(); say(tx("{kg} Kilo für {day} gespeichert.", {kg: fmt(v), day: dayLabel(k)}));
   const b = view.querySelector('[data-act="wopen"]'); if (b) b.focus();
 }
 function weightSection() {
   const w = D().weights.slice(-60);
   const avg = w.map((x, k) => { const from = new Date(x.date + "T12:00:00") - 6 * 864e5, win = w.slice(0, k + 1).filter(y => new Date(y.date + "T12:00:00") >= from); return win.reduce((a, y) => a + y.kg, 0) / win.length; });
-  return `<h2 class="sec" style="margin-top:4px">Körpergewicht</h2>
+  return `<h2 class="sec" style="margin-top:4px">${tx("Körpergewicht")}</h2>
     ${weightCard()}
-    ${w.length >= 2 ? chart(w.map(x => x.kg), w.map(x => shortDate(x.date + "T12:00:00")), "kg", "Körpergewicht", avg) : `<p class="meta">Wiege dich ein paar Mal pro Woche, am besten morgens. Nach zwei Einträgen erscheint hier der Verlauf mit Trend.</p>`}
-    ${w.length >= 8 ? (() => { const d = avg.at(-1) - avg[Math.max(0, avg.length - 8)]; return `<p class="meta">Trend: ${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(Math.round(d * 10) / 10))} kg im Vergleich zu vor etwa einer Woche.</p>`; })() : ""}`;
+    ${w.length >= 2 ? chart(w.map(x => x.kg), w.map(x => shortDate(x.date + "T12:00:00")), "kg", tx("Körpergewicht"), avg) : `<p class="meta">${tx("Wiege dich ein paar Mal pro Woche, am besten morgens. Nach zwei Einträgen erscheint hier der Verlauf mit Trend.")}</p>`}
+    ${w.length >= 8 ? (() => { const d = avg.at(-1) - avg[Math.max(0, avg.length - 8)]; return `<p class="meta">${tx("Trend: {d} kg im Vergleich zu vor etwa einer Woche.", {d: (d > 0 ? "+" : d < 0 ? "−" : "±") + fmt(Math.abs(Math.round(d * 10) / 10))})}</p>`; })() : ""}`;
 }
 /* ---------- Körpermaße ---------- */
 const ML = Object.fromEntries(MEASURES.map(m => [m.id, m]));
+const mL = id => tx(ML[id].l), mHow = m => tx(m.how);
 // Schematische Figur von vorn mit Messlinien. Die Figur zeigt dich wie im Spiegel: dein rechter Arm ist links im Bild.
 function measureFig(on) {
   const line = m => { const r = m.w / 2, cx = m.x + r;
     return `<g class="ml${m.id === on ? " on" : ""}"><ellipse cx="${cx}" cy="${m.y}" rx="${r + 3}" ry="${m.side ? 3 : 4}"/></g>`; };
-  return `<svg class="mfig" viewBox="0 0 200 420" role="img" aria-label="${on ? `Messstelle ${esc(ML[on].l)}` : "Figur mit allen Messstellen"}">
+  return `<svg class="mfig" viewBox="0 0 200 420" role="img" aria-label="${on ? esc(tx("Messstelle {name}", {name: mL(on)})) : tx("Figur mit allen Messstellen")}">
     <g class="limb"><path d="M52 94 L40 150 L35 206"/><path d="M148 94 L160 150 L165 206"/><path d="M83 222 L79 302 L77 396"/><path d="M117 222 L121 302 L123 396"/></g>
     <g class="limb in"><path d="M52 94 L40 150 L35 206"/><path d="M148 94 L160 150 L165 206"/><path d="M83 222 L79 302 L77 396"/><path d="M117 222 L121 302 L123 396"/></g>
     <circle class="sk" cx="100" cy="34" r="20"/>
@@ -1113,84 +1116,84 @@ function measureSection() {
   const ids = MEASURES.map(m => m.id).filter(id => series(id).length);
   if (!ui.msel || !ids.includes(ui.msel)) ui.msel = ids.find(id => series(id).length >= 2) || ids[0];
   const card = `<button type="button" class="card wcard" data-act="mopen" aria-haspopup="dialog">
-    <span class="wl"><span class="eyebrow">Letzte Messung</span><b>${last ? dl(last.date).replace(/^./, c => c.toUpperCase()) : "Noch nicht gemessen"}</b>
-      <small>${last ? (St.daysSince(last.date + "T12:00:00") >= 14 ? "Zeit für eine neue Messung" : "Alle 2–4 Wochen messen reicht") : "Maßband genügt. SATZ zeigt dir, wo du misst."}</small></span>
-    <span class="wbtn">Messen</span></button>`;
-  if (!ids.length) return `<h2 class="sec">Körpermaße</h2>${card}`;
+    <span class="wl"><span class="eyebrow">${tx("Letzte Messung")}</span><b>${last ? dl(last.date).replace(/^./, c => c.toUpperCase()) : tx("Noch nicht gemessen")}</b>
+      <small>${last ? (St.daysSince(last.date + "T12:00:00") >= 14 ? tx("Zeit für eine neue Messung") : tx("Alle 2–4 Wochen messen reicht")) : tx("Maßband genügt. SATZ zeigt dir, wo du misst.")}</small></span>
+    <span class="wbtn">${tx("Messen")}</span></button>`;
+  if (!ids.length) return `<h2 class="sec">${tx("Körpermaße")}</h2>${card}`;
   const h = D().profile.height, waist = last && last.m.taille;
   const sel = series(ui.msel);
-  return `<h2 class="sec">Körpermaße</h2>${card}
+  return `<h2 class="sec">${tx("Körpermaße")}</h2>${card}
     <ul class="logged">${ids.map(id => { const sr = series(id), a = sr[0], b = sr.at(-1), d = Math.round((b.v - a.v) * 10) / 10;
-      return `<li><span>${esc(ML[id].l)}</span><span class="num">${fmt(b.v)} cm${sr.length > 1 ? ` <small class="meta">(${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d))} seit ${shortDate(a.date + "T12:00:00")})</small>` : ""}</span></li>`; }).join("")}</ul>
-    ${h && waist ? (() => { const r = waist / h; return `<p class="meta" style="margin-top:6px">Taille ÷ Größe: ${fmt(Math.round(r * 100) / 100)}. Unter 0,5 gilt als günstig für die Gesundheit (Ashwell et al. 2012).</p>`; })() : ""}
-    ${ids.length > 1 ? `<label class="field" style="margin-top:12px">Verlauf <select data-on="msel">${ids.map(id => `<option value="${id}" ${id === ui.msel ? "selected" : ""}>${esc(ML[id].l)}</option>`).join("")}</select></label>` : ""}
-    ${sel.length >= 2 ? chart(sel.map(x => x.v), sel.map(x => shortDate(x.date + "T12:00:00")), "cm", ML[ui.msel].l) : `<p class="meta">Nach der zweiten Messung erscheint hier der Verlauf.</p>`}`;
+      return `<li><span>${esc(mL(id))}</span><span class="num">${fmt(b.v)} cm${sr.length > 1 ? ` <small class="meta">(${tx("{d} seit {date}", {d: (d > 0 ? "+" : d < 0 ? "−" : "±") + fmt(Math.abs(d)), date: shortDate(a.date + "T12:00:00")})})</small>` : ""}</span></li>`; }).join("")}</ul>
+    ${h && waist ? (() => { const r = waist / h; return `<p class="meta" style="margin-top:6px">${tx("Taille ÷ Größe: {r}. Unter {limit} gilt als günstig für die Gesundheit (Ashwell et al. 2012).", {r: fmt(Math.round(r * 100) / 100), limit: fmt(0.5)})}</p>`; })() : ""}
+    ${ids.length > 1 ? `<label class="field" style="margin-top:12px">${tx("Verlauf")} <select data-on="msel">${ids.map(id => `<option value="${id}" ${id === ui.msel ? "selected" : ""}>${esc(mL(id))}</option>`).join("")}</select></label>` : ""}
+    ${sel.length >= 2 ? chart(sel.map(x => x.v), sel.map(x => shortDate(x.date + "T12:00:00")), "cm", mL(ui.msel)) : `<p class="meta">${tx("Nach der zweiten Messung erscheint hier der Verlauf.")}</p>`}`;
 }
 function openMeasures(date) {
   const k = date || dkey(), ms = D().measures, cur = ms.find(x => x.date === k), prev = [...ms].reverse().find(x => x.date !== k);
   ui.mdate = k;
-  openDialog(`<h2 id="dlg-h">Körpermaße</h2>
-    <div class="mwrap">${measureFig(MEASURES[0].id)}<p class="mhow" id="mhow" aria-live="polite"><b>${esc(MEASURES[0].l)}:</b> ${esc(MEASURES[0].how)}</p></div>
-    <details class="mtips"><summary>So misst du richtig</summary><ul>
-      <li>Morgens, vor dem Essen und vor dem Training, immer unter gleichen Bedingungen.</li>
-      <li>Weiches Maßband direkt auf der Haut, waagerecht, anliegend, ohne einzuschneiden. Ein Spiegel hilft.</li>
-      <li>Jede Stelle zweimal messen. Weichen die Werte um mehr als 0,5 cm ab, ein drittes Mal und den Mittelwert nehmen.</li>
-      <li>Du musst nicht alles messen. Taille allein sagt schon viel.</li></ul></details>
+  openDialog(`<h2 id="dlg-h">${tx("Körpermaße")}</h2>
+    <div class="mwrap">${measureFig(MEASURES[0].id)}<p class="mhow" id="mhow" aria-live="polite"><b>${esc(mL(MEASURES[0].id))}:</b> ${esc(mHow(MEASURES[0]))}</p></div>
+    <details class="mtips"><summary>${tx("So misst du richtig")}</summary><ul>
+      <li>${tx("Morgens, vor dem Essen und vor dem Training, immer unter gleichen Bedingungen.")}</li>
+      <li>${tx("Weiches Maßband direkt auf der Haut, waagerecht, anliegend, ohne einzuschneiden. Ein Spiegel hilft.")}</li>
+      <li>${tx("Jede Stelle zweimal messen. Weichen die Werte um mehr als 0,5 cm ab, ein drittes Mal und den Mittelwert nehmen.")}</li>
+      <li>${tx("Du musst nicht alles messen. Taille allein sagt schon viel.")}</li></ul></details>
     <p class="err" role="alert" hidden></p>
-    <label class="field">Datum <input id="mDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
-    <div class="mgrid">${MEASURES.map(m => `<label class="field">${esc(m.l)}${m.side ? " (rechts)" : ""}
+    <label class="field">${tx("Datum")} <input id="mDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
+    <div class="mgrid">${MEASURES.map(m => `<label class="field">${esc(mL(m.id))}${m.side ? " " + tx("(rechts)") : ""}
       <input name="mval" data-m="${m.id}" inputmode="decimal" autocomplete="off" aria-describedby="mh-${m.id}" value="${cur && cur.m[m.id] != null ? fmt(cur.m[m.id]) : ""}" placeholder="${prev && prev.m[m.id] != null ? fmt(prev.m[m.id]) : "cm"}">
-      <span class="sr" id="mh-${m.id}">${esc(m.how)}</span></label>`).join("")}</div>
-    <p class="foot">Felder in cm. Grau steht dein letzter Wert, leere Felder bleiben leer. Die Figur schaut dich an: Dein rechter Arm und dein rechtes Bein sind links im Bild.</p>
-    <div class="dlg-actions"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="msave">Speichern</button></div>
-    ${ms.length ? `<h3 class="meta" style="margin:16px 0 6px">Frühere Messungen</h3><ul class="logged">${ms.slice(-6).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${Object.keys(x.m).length} Maße <button type="button" class="linkbtn" data-act="mdel" data-d="${x.date}" aria-label="Messung ${esc(dayLabel(x.date))} löschen">Löschen</button></span></li>`).join("")}</ul>` : ""}`, '[name="mval"]');
+      <span class="sr" id="mh-${m.id}">${esc(mHow(m))}</span></label>`).join("")}</div>
+    <p class="foot">${tx("Felder in cm. Grau steht dein letzter Wert, leere Felder bleiben leer. Die Figur schaut dich an: Dein rechter Arm und dein rechtes Bein sind links im Bild.")}</p>
+    <div class="dlg-actions"><button class="btn" data-act="close">${tx("Abbrechen")}</button><button class="btn primary" data-act="msave">${tx("Speichern")}</button></div>
+    ${ms.length ? `<h3 class="meta" style="margin:16px 0 6px">${tx("Frühere Messungen")}</h3><ul class="logged">${ms.slice(-6).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${txn(Object.keys(x.m).length, "{n} Maß", "{n} Maße")} <button type="button" class="linkbtn" data-act="mdel" data-d="${x.date}" aria-label="${esc(tx("Messung {day} löschen", {day: dayLabel(x.date)}))}">${tx("Löschen")}</button></span></li>`).join("")}</ul>` : ""}`, '[name="mval"]');
 }
 function saveMeasures() {
   const k = $("#mDate").value || dkey();
-  if (k > dkey()) return dlgError("Das Datum liegt in der Zukunft.");
+  if (k > dkey()) return dlgError(tx("Das Datum liegt in der Zukunft."));
   const vals = {};
   for (const inp of dlg.querySelectorAll('input[name="mval"]')) {
     if (!inp.value.trim()) continue;
     const v = Math.round(num(inp.value) * 10) / 10;
-    if (!(v >= 10 && v <= 250)) { inp.focus(); return dlgError(`${ML[inp.dataset.m].l}: bitte einen Wert zwischen 10 und 250 cm eintragen.`); }
+    if (!(v >= 10 && v <= 250)) { inp.focus(); return dlgError(tx("{name}: bitte einen Wert zwischen 10 und 250 cm eintragen.", {name: mL(inp.dataset.m)})); }
     vals[inp.dataset.m] = v;
   }
-  if (!Object.keys(vals).length) return dlgError("Trag mindestens ein Maß ein.");
+  if (!Object.keys(vals).length) return dlgError(tx("Trag mindestens ein Maß ein."));
   const ms = D().measures, cur = ms.find(x => x.date === k), snap = St.snapshot();
   if (cur) cur.m = vals; else ms.push({date: k, m: vals});
   ms.sort((a, b) => a.date.localeCompare(b.date));
   persist(); opener = null; closeDialog(); rerender();
-  toast(`${Object.keys(vals).length} ${Object.keys(vals).length === 1 ? "Maß" : "Maße"} für ${dayLabel(k)} gespeichert.`.replace(` für ${dayLabel(k)}`, ` ${dl(k)}`), () => { St.restore(snap); rerender(); });
+  toast(txn(Object.keys(vals).length, "{n} Maß {when} gespeichert.", "{n} Maße {when} gespeichert.", {when: dl(k)}), () => { St.restore(snap); rerender(); });
   const b = view.querySelector('[data-act="mopen"]'); if (b) b.focus();
 }
 // Fokus auf ein Feld zeigt die passende Messstelle in der Figur
 document.addEventListener("focusin", ev => {
   const inp = ev.target.closest && ev.target.closest('input[name="mval"]'); if (!inp) return;
   const m = ML[inp.dataset.m], fig = dlg.querySelector(".mfig"), how = $("#mhow"); if (!fig || !how) return;
-  fig.outerHTML = measureFig(m.id); how.innerHTML = `<b>${esc(m.l)}:</b> ${esc(m.how)}`;
+  fig.outerHTML = measureFig(m.id); how.innerHTML = `<b>${esc(mL(m.id))}:</b> ${esc(mHow(m))}`;
 });
 
 function openSessionEdit(id) {
   const x = D().sessions.find(y => y.id === id); if (!x) return;
   ui.sedit = id;
-  openDialog(`<h2 id="dlg-h">Training korrigieren</h2><p class="meta" style="text-align:center;margin-top:-10px">${dateDe(x.date)} · ${esc(x.dayName)}</p>
+  openDialog(`<h2 id="dlg-h">${tx("Training korrigieren")}</h2><p class="meta" style="text-align:center;margin-top:-10px">${dateDe(x.date)} · ${esc(x.dayName)}</p>
     <p class="err" role="alert" hidden></p>
-    <ol class="edlist">${x.sets.map((y, k) => `<li><div class="edrow"><span class="t">${esc(St.ex(y.exId).name)}${y.type === "warm" ? " · Aufwärmen" : y.type === "drop" ? " · Drop" : ""}</span>
-      <label class="check" style="min-height:44px"><input type="checkbox" name="sdel" value="${k}">löschen</label></div>
-      <div class="pair"><label class="field">kg <input name="skg" data-k="${k}" inputmode="decimal" value="${fmt(y.kg)}"></label><label class="field">Wdh. <input name="sreps" data-k="${k}" inputmode="numeric" value="${y.reps}"></label></div></li>`).join("")}</ol>
-    <div class="dlg-actions" style="margin-top:12px"><button class="btn" data-act="close">Abbrechen</button><button class="btn primary" data-act="sesssave">Speichern</button></div>`, "h2");
+    <ol class="edlist">${x.sets.map((y, k) => `<li><div class="edrow"><span class="t">${esc(exName(St.ex(y.exId)))}${y.type === "warm" ? " · " + tx("Aufwärmen") : y.type === "drop" ? " · " + tx("Drop") : ""}</span>
+      <label class="check" style="min-height:44px"><input type="checkbox" name="sdel" value="${k}">${tx("löschen")}</label></div>
+      <div class="pair"><label class="field">kg <input name="skg" data-k="${k}" inputmode="decimal" value="${fmt(y.kg)}"></label><label class="field">${tx("Wdh.")} <input name="sreps" data-k="${k}" inputmode="numeric" value="${y.reps}"></label></div></li>`).join("")}</ol>
+    <div class="dlg-actions" style="margin-top:12px"><button class="btn" data-act="close">${tx("Abbrechen")}</button><button class="btn primary" data-act="sesssave">${tx("Speichern")}</button></div>`, "h2");
 }
 function saveSessionEdit() {
   const x = D().sessions.find(y => y.id === ui.sedit), snap = St.snapshot();
   const del = new Set([...dlg.querySelectorAll('input[name="sdel"]:checked')].map(c => +c.value));
   for (const inp of dlg.querySelectorAll('input[name="skg"],input[name="sreps"]')) {
     const v = parseFloat(inp.value.replace(",", ".")), k = +inp.dataset.k;
-    if (!isFinite(v) || v < 0 || (inp.name === "skg" ? v > 1000 : v > 100)) { inp.focus(); return dlgError("Bitte prüfe die markierten Werte: Gewicht 0–1000 kg, Wiederholungen 0–100."); }
+    if (!isFinite(v) || v < 0 || (inp.name === "skg" ? v > 1000 : v > 100)) { inp.focus(); return dlgError(tx("Bitte prüfe die markierten Werte: Gewicht 0–1000 kg, Wiederholungen 0–100.")); }
     x.sets[k][inp.name === "skg" ? "kg" : "reps"] = inp.name === "skg" ? Math.round(v * 100) / 100 : Math.round(v);
   }
   x.sets = x.sets.filter((y, k) => !del.has(k));
   if (!x.sets.length) D().sessions = D().sessions.filter(y => y.id !== x.id);
-  persist(); closeDialog(); rerender(); toast("Training korrigiert. Die Vorschläge nutzen die neuen Werte.", () => { St.restore(snap); rerender(); });
+  persist(); closeDialog(); rerender(); toast(tx("Training korrigiert. Die Vorschläge nutzen die neuen Werte."), () => { St.restore(snap); rerender(); });
 }
 
 /* ============ Mehr ============ */
@@ -1457,21 +1460,21 @@ const A = {
   wopen: () => openWeight(),
   bellpreview: () => BELL.preview(D().settings.voice !== false),
   wsave: () => saveWeight(),
-  wstep: t => { const i = $("#wIn"), v = Math.round((num(i.value) + 0.1 * +t.dataset.d) * 10) / 10; i.value = fmt(Math.max(30, Math.min(300, v))); sayLater(`${fmt(v)} Kilo`); },
+  wstep: t => { const i = $("#wIn"), v = Math.round((num(i.value) + 0.1 * +t.dataset.d) * 10) / 10; i.value = fmt(Math.max(30, Math.min(300, v))); sayLater(tx("{kg} Kilo", {kg: fmt(v)})); },
   wdel: t => {
     const k = t.dataset.d, snap = St.snapshot(); D().weights = D().weights.filter(x => x.date !== k); persist(); opener = null; closeDialog(); rerender();
-    toast(`Gewicht vom ${dayLabel(k)} gelöscht.`, () => { St.restore(snap); rerender(); });
+    toast(tx("Gewicht vom {day} gelöscht.", {day: dayLabel(k)}), () => { St.restore(snap); rerender(); });
   },
   weightsave: () => { const el = view.querySelector('[data-on="pweight"]'); el.dispatchEvent(new Event("change", {bubbles: true})); rerender(); },
   delsession: t => {
     const snap = St.snapshot(); D().sessions = D().sessions.filter(x => x.id !== t.dataset.id); persist(); rerender(); view.querySelector("h1").focus();
-    toast("Training gelöscht.", () => { St.restore(snap); rerender(); });
+    toast(tx("Training gelöscht."), () => { St.restore(snap); rerender(); });
   },
   /* Körperkarte & Ziele */
   tgoal: t => { ui.tgoal = t.dataset.v; rerender(`[data-act="tgoal"][data-v="${t.dataset.v}"]`); },
   bm: t => pickMuscle(t.dataset.m, false),
   b3go: () => { const h = $("#bx-h"); if (h) { h.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start"}); h.focus({preventScroll: true}); } },
-  bside: t => { setSide(t.dataset.v); if (body3d) t.dataset.v === "back" ? body3d.back() : body3d.front(); say(t.dataset.v === "back" ? "Rückansicht." : "Vorderansicht."); },
+  bside: t => { setSide(t.dataset.v); if (body3d) t.dataset.v === "back" ? body3d.back() : body3d.front(); say(t.dataset.v === "back" ? tx("Rückansicht.") : tx("Vorderansicht.")); },
   bmadd: t => {
     const p = St.activePlan(), e = St.ex(t.dataset.id);
     if (!p) return toast(tx("Übernimm zuerst einen Plan oder leg einen leeren an. Dann kannst du Übungen hinzufügen."));
@@ -1522,7 +1525,7 @@ const A = {
   mdel: t => {
     const snap = St.snapshot(), k = t.dataset.d;
     D().measures = D().measures.filter(x => x.date !== k); persist(); openMeasures(); rerender();
-    toast(`Messung vom ${dayLabel(k)} gelöscht.`, () => { St.restore(snap); rerender(); });
+    toast(tx("Messung vom {day} gelöscht.", {day: dayLabel(k)}), () => { St.restore(snap); rerender(); });
   },
   resetgo: () => {
     // Das deutsche Wort gilt in jeder Sprache, damit eine Anleitung auf Deutsch immer funktioniert
@@ -1634,8 +1637,8 @@ const dkey = (d = new Date()) => { const x = new Date(d); x.setMinutes(x.getMinu
 const shiftDay = (k, n) => { const d = new Date(k + "T12:00:00"); d.setDate(d.getDate() + n); return dkey(d); };
 function dayLabel(k) {
   const t = dkey();
-  if (k === t) return "Heute";
-  if (k === shiftDay(t, -1)) return "Gestern";
+  if (k === t) return tx("Heute");
+  if (k === shiftDay(t, -1)) return tx("Gestern");
   return new Date(k + "T12:00:00").toLocaleDateString(L(), {weekday: "long", day: "numeric", month: "long"});
 }
 const ACCENTS = [["gruen", "Grün", "#00703A", "#00C46A"], ["petrol", "Petrol", "#0B6E7F", "#4CD3E3"], ["kobalt", "Kobalt", "#1D4ED8", "#7AA2FF"], ["violett", "Violett", "#6D28D9", "#B9A0FF"], ["beere", "Beere", "#B0185F", "#FF8CC0"], ["signal", "Signal", "#C8102E", "#FF8585"], ["kupfer", "Kupfer", "#B23C00", "#FF9A5C"], ["ocker", "Ocker", "#865600", "#F2C14E"], ["graphit", "Graphit", "#1C1C1E", "#F2F2F7"]];
