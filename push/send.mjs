@@ -43,10 +43,12 @@ export function decide(c, now = new Date()) {
 }
 
 export function message(c, test) {
-  if (test) return {title: "SATZ", body: "Test: Push-Erinnerungen funktionieren.", url: "./#/heute", tag: "satz-test"};
-  const b = +c.before || 0;
-  return {title: "Trainingstag", body: b ? `Dein Training startet um ${c.time}. Noch ${b < 60 ? b + " Minuten" : "eine Stunde"}.` : `Jetzt ist Trainingszeit (${c.time}).`,
-    url: "./#/heute", tag: "satz-training"};
+  const en = c.lang === "en", b = +c.before || 0, lang = en ? "en" : "de";
+  if (test) return {title: "SATZ", body: en ? "Test: push reminders are working." : "Test: Push-Erinnerungen funktionieren.", url: "./#/heute", tag: "satz-test", lang};
+  const body = en
+    ? (b ? `Your workout starts at ${c.time}. ${b < 60 ? b + " minutes" : "One hour"} to go.` : `It's workout time (${c.time}).`)
+    : (b ? `Dein Training startet um ${c.time}. Noch ${b < 60 ? b + " Minuten" : "eine Stunde"}.` : `Jetzt ist Trainingszeit (${c.time}).`);
+  return {title: en ? "Workout day" : "Trainingstag", body, url: "./#/heute", tag: "satz-training", lang};
 }
 
 // RFC 8291: Nachricht für genau dieses Abo verschlüsseln
