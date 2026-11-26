@@ -7,7 +7,7 @@ Du brauchst das einmal, dauert etwa 5 Minuten. Alles geht direkt am iPhone.
 ## 1. In der App aktivieren
 1. SATZ **vom Home-Bildschirm** öffnen (nicht in Safari, sonst gibt es kein Push). iOS 16.4 oder neuer.
 2. **Mehr** → **Erinnerung im Kalender**: Uhrzeit und Vorlauf einstellen (z. B. 18:00, 15 Min. vorher).
-3. Darunter **Push-Erinnerung** → **Erinnerungen aktivieren** → bei der Frage **Erlauben** tippen.
+3. Zurück zu **Mehr** → **Push-Erinnerung** → **Erinnerungen aktivieren** → bei der Frage **Erlauben** tippen.
 4. **Code kopieren** tippen.
 
 Der Code ist wie ein Passwort. Schick ihn dir nicht per Mail oder Messenger, sondern füg ihn direkt im nächsten Schritt ein.
@@ -28,7 +28,7 @@ GitHub zeigt den Inhalt danach nie wieder an, auch dir nicht. Das ist so gewollt
 Kommt nichts: Den Lauf in der Liste antippen und die rote Meldung lesen. Die Meldungen sind auf Deutsch und sagen, was zu tun ist.
 
 ## Wenn du etwas änderst
-Uhrzeit, Trainingstage, verschobene Trainings, Ruhetage und Pausen stecken im Code. GitHub sieht deine Änderungen in der App nicht von selbst. SATZ zeigt unter Push-Erinnerung „Plan geändert seit dem letzten Kopieren“, sobald das nötig ist. Dann:
+Uhrzeit, Trainingstage, verschobene Trainings, Ruhetage und Pausen stecken im Code. GitHub sieht deine Änderungen in der App nicht von selbst. SATZ zeigt unter Mehr → Push-Erinnerung „Plan geändert seit dem letzten Kopieren“, sobald das nötig ist. Dann:
 1. In SATZ **Code kopieren**.
 2. https://github.com/lucafrey24-beep/satz/settings/secrets/actions öffnen → bei `SATZ_PUSH` auf den Stift → neuen Code einfügen → **Update secret**.
 
