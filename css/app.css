@@ -530,8 +530,8 @@ body.hasmini .toast{bottom:calc(214px + env(safe-area-inset-bottom))}
 
 /* ---------- Version 0.9.2: Satz-Tabelle im Training ---------- */
 h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
-.sethead,.setlist .srow{display:grid; grid-template-columns:minmax(0,1fr) 3.4em 3em 2.4em 2.6em; align-items:center; column-gap:6px}
-.sethead.norir,.setlist.norir .srow{grid-template-columns:minmax(0,1fr) 3.4em 3em 2.6em}
+.sethead,.setlist .srow{display:grid; grid-template-columns:minmax(0,1fr) 3.4rem 3rem 2.4rem 2.6rem; align-items:center; column-gap:6px}
+.sethead.norir,.setlist.norir .srow{grid-template-columns:minmax(0,1fr) 3.4rem 3rem 2.6rem}
 .sethead{padding:0 16px 4px; font-size:.7rem; color:var(--label-2); font-weight:500}
 .sethead .c-n,.setlist .c-n{text-align:right; font-variant-numeric:tabular-nums}
 .setlist .c-st{text-align:right; font-size:.75rem; color:var(--label-2); display:flex; justify-content:flex-end}
@@ -550,7 +550,7 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .setlist li.now .c-lab,.setlist li.now .c-n{font-weight:700}
 .setlist .nowtag{font-size:.7rem; font-weight:700; color:var(--on-tint); background:var(--tint); border-radius:6px; padding:2px 6px}
 .setlist .xtag{font-size:.68rem; color:var(--label-2); border:1px solid var(--sep); border-radius:5px; padding:0 4px; margin-left:4px}
-@media (max-width:360px){ .sethead,.setlist .srow{grid-template-columns:minmax(0,1fr) 3.2em 2.8em 2.2em 2.4em; column-gap:4px} .setlist .srow{padding-left:12px; padding-right:12px} }
+@media (max-width:360px){ .sethead,.setlist .srow{grid-template-columns:minmax(0,1fr) 3.2rem 2.8rem 2.2rem 2.4rem; column-gap:4px} .setlist .srow,.sethead{padding-left:12px; padding-right:12px} }
 /* ab 0.9.8: Wochenkalender mit Wochenziel, Bestwerte, Rückblick, Einstieg */
 .weekcard{padding:14px 16px 8px}
 .wkhead{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
@@ -632,3 +632,48 @@ h2.sec .sec-sub{text-transform:none; letter-spacing:0; margin-left:6px}
 .row select.inline-select{-webkit-appearance:none; appearance:none; border:0; background:transparent; color:var(--label-2); font-size:1rem; min-height:44px; padding:0 22px 0 8px; text-align:right; max-width:60%;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14'%3E%3Cpath d='M1.5 5l3.5-3.5L8.5 5M1.5 9l3.5 3.5L8.5 9' fill='none' stroke='%238E8E93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 4px center; cursor:pointer}
 .row select.inline-select:focus-visible{outline:2px solid var(--tint); outline-offset:2px; border-radius:8px}
+
+/* ---------- 0.9.11: Kacheln bei großer Schrift und auf schmalen Bildschirmen ---------- */
+/* Lange Wörter mit Bindestrich trennen statt mitten im Wort abzuschneiden (Safari trennt nach lang="de"/"en") */
+h1.big,.exlist .t,.fbtn b,.plist b,.exsel,.mstats span,.logged li > span:first-child,.split .m,.wcard b,.stepper .u{overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto}
+/* Segmente: gleich breit, aber nie schmaler als ihr längstes Wort; reicht der Platz nicht, umbrechen statt überlappen */
+.seg{flex-wrap:wrap}
+.seg button{flex:1 1 0; min-width:min-content; padding:6px; line-height:1.15; -webkit-hyphens:manual; hyphens:manual}
+.seg.wrap button{flex:1 1 40%}
+/* Tableiste: Beschriftung passt sich der Leistenbreite an (320 px, große Schrift), nicht kleiner als 10 px */
+.tabs{container-type:inline-size}
+.tabs a{font-size:max(10px, min(clamp(11px,.65rem,13px), 3.4cqi))}
+/* Training: Gewicht schrumpft mit, statt rechts abgeschnitten zu werden */
+.stepper .v,.stepper input.v{font-size:min(2.3rem, 12.5vw)}
+.stepper.sm .v{font-size:min(1.4rem, 8vw)}
+/* Satzliste: wird es eng (große Schrift), steht „Satz 1“ in einer eigenen Zeile über den Zahlen */
+.sets{container-type:inline-size}
+.setlist .c-lab{white-space:nowrap}
+@container (max-width: 16em){
+  .sethead,.setlist .srow{grid-template-columns:3.3rem 2.5rem 2rem minmax(0,1fr); row-gap:2px}
+  .sethead.norir,.setlist.norir .srow{grid-template-columns:3.3rem 2.5rem minmax(0,1fr)}
+  .setlist .c-lab{grid-column:1 / -1; white-space:normal}
+  .sethead .c-lab{display:none}
+  .sethead .c-n,.setlist .c-n{text-align:left}
+}
+/* Rückblick: bei großer Schrift untereinander; Einheiten kleiner neben der Zahl */
+.mstats{grid-template-columns:repeat(auto-fit, minmax(min(100%, 7em), 1fr))}
+.mstats b .u{font-size:.6em; font-weight:600}
+/* Gewicht: leerer Zustand als Text, nicht in Zahlengröße; Knopf rutscht bei Platzmangel darunter */
+.wcard{flex-wrap:wrap}
+.wcard b.nonum{font-size:1rem; font-weight:600}
+/* Listen mit Wert rechts: Wert darf unter den Namen rutschen; Veränderung bei Körpermaßen in eigener Zeile */
+.logged li{flex-wrap:wrap; row-gap:2px}
+.logged li > span:first-child{min-width:0}
+.logged li > span:last-child{margin-left:auto}
+.logged .chg{display:block}
+/* Tabelle „Übung im Detail“: seitlich scrollbar statt aus dem Bild */
+.table-wrap{overflow-x:auto}
+/* Tag-Reiter: Muskelgruppe darf zweizeilig sein statt „Brust & Rüc…“ */
+.split .m{white-space:normal; max-width:8.5em; margin:0 auto}
+/* Wochenleiste und Legende: Symbole wachsen mit der Schrift */
+.wkdays .dot{width:clamp(30px, 1.75em, 100%); height:auto; aspect-ratio:1}
+.wklegend .dot{width:max(16px, 1.4em); height:max(16px, 1.4em); flex:none}
+/* Zwei Felder nebeneinander (Geburtsdatum/Alter, Größe/Gewicht): bei großer Schrift untereinander */
+.pair{grid-template-columns:repeat(auto-fit, minmax(min(100%, 8em), 1fr))}
+@media (max-width:360px){ .tabs{width:calc(100vw - 16px); padding:4px 2px} .tabs .pill{left:2px; width:calc((100% - 4px) / 5)} .tabs a{letter-spacing:-.02em} }

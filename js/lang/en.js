@@ -811,4 +811,9 @@ export default {
   "Um die breiteste Stelle des Gesäßes (WHO), Füße zusammen. Band waagerecht, von der Seite prüfen.": "Around the widest part of the buttocks (WHO), feet together. Tape level, check from the side.",
   "Rechtes Bein, knapp unter der Gesäßfalte an der dicksten Stelle. Gewicht auf beide Beine, Muskel locker.": "Right leg, just below the gluteal fold at the thickest part. Weight on both legs, muscle relaxed.",
   "Rechtes Bein, an der dicksten Stelle der Wade. Stehend, Gewicht auf beiden Beinen.": "Right leg, at the thickest part of the calf. Standing, weight on both legs.",
+
+  /* ---------- 0.9.11 ---------- */
+  "Als Nächstes:": "Up next:",
+  "Min.": "min",
+  "Std.": "h",
 };
