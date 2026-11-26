@@ -1,5 +1,8 @@
 // Ernährung: Energiebedarf, Makroziele und Lebensmittel-Rechnungen.
 // Jede Zahl hier hat eine Quelle, siehe SOURCES unten und die Anzeige in der App.
+// Texte: Bezeichnungen in den Listen (l, d, why, Mahlzeiten, Quellen-Beschreibung) übersetzt app.js beim Anzeigen,
+// Sätze, die hier entstehen, laufen direkt über tx()/txn().
+import {t as tx, tn as txn, lang, locale} from "./i18n.js";
 
 export const PAL = [
   {v: 1.4, l: "Wenig aktiv", d: "Sitzende Arbeit, kaum Bewegung in der Freizeit"},
@@ -41,7 +44,7 @@ export function age(birth, now = new Date()) {
 }
 
 export const missing = (p, kg) => [
-  !p.birth && "Geburtsdatum", !p.sex && "Geschlecht", !p.height && "Größe", !kg && "Gewicht",
+  !p.birth && tx("Geburtsdatum"), !p.sex && tx("Geschlecht"), !p.height && tx("Größe"), !kg && tx("Gewicht"),
 ].filter(Boolean);
 
 // Grundumsatz nach Mifflin-St Jeor. Bei „keine Angabe“ der Mittelwert beider Formeln.
@@ -64,14 +67,14 @@ export function computeTargets(p, kg) {
   const warnings = [];
   let g = GOALS[p.goal] || GOALS.maintain;
   const b = bmr(p.sex, kg, p.height, years), bm = bmi(kg, p.height);
-  if (bm < 18.5 && g.rate < 0) { g = GOALS.maintain; warnings.push(`Dein BMI liegt bei ${bm.toFixed(1).replace(".", ",")}, also im Untergewicht (unter 18,5). SATZ rechnet deshalb ohne Defizit.`); }
-  if (years > 78) warnings.push("Die Formel wurde nur bis 78 Jahre geprüft. Der Wert kann stärker abweichen.");
+  if (bm < 18.5 && g.rate < 0) { g = GOALS.maintain; warnings.push(tx("Dein BMI liegt bei {bmi}, also im Untergewicht (unter {limit}). SATZ rechnet deshalb ohne Defizit.", {bmi: bm.toLocaleString(locale(), {minimumFractionDigits: 1, maximumFractionDigits: 1}), limit: (18.5).toLocaleString(locale())})); }
+  if (years > 78) warnings.push(tx("Die Formel wurde nur bis 78 Jahre geprüft. Der Wert kann stärker abweichen."));
   // Übernommener echter Verbrauch ersetzt Grundumsatz × PAL
   const tdee = p.tdeeAdj ? p.tdeeAdj.tdee : b * p.pal;
   const delta = kg * g.rate * KCAL_PER_KG / 7;
   let kcal = Math.round((tdee + delta) / 10) * 10;
   const floor = Math.max(MIN_KCAL, Math.round(b / 10) * 10);
-  if (kcal < floor) { kcal = floor; warnings.push(`Das Ziel wurde auf ${floor} kcal angehoben: nie unter dem Grundumsatz und nie unter ${MIN_KCAL} kcal.`); }
+  if (kcal < floor) { kcal = floor; warnings.push(tx("Das Ziel wurde auf {floor} kcal angehoben: nie unter dem Grundumsatz und nie unter {min} kcal.", {floor, min: MIN_KCAL})); }
   const protein = Math.round(kg * g.protein);
   const fat = Math.max(Math.round(kcal * FAT_SHARE / 9), Math.round(kg * MIN_FAT_PER_KG));
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
@@ -93,13 +96,13 @@ export function adaptiveTdee(food, weights, todayKey) {
   const end = new Date(t0 - DAY), byDay = {};
   food.forEach(e => { const d = k(e.date); if (d <= end && d > end - ADAPT.maxDays * DAY) byDay[e.date] = (byDay[e.date] || 0) + e.per100.kcal * e.grams / 100; });
   const days = Object.keys(byDay).sort();
-  if (!days.length) return {ok: false, need: `Trag mindestens ${ADAPT.minDays} Tage dein Essen ein und wiege dich mehrmals pro Woche.`, logged: 0, span: 0};
+  if (!days.length) return {ok: false, need: tx("Trag mindestens {n} Tage dein Essen ein und wiege dich mehrmals pro Woche.", {n: ADAPT.minDays}), logged: 0, span: 0};
   const start = k(days[0]), span = Math.round((end - start) / DAY) + 1, logged = days.length;
   const ws = weights.filter(w => k(w.date) >= start && k(w.date) <= t0);
   const status = {logged, span, weighins: ws.length};
-  if (span < ADAPT.minDays) return {...status, ok: false, need: `Noch ${ADAPT.minDays - span} ${ADAPT.minDays - span === 1 ? "Tag" : "Tage"} eintragen. SATZ braucht mindestens ${ADAPT.minDays} Tage.`};
-  if (logged / span < ADAPT.minLogged) return {...status, ok: false, need: `Du hast an ${logged} von ${span} Tagen eingetragen. Für einen verlässlichen Wert braucht es mindestens 80 %, sonst wirkt dein Verbrauch zu niedrig.`};
-  if (ws.length < ADAPT.minWeighins || (k(ws.at(-1).date) - k(ws[0].date)) / DAY < 10) return {...status, ok: false, need: `Wiege dich öfter: mindestens ${ADAPT.minWeighins} Mal, verteilt über 10 Tage oder mehr (bisher ${ws.length}).`};
+  if (span < ADAPT.minDays) return {...status, ok: false, need: txn(ADAPT.minDays - span, "Noch {n} Tag eintragen. SATZ braucht mindestens {min} Tage.", "Noch {n} Tage eintragen. SATZ braucht mindestens {min} Tage.", {min: ADAPT.minDays})};
+  if (logged / span < ADAPT.minLogged) return {...status, ok: false, need: tx("Du hast an {n} von {m} Tagen eingetragen. Für einen verlässlichen Wert braucht es mindestens 80 %, sonst wirkt dein Verbrauch zu niedrig.", {n: logged, m: span})};
+  if (ws.length < ADAPT.minWeighins || (k(ws.at(-1).date) - k(ws[0].date)) / DAY < 10) return {...status, ok: false, need: tx("Wiege dich öfter: mindestens {n} Mal, verteilt über 10 Tage oder mehr (bisher {m}).", {n: ADAPT.minWeighins, m: ws.length})};
   const xs = ws.map(w => (k(w.date) - start) / DAY), ys = ws.map(w => w.kg), n = xs.length;
   const mx = xs.reduce((a, b) => a + b) / n, my = ys.reduce((a, b) => a + b) / n;
   const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);   // kg pro Tag
@@ -145,11 +148,11 @@ function fromOff(p) {
   const m = {p: +(n.proteins_100g || 0), c: +(n.carbohydrates_100g || 0), f: +(n.fat_100g || 0)};
   kcal = fixKcal(+kcal, m);
   if (kcal == null) return null;
-  return {name: p.product_name_de || p.product_name || "Unbenanntes Produkt", brand: (p.brands || "").split(",")[0].trim(), barcode: p.code || "",
+  return {name: p["product_name_" + lang()] || p.product_name_de || p.product_name || tx("Unbenanntes Produkt"), brand: (p.brands || "").split(",")[0].trim(), barcode: p.code || "",
     per100: {kcal, ...m},
     serving: +p.serving_quantity || 0, source: "off"};
 }
-const FIELDS = "code,product_name,product_name_de,brands,nutriments,serving_quantity";
+const FIELDS = "code,product_name,product_name_de,product_name_en,brands,nutriments,serving_quantity";
 export async function offProduct(code) {
   const r = await fetch(`${OFF}/api/v2/product/${encodeURIComponent(code)}.json?fields=${FIELDS}`);
   if (!r.ok && r.status !== 404) throw new Error("netz");

@@ -45,8 +45,8 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 
 ## Sprachen
 - Deutscher Text im Code ist zugleich der Schlüssel: `tx("Training starten")`, Mehrzahl mit `txn(n, "{n} Satz", "{n} Sätze")`. Fehlt eine Übersetzung, erscheint Deutsch.
-- Beim allerersten Start (noch keine Daten auf dem Gerät) zeigt der Ladebildschirm die Sprachauswahl, vorbelegt nach Gerätesprache. Bestehende Nutzer behalten Deutsch ohne Auswahl. Ändern unter Mehr → Anzeige → Sprache.
-- Gespeicherte Namen (Pläne, Tage, eigene Übungen, Trainings) werden nie übersetzt.
+- Beim allerersten Start (noch keine Daten auf dem Gerät) zeigt der Ladebildschirm die Sprachauswahl, vorbelegt nach Gerätesprache. Bestehende Nutzer behalten Deutsch ohne Auswahl. Ändern unter Mehr → Sprache.
+- Gespeicherte Namen (Pläne, Tage, eigene Übungen, Trainings) werden nie übersetzt oder umgeschrieben. Mitgelieferte Übungen und Vorlagen bleiben auf Deutsch gespeichert und werden nur in der Anzeige übersetzt (`exName()`, `lib()` in `js/app.js`); hat der Nutzer etwas umbenannt, erscheint sein Name.
 
 ## Veröffentlichen
 1. Änderung machen, in `sw.js` die `CACHE`-Version und in `js/app.js` `APP_VERSION` erhöhen.

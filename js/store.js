@@ -32,7 +32,7 @@ function backupBeforeUpdate(raw, from, to) {
 }
 export function restoreUpdateBackup(key) {
   const b = JSON.parse(localStorage.getItem(key)); const d = JSON.parse(b.raw);
-  if (!valid(d)) throw new Error("Sicherung unlesbar");
+  if (!valid(d)) throw new Error(tx("Sicherung unlesbar"));
   S = keepLang(d); migrate(); save();
 }
 // Ältere Sicherungen kennen keine Sprache: Dann bleibt die aktuell eingestellte, statt auf Deutsch zurückzufallen.
@@ -123,7 +123,7 @@ export function instantiate(t) {
 }
 export const plan = id => S.plans.find(p => p.id === id);
 export const activePlan = () => plan(S.activePlanId) || null;
-export const ex = id => S.exercises[id] || {id, name: "Unbekannte Übung", primary: [], secondary: [], step: 2.5, unit: "kg"};
+export const ex = id => S.exercises[id] || {id, name: tx("Unbekannte Übung"), primary: [], secondary: [], step: 2.5, unit: "kg"};
 
 export function restFor(slot) {
   if (slot.rest) return slot.rest;
@@ -475,19 +475,19 @@ export function finishSession() {
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const MUSCLE_IDS = new Set(MUSCLES.map(m => m.id));
 function bad(msg) { throw new Error(msg); }
-const id = (v, what) => typeof v === "string" && ID.test(v) ? v : bad(`Ungültige ID bei ${what}.`);
+const id = (v, what) => typeof v === "string" && ID.test(v) ? v : bad(tx("Ungültige ID bei {what}.", {what: tx(what)}));
 const optId = (v, what) => v == null ? null : id(v, what);
 const str = (v, max = 200) => typeof v === "string" ? v.slice(0, max) : "";
-const num = (v, lo, hi, what) => typeof v === "number" && isFinite(v) && v >= lo && v <= hi ? v : bad(`Ungültige Zahl bei ${what}.`);
+const num = (v, lo, hi, what) => typeof v === "number" && isFinite(v) && v >= lo && v <= hi ? v : bad(tx("Ungültige Zahl bei {what}.", {what: tx(what)}));
 const optNum = (v, lo, hi, def) => typeof v === "number" && isFinite(v) && v >= lo && v <= hi ? v : def;
-const arr = (v, what) => Array.isArray(v) ? v : bad(`${what} fehlt.`);
-const iso = (v, what) => typeof v === "string" && !isNaN(new Date(v)) ? v : bad(`Ungültiges Datum bei ${what}.`);
-const day = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : bad("Ungültiges Datum.");
+const arr = (v, what) => Array.isArray(v) ? v : bad(tx("{what} fehlt.", {what: tx(what)}));
+const iso = (v, what) => typeof v === "string" && !isNaN(new Date(v)) ? v : bad(tx("Ungültiges Datum bei {what}.", {what: tx(what)}));
+const day = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : bad(tx("Ungültiges Datum."));
 const per100 = v => ({kcal: num(v && v.kcal, 0, 900, "kcal"), p: num(v.p, 0, 100, "Protein"), c: num(v.c, 0, 100, "Kohlenhydrate"), f: num(v.f, 0, 100, "Fett")});
 export function sanitizeImport(d) {
-  if (!d || typeof d !== "object" || d.version !== VERSION) bad("Keine SATZ-Sicherung dieser Version.");
+  if (!d || typeof d !== "object" || d.version !== VERSION) bad(tx("Keine SATZ-Sicherung dieser Version."));
   const exercises = {};
-  for (const [k, e] of Object.entries(d.exercises || bad("Übungen fehlen."))) {
+  for (const [k, e] of Object.entries(d.exercises || bad(tx("Übungen fehlen.")))) {
     id(k, "Übung");
     exercises[k] = {id: k, name: str(e.name, 80) || "Übung", primary: arr(e.primary, "Muskeln").filter(m => MUSCLE_IDS.has(m)), secondary: arr(e.secondary || [], "Muskeln").filter(m => MUSCLE_IDS.has(m)),
       step: optNum(e.step, 0.1, 50, 2.5), unit: ["bw", "band", "s"].includes(e.unit) ? e.unit : "kg", custom: !!e.custom, ...(e.archived ? {archived: true} : {})};

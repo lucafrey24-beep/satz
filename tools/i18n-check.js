@@ -18,13 +18,16 @@ for (const m of read("index.html").matchAll(/aria-label="([^"]+)"[^>]*data-t-ari
 // Laufzeit-Schlüssel: Namen aus Listen (Akzentfarben, Aktivität, Ziele, Zurück-Ziele, Gründe beim Laden)
 const DYNAMIC = ["Grün", "Petrol", "Kobalt", "Violett", "Beere", "Signal", "Kupfer", "Ocker", "Graphit", "Pläne",
   "Bitte wählen", "Männlich", "Weiblich", "Keine Angabe (Mittelwert)", "unlesbar", "neuere Version", "unbekanntes Format", "früherer Start",
-  "Arbeitssatz", "Zur Startzeit", "15 Min. vorher", "30 Min. vorher", "1 Std. vorher", "kein Training", "regelmäßig", "Alle", "Zu Hause", "erledigt", "geplant", "Training geplant", "Pause (Urlaub, krank): senkt das Wochenziel, die Serie bleibt", "Persönliche Daten", "Darstellung", "Training", "Erinnerung im Kalender", "Deine Daten", "Über SATZ", "Mehr",
+  "Arbeitssatz", "Zur Startzeit", "15 Min. vorher", "30 Min. vorher", "1 Std. vorher", "kein Training", "regelmäßig", "Alle", "Zu Hause", "erledigt", "geplant", "Training geplant", "Pause (Urlaub, krank): senkt das Wochenziel, die Serie bleibt", "Beinbeuger (Übung)", "Persönliche Daten", "Darstellung", "Training", "Erinnerung im Kalender", "Deine Daten", "Über SATZ", "Mehr",
   "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const nut = read("js/nutrition.js");
+const block = (src, start) => { const i = src.indexOf(start); return i < 0 ? "" : src.slice(i, src.indexOf("];", i)); };
 for (const m of nut.matchAll(/\b[ld]: "([^"]+)"/g)) DYNAMIC.push(m[1]);
+for (const m of nut.matchAll(/\bwhy: "([^"]+)"/g)) DYNAMIC.push(m[1]);
+for (const m of block(nut, "export const MEALS").matchAll(/\["\w+", "([^"]+)"\]/g)) DYNAMIC.push(m[1]);
+for (const m of block(nut, "export const SOURCES").matchAll(/\["[^"]+", "([^"]+)", "http/g)) DYNAMIC.push(m[1]);
 // Listen in data.js, die über tx() angezeigt werden: Muskeln, Trainingsziele, Niveau der Vorlagen, Körpermaße
 const data = read("js/data.js");
-const block = (src, start) => { const i = src.indexOf(start); return i < 0 ? "" : src.slice(i, src.indexOf("];", i)); };
 for (const m of block(data, "export const MUSCLES").matchAll(/name: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 for (const m of block(data, "export const GOALS").matchAll(/\b[ld]: "([^"]+)"/g)) DYNAMIC.push(m[1]);
 for (const m of data.matchAll(/level: "([^"]+)"/g)) DYNAMIC.push(m[1]);
@@ -36,6 +39,15 @@ for (const m of read("js/onboarding.js").matchAll(/"((?:[^"\\]|\\.)*)"/g)) if (/
 // Objekte in app.js, deren Werte über tx() angezeigt werden (mit Kommentar „über tx() angezeigt“ markiert)
 for (const line of read("js/app.js").split("\n").filter(l => l.includes("über tx() angezeigt")))
   for (const m of line.replace(/\/\/.*$/, "").matchAll(/: "([^"]+)"/g)) DYNAMIC.push(m[1]);
+// Bibliothek (Schritt 5): Übungsnamen, Vorlagen mit Tagesnamen und Beschreibung, Ausführungshinweise
+for (const m of block(data, "const RAW").matchAll(/^\s*\["\w+", "([^"]+)"/gm)) DYNAMIC.push(m[1]);
+for (const m of block(data, "export const INFO").matchAll(/^\s*\w+: \["\w+", "([^"]+)", "([^"]+)"\]/gm)) DYNAMIC.push(m[1], m[2]);
+const tpl = data.slice(data.indexOf("export const TEMPLATES"), data.indexOf("export const MEASURES"));
+for (const m of tpl.matchAll(/\b(?:name|desc): "([^"]+)"/g)) DYNAMIC.push(m[1]);
+// Fehlermeldungen beim Import: Feldnamen in store.js
+const store = read("js/store.js");
+for (const m of store.matchAll(/\b(?:id|optId|arr|iso)\((?:[^()",]|\([^()]*\))+,\s*"([^"]+)"\)/g)) DYNAMIC.push(m[1]);
+for (const m of store.matchAll(/\bnum\([^()]*?, "([^"]+)"\)/g)) DYNAMIC.push(m[1]);
 DYNAMIC.forEach(k => keys.add(k));
 
 let bad = 0;
