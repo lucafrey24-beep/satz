@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.11.3";
+export const APP_VERSION = "0.11.4";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -401,6 +401,10 @@ function viewToday() {
 // Entlastungsrhythmus: Woche x von n, wann die nächste Phase beginnt
 const inDaysLabel = n => { const d = new Date(Date.now() + n * 864e5); return n <= 1 ? tx("morgen") : d.toLocaleDateString(L(), {weekday: "long", day: "numeric", month: "numeric"}).replace(",", "").replace(/\.$/, ""); };
 function cycleNote(p) {
+  if (St.onceDeload(p)) return `<div class="note cycnote"><b>${tx("Entlastungswoche.")}</b> ${tx("Halbe Satzzahl, etwa 90 % Gewicht, 3 oder mehr Wdh. in Reserve. Ab Montag geht es vom Stand davor weiter.")} <button type="button" class="linkbtn" data-act="cyclerestart">${tx("Entlastung beenden")}</button></div>`;
+  const adv = St.deloadAdvice(p);
+  if (adv) return `<div class="note cycnote"><b>${tx("Entlastung empfohlen.")}</b> ${adv.kind === "plateau" ? tx("{list} kommen seit 3 Trainings nicht voran.", {list: esc(adv.ids.slice(0, 3).map(id => exName(St.ex(id))).join(", "))}) : tx("Die meisten Sätze der letzten 2 Wochen gingen bis 0 in Reserve.")} ${tx("Eine leichtere Woche (halbe Sätze, etwa 90 % Gewicht) hilft oft, danach geht es weiter.")}
+    <div class="row-btns"><button class="btn small primary" data-act="deloadnow">${tx("Diese Woche entlasten")}</button><button class="btn small" data-act="deloadskip">${tx("Nicht jetzt")}</button></div></div>`;
   const c = St.cycleWeek(p); if (!c) return "";
   const dots = `<span class="cyc" aria-hidden="true">${Array.from({length: c.weeks}, (_, k) => `<i class="${k === c.weeks - 1 ? "dl" : ""}${k === c.week - 1 ? " on" : ""}"></i>`).join("")}</span>`;
   if (c.deload) return `<div class="note cycnote">${dots}<b>${tx("Entlastungswoche.")}</b> ${tx("Halbe Satzzahl, etwa 90 % Gewicht, 3 oder mehr Wdh. in Reserve. So erholst du dich, bevor es wieder bergauf geht. Aufbau ab {d}.", {d: esc(inDaysLabel(c.inDays))})}</div>`;
@@ -412,9 +416,11 @@ function cycleEditor(p) {
   return `<h2 class="sec">${tx("Rhythmus")}</h2>
     <label class="field">${tx("Entlastungswoche")} <select data-on="cycleweeks">
       ${St.CYCLES.map(n => `<option value="${n}" ${n === w ? "selected" : ""}>${n ? tx("Alle {n} Wochen ({m} Aufbau + 1 Entlastung)", {n, m: n - 1}) : tx("Aus")}</option>`).join("")}</select></label>
+    ${!c ? `<div class="row-btns">${St.onceDeload(p) ? `<button class="btn small" data-act="cyclerestart">${tx("Entlastung beenden")}</button>` : `<button class="btn small" data-act="deloadnow">${tx("Diese Woche entlasten")}</button>`}</div>` : ""}
     ${c ? `<p class="meta">${c.deload ? tx("Gerade: Woche {n} von {m}, Entlastung.", {n: c.week, m: c.weeks}) : tx("Gerade: Woche {n} von {m}, Aufbau.", {n: c.week, m: c.weeks})}</p>
     <div class="row-btns">${c.deload ? `<button class="btn small" data-act="cyclerestart">${tx("Entlastung beenden, Aufbau starten")}</button>` : `<button class="btn small" data-act="deloadnow">${tx("Diese Woche entlasten")}</button><button class="btn small" data-act="cyclerestart">${tx("Mit Woche 1 neu beginnen")}</button>`}</div>` : ""}
-    ${iL(tx("Was die Entlastungswoche macht"), tx("In der Entlastungswoche halbiert SATZ die Sätze und schlägt etwa 90 % des Gewichts vor. Danach geht es vom Stand davor weiter. Entlastungen alle 4–8 Wochen sind in der Praxis üblich, vor allem mit weniger Volumen (Bell et al. 2023, Expertenkonsens). Fühlst du dich früher platt, entlaste früher."))}`;
+    ${iL(tx("Was die Entlastungswoche macht"), tx("In der Entlastungswoche halbiert SATZ die Sätze und schlägt etwa 90 % des Gewichts vor. Danach geht es vom Stand davor weiter. Entlastungen alle 4–8 Wochen sind in der Praxis üblich, vor allem mit weniger Volumen (Bell et al. 2023, Expertenkonsens). Fühlst du dich früher platt, entlaste früher."))}
+    <p class="meta">${tx("Standard ist aus: SATZ schlägt eine Entlastung vor, wenn mehrere Übungen stehen bleiben oder fast alle Sätze bis 0 in Reserve gehen.")}</p>`;
 }
 
 /* ============ Pläne ============ */
@@ -1454,8 +1460,9 @@ const A = {
     persist(); rerender(); view.querySelector("h1").focus();
     toast(tx("„{name}“ gelöscht. Deine Trainings bleiben im Verlauf.", {name: lib(p.name)}), () => { St.restore(snap); rerender(); });
   },
-  cyclerestart: () => { const p = curPlan(); p.cycle = {weeks: p.cycle.weeks, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); say(tx("Rhythmus neu gestartet: Woche 1, Aufbau.")); },
-  deloadnow: () => { const p = curPlan(); p.cycle = {weeks: p.cycle.weeks, start: shiftDay(dkey(), -(p.cycle.weeks - 1) * 7)}; persist(); rerender('[data-act="cyclerestart"]'); say(tx("Diese Woche ist jetzt Entlastungswoche.")); },
+  deloadskip: () => { const p = curPlan() || St.activePlan(); p.cycle = {...(p.cycle || {weeks: 0, start: dkey()}), skip: St.weekStart()}; persist(); rerender(); say(tx("Okay, diese Woche kein Hinweis mehr.")); },
+  cyclerestart: () => { const p = curPlan() || St.activePlan(); if (St.onceDeload(p)) { const {once, ...rest} = p.cycle; p.cycle = rest; persist(); rerender(); say(tx("Entlastung beendet.")); return; } p.cycle = {weeks: p.cycle.weeks, start: dkey()}; persist(); rerender('[data-on="cycleweeks"]'); say(tx("Rhythmus neu gestartet: Woche 1, Aufbau.")); },
+  deloadnow: () => { const p = curPlan() || St.activePlan(); if (!p.cycle || !p.cycle.weeks) { p.cycle = {...(p.cycle || {weeks: 0, start: dkey()}), once: St.weekStart()}; persist(); rerender(); say(tx("Diese Woche ist jetzt Entlastungswoche.")); return; } p.cycle = {weeks: p.cycle.weeks, start: shiftDay(dkey(), -(p.cycle.weeks - 1) * 7)}; persist(); rerender('[data-act="cyclerestart"]'); say(tx("Diese Woche ist jetzt Entlastungswoche.")); },
   perweek: t => { const p = curPlan(); p.perWeek = Math.min(7, Math.max(1, p.perWeek + +t.dataset.d)); persist(); rerender(`[data-act="perweek"][data-d="${t.dataset.d}"]`); },
   eday: t => { ui.eday = +t.dataset.i; rerender(`[data-act="eday"][data-i="${ui.eday}"]`); },
   addday: () => { const p = curPlan(); p.days.push({id: St.uid(), name: tx("Tag {n}", {n: p.days.length + 1}), slots: []}); ui.eday = p.days.length - 1; persist(); rerender('[data-on="dname"]'); view.querySelector('[data-on="dname"]').select(); say(tx("Tag {n} hinzugefügt. Gib ihm einen Namen.", {n: ui.eday + 1})); },

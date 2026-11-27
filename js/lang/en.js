@@ -1408,4 +1408,16 @@ export default {
 
   /* ---------- 0.11.3: Steigerungsregel ---------- */
   "Der nächste Gewichtsschritt wäre über 10 %. Erst {n} Wdh. im ersten Satz schaffen, dann steigern.": "The next weight jump would be over 10 %. First reach {n} reps in the first set, then go up.",
+
+  /* ---------- 0.11.4: Entlastung reaktiv ---------- */
+  "Halbe Satzzahl, etwa 90 % Gewicht, 3 oder mehr Wdh. in Reserve. Ab Montag geht es vom Stand davor weiter.": "Half the sets, about 90 % weight, 3 or more reps in reserve. From Monday you continue where you were before.",
+  "Entlastung beenden": "End deload",
+  "Entlastung empfohlen.": "Deload recommended.",
+  "{list} kommen seit 3 Trainings nicht voran.": "{list}: no progress for 3 workouts.",
+  "Die meisten Sätze der letzten 2 Wochen gingen bis 0 in Reserve.": "Most sets in the last 2 weeks went to 0 in reserve.",
+  "Eine leichtere Woche (halbe Sätze, etwa 90 % Gewicht) hilft oft, danach geht es weiter.": "A lighter week (half the sets, about 90 % weight) often helps, then you carry on.",
+  "Nicht jetzt": "Not now",
+  "Standard ist aus: SATZ schlägt eine Entlastung vor, wenn mehrere Übungen stehen bleiben oder fast alle Sätze bis 0 in Reserve gehen.": "Off by default: SATZ suggests a deload when several exercises stall or almost all sets go to 0 in reserve.",
+  "Okay, diese Woche kein Hinweis mehr.": "Okay, no more hints this week.",
+  "Entlastung beendet.": "Deload ended.",
 };
