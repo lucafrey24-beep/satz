@@ -188,6 +188,15 @@ export function lastSetsFor(exId, withDeload = false) {
   return null;
 }
 // Anzahl der letzten Trainings ohne neuen Bestwert beim geschätzten 1RM (ab 3 zählt es als Plateau)
+// Die letzten n Trainings mit dieser Übung (neueste zuerst), nur Arbeitssätze. Nur lesen.
+export function recentFor(exId, n = 3) {
+  const out = [];
+  for (let i = S.sessions.length - 1; i >= 0 && out.length < n; i--) {
+    const sets = S.sessions[i].sets.filter(x => x.exId === exId && isWork(x));
+    if (sets.length) out.push({date: S.sessions[i].date, deload: !!S.sessions[i].deload, sets});
+  }
+  return out;
+}
 export function plateau(exId) {
   // Nach einer geplanten Entlastungswoche neu zählen
   const lastDl = S.sessions.map(s => !!s.deload).lastIndexOf(true);

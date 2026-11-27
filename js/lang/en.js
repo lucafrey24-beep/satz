@@ -540,7 +540,6 @@ export default {
   "Satz {n} von {m}": "Set {n} of {m}",
   "Notiz vom {date}:": "Note from {date}:",
   "Notiz:": "Note:",
-  "Pause beenden": "End rest",
   "Diese Übung hast du ausgelassen.": "You skipped this exercise.",
   "Alle Sätze dieser Übung sind eingetragen.": "All sets of this exercise are logged.",
   "Tippe unten auf einen Satz, um ihn zu korrigieren.": "Tap a set below to correct it.",
@@ -1379,4 +1378,14 @@ export default {
   "So tief wie möglich hocken, Fersen am Boden, Brust aufrecht, ruhig atmen.": "Squat as deep as possible, heels on the floor, chest up, breathe calmly.",
   "Arm gestreckt vor der Brust zur anderen Seite ziehen, Schulter tief. Seiten wechseln.": "Pull the straight arm across the chest to the other side, shoulder down. Switch sides.",
   "Großer Ausfallschritt, Hand neben den vorderen Fuß, anderen Arm zur Decke drehen. Seiten wechseln.": "Deep lunge, hand next to the front foot, rotate the other arm to the ceiling. Switch sides.",
+
+  /* ---------- 0.11: Training kompakt ---------- */
+  "Zurück zum Arbeitssatz": "Back to working set",
+  "Reserve": "In reserve",
+  "Letzte Trainings": "Recent workouts",
+  "Danach keine Pause": "No rest afterwards",
+  "+ Aufwärmsatz eintragen": "+ Log a warm-up set",
+  "+ Drop-Satz eintragen": "+ Log a drop set",
+  "Aufwärmsatz. Gewicht und Wiederholungen einstellen, dann speichern.": "Warm-up set. Set weight and reps, then save.",
+  "Drop-Satz. Gewicht und Wiederholungen einstellen, dann speichern.": "Drop set. Set weight and reps, then save.",
 };

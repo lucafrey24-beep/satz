@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.10.4";
+export const APP_VERSION = "0.11.0";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -709,30 +709,26 @@ function viewTraining() {
     <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.workFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
     <div class="exnav"><button type="button" class="linkbtn" data-act="exprev" ${i === 0 ? "disabled" : ""}><span aria-hidden="true">‹</span> ${tx("Vorherige Übung")}</button>
       <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>${tx("Nächste Übung")} <span aria-hidden="true">›</span></button></div>
-    <p class="eyebrow">${tx("Übung {n} von {m}", {n: i + 1, m: a.queue.length})} · ${done ? tx("erledigt, {n} von {m} Sätzen", {n: logged.length, m: target}) : tx("Satz {n} von {m}", {n: logged.length + 1, m: target})} · ${tx("Ziel")} ${it.min}–${it.max} ${St.repShort(e)}</p>
-    <h1 class="big">${esc(exName(e))}</h1>
-    <p class="hint" ${done ? "hidden" : ""}>${esc(sug.text)}${lastNote && !note ? `<br><b>${tx("Notiz vom {date}:", {date: dateDe(lastNote.date)})}</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>${tx("Notiz:")}</b> ${esc(note)}` : ""}</p>
-    ${D().settings.showFig !== false ? `<details class="figbox" ${exSessions(e.id) < 3 ? "open" : ""}><summary>${tx("Ausführung ansehen")}</summary>${exFigure(e, true)}</details>` : ""}
-    ${resting ? `<div class="rest on" role="group" aria-label="${tx("Pause")}">
-      <span class="eyebrow">${tx("Pause")}</span>
-      <div class="num" id="rt" aria-hidden="true">${restLeft()}</div>
-      <div class="row-btns"><button class="btn small" data-act="rest30">+30 s</button><button class="btn small" data-act="skiprest">${tx("Pause beenden")}</button></div></div>` : ""}
+    <p class="eyebrow">${tx("Übung {n} von {m}", {n: i + 1, m: a.queue.length})} · ${done ? tx("erledigt, {n} von {m} Sätzen", {n: logged.length, m: target}) : tx("Satz {n} von {m}", {n: logged.length + 1, m: target})}</p>
+    <div class="exhead"><h1 class="big">${esc(exName(e))}</h1>${D().settings.showFig !== false ? `<button type="button" class="figthumb" data-act="exfig" aria-haspopup="dialog" aria-label="${tx("Ausführung ansehen")}">${AN.svgFor(exInfo(e).pat, e.primary, "")}</button>` : ""}</div>
+    ${done ? "" : targetChip(e, it, sug)}
+    ${done ? "" : `<p class="hint2">${esc(sug.text)}${lastNote && !note ? `<br><b>${tx("Notiz vom {date}:", {date: dateDe(lastNote.date)})}</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>${tx("Notiz:")}</b> ${esc(note)}` : ""}</p>`}
+    ${recentList(e)}
+    ${restSlot(resting, form, st, it)}
     ${!form ? `<p class="note">${it.skipped ? tx("Diese Übung hast du ausgelassen.") : tx("Alle Sätze dieser Übung sind eingetragen.")} ${tx("Tippe unten auf einen Satz, um ihn zu korrigieren.")}</p>
     <div class="actionbar"><button class="btn primary" data-act="exgo" id="saveset">${St.firstOpen(a, 0) >= 0 ? tx("Weiter zur offenen Übung") : tx("Zur Zusammenfassung")}</button></div>` : `
-    <div class="seg" role="group" aria-label="${tx("Satztyp")}" style="margin-bottom:10px">
-      ${[["work", "Arbeitssatz"], ["warm", "Aufwärmen"], ["drop", "Drop-Satz"]].map(([v, l]) => `<button type="button" data-act="stype" data-v="${v}" aria-pressed="${st === v}">${tx(l)}</button>`).join("")}</div>
+    ${st !== "work" ? `<div class="modebar" role="status"><b>${st === "warm" ? tx("Aufwärmsatz") : tx("Drop-Satz")}</b><button type="button" class="linkbtn" data-act="stype" data-v="work">${tx("Zurück zum Arbeitssatz")}</button></div>` : ""}
     ${noLoad(e) ? "" : `<div class="stepper" role="group" aria-labelledby="kg-l">
       <button data-act="kg" data-d="-1" aria-label="${tx("Gewicht um {n} Kilo verringern", {n: fmt(e.step)})}">−</button>
-      <div class="val"><input id="kgIn" class="v num" data-on="kgin" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(ui.kg)}" aria-describedby="kg-l"><label id="kg-l" for="kgIn" class="u">${bw ? tx("kg zusätzlich") : "kg"} · ${tx("antippen zum Eintippen")}</label></div>
+      <div class="val"><input id="kgIn" class="v num" data-on="kgin" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(ui.kg)}" aria-describedby="kg-l"><label id="kg-l" for="kgIn" class="u">${bw ? tx("kg zusätzlich") : "kg"}<span class="sr"> · ${tx("antippen zum Eintippen")}</span></label></div>
       <button data-act="kg" data-d="1" aria-label="${tx("Gewicht um {n} Kilo erhöhen", {n: fmt(e.step)})}">+</button></div>`}
     <div class="stepper" role="group" aria-labelledby="reps-l">
       <button data-act="reps" data-d="-1" aria-label="${e.unit === "s" ? tx("5 Sekunden weniger") : tx("Eine Wiederholung weniger")}">−</button>
       <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">${St.repWord(e)}</label></div>
       <button data-act="reps" data-d="1" aria-label="${e.unit === "s" ? tx("5 Sekunden mehr") : tx("Eine Wiederholung mehr")}">+</button></div>
-    ${D().settings.rir && st !== "warm" && !isMobility(e) ? `<fieldset><legend>${tx("Wie viele Wdh. wären noch gegangen?")} <span style="font-weight:500">${tx("(optional)")}</span></legend>
-      <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></fieldset>` : ""}
-    <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? tx("Aufwärmsatz speichern") : st === "drop" ? tx("Drop-Satz speichern") : tx("Satz {n} speichern", {n: logged.length + 1})}</button></div>
-    ${resting ? "" : (() => { const r = st === "warm" ? 60 : st === "drop" ? 0 : it.rest; return r ? `<p class="meta restnext">${tx("Danach {t} Pause", {t: fmtSec(r)})}</p>` : ""; })()}`}
+    ${D().settings.rir && st !== "warm" && !isMobility(e) ? `<div class="rirrow" role="group" aria-label="${tx("Wie viele Wdh. wären noch gegangen?")} ${tx("(optional)")}"><span class="rirl" aria-hidden="true">${tx("Reserve")}</span>
+      <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></div>` : ""}
+    <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? tx("Aufwärmsatz speichern") : st === "drop" ? tx("Drop-Satz speichern") : tx("Satz {n} speichern", {n: logged.length + 1})}</button></div>`}
     ${setTable(a, i, it, e, all, logged, target, done, st, sug, form)}
     <div class="row-btns" style="margin-top:16px">${it.skipped ? `<button class="btn small" data-act="unskip" data-i="${i}">${tx("Wieder aufnehmen")}</button>` : ""}<button class="btn small" data-act="note" aria-haspopup="dialog">${note ? tx("Notiz ändern") : tx("Notiz")}</button><button class="btn small" data-act="exmore" aria-haspopup="dialog">${tx("Mehr …")}</button></div>
     <p class="meta" style="margin-top:12px">${next >= 0 ? tx("Danach: {name}", {name: esc(exName(St.ex(a.queue[next].exId)))}) : tx("Das ist die letzte offene Übung.")}</p>
@@ -740,14 +736,36 @@ function viewTraining() {
 }
 // Wie oft eine Übung schon trainiert wurde (für das zugeklappte Bewegungsbild)
 const exSessions = id => D().sessions.reduce((n, x) => n + (x.sets.some(y => y.exId === id) ? 1 : 0), 0);
+// Ziel des Satzes als großer Chip (Erkennen statt Lesen), Erklärung klein darunter
+function targetChip(e, it, sug) {
+  const r = e.unit === "s" ? `${sug.reps} s` : `${sug.reps}`;
+  const val = noLoad(e) ? `${r} ${e.unit === "s" ? "" : St.repShort(e)}` : e.unit === "bw" ? `${sug.kg ? "+" + fmt(sug.kg) + " kg" : tx("KG")} × ${r}` : `${fmt(sug.kg)} kg × ${r}`;
+  return `<div class="target"><span class="tv num">${val.trim()}</span><span class="ts">${tx("Ziel")} ${it.min === it.max ? it.max : `${it.min}–${it.max}`} ${St.repShort(e)}</span></div>`;
+}
+// Die letzten Trainings dieser Übung auf einen Blick (nur Arbeitssätze)
+function recentList(e) {
+  const rows = St.recentFor(e.id, 3); if (!rows.length) return "";
+  // Gleiches Gewicht zusammenfassen: „57,5 × 8, 8, 7“
+  const line = sets => { if (noLoad(e)) return sets.map(x => `${x.reps}${e.unit === "s" ? " s" : ""}`).join(", ");
+    const g = []; sets.forEach(x => { const l = g[g.length - 1]; if (l && l.kg === x.kg) l.r.push(x.reps); else g.push({kg: x.kg, r: [x.reps]}); });
+    return g.map(x => `${kgCell(e, x.kg)} × ${x.r.join(", ")}`).join(" · "); };
+  return `<details class="recent"><summary>${tx("Letzte Trainings")}<span class="rc-last num">${line(rows[0].sets)}</span></summary><ul>${rows.map(r => `<li><span>${esc(dateDe(r.date))}${r.deload ? ` <small>${tx("Entlastung")}</small>` : ""}</span><span class="num">${line(r.sets)}</span></li>`).join("")}</ul></details>`;
+}
+// Fester Platz für die Pause: gleiche Höhe mit und ohne laufenden Timer, damit nichts springt
+function restSlot(resting, form, st, it) {
+  if (resting) return `<div class="restslot on" role="group" aria-label="${tx("Pause")}"><span class="rs-l">${tx("Pause")}</span><span class="num rs-n" id="rt" aria-hidden="true">${restLeft()}</span>
+    <button class="btn small" data-act="rest30">+30 s</button><button class="btn small" data-act="skiprest">${tx("Beenden")}</button><i class="rs-bar" id="rtbar" aria-hidden="true"></i></div>`;
+  const r = !form ? 0 : st === "warm" ? 60 : st === "drop" ? 0 : it.rest;
+  return `<div class="restslot"><span class="rs-l">${r ? tx("Danach {t} Pause", {t: fmtSec(r)}) : form ? tx("Danach keine Pause") : ""}</span></div>`;
+}
 // Selten gebrauchte Knöpfe im Training stecken in einem Blatt „Mehr …“
 function openExMore() {
   const a = D().active, i = a.idx, it = a.queue[i], e = St.ex(it.exId), logged = St.workFor(a, i), target = St.targetSets(it);
   const all = a.sets.filter(x => x.q === i), done = it.skipped || logged.length >= target;
   const b = (act, l, cls = "") => `<button class="btn ${cls}" data-act="exm" data-a="${act}">${l}</button>`;
   openDialog(`<h2 id="dlg-h">${esc(exName(e))}</h2>
-    <div class="exmore">${done && !it.skipped ? b("adddrop", tx("+ Drop-Satz anhängen")) : ""}${b("extraset", "+ " + tx("Extra-Satz"))}${it.extra > 0 && logged.length < target ? b("extraless", "− " + tx("Extra-Satz")) : ""}
-    ${done ? "" : b("swapex", tx("Übung tauschen (nur heute)"))}${all.length ? b("undoset", tx("Letzten Satz löschen")) : ""}${done ? "" : b("skipex", tx("Übung auslassen"), "destructive")}</div>
+    <div class="exmore">${!done && (ui.stype || "work") !== "warm" ? b("warmset", tx("+ Aufwärmsatz eintragen")) : ""}${!done && logged.length && (ui.stype || "work") !== "drop" ? b("dropset", tx("+ Drop-Satz eintragen")) : ""}${done && !it.skipped ? b("adddrop", tx("+ Drop-Satz anhängen")) : ""}${b("extraset", "+ " + tx("Extra-Satz"))}${it.extra > 0 && logged.length < target ? b("extraless", "− " + tx("Extra-Satz")) : ""}
+    ${done ? "" : b("swapex", tx("Übung tauschen (nur heute)"))}${all.length ? b("undoset", tx("Letzten Satz löschen")) : ""}${b("exfig", tx("Ausführung ansehen"))}${done ? "" : b("skipex", tx("Übung auslassen"), "destructive")}</div>
     <div class="dlg-actions"><button class="btn" data-act="close">${tx("Abbrechen")}</button></div>`, "#dlg-h");
 }
 // Satz-Tabelle: alle Sätze der Übung in einer Liste. Eingetragene (bearbeitbar), der aktuelle (hervorgehoben)
@@ -802,7 +820,7 @@ setInterval(() => {
   const a = D() && D().active;
   if (!a || !a.restEnd) return;
   const left = a.restEnd - Date.now(), el = $("#rt");
-  if (left > 0) { if (el) el.textContent = restLeft(); lastRestState = true; updateMini(); return; }
+  if (left > 0) { if (el) el.textContent = restLeft(); const bar = $("#rtbar"); if (bar && a.restTotal) bar.style.width = Math.max(0, Math.min(100, left / (a.restTotal * 10))) + "%"; lastRestState = true; updateMini(); return; }
   a.restEnd = 0; persist();
   if (lastRestState) {
     say(tx("Pause vorbei.")); if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
@@ -1474,6 +1492,9 @@ const A = {
     const s = a.sets.splice(k, 1)[0]; a.restEnd = 0; persist();
     ui.key = `${a.id}:${i}:${St.workFor(a, i).length}`; ui.rir = s.rir; ui.kg = s.kg; ui.reps = s.reps; rerender("#saveset"); say(tx("Letzter Satz gelöscht. Werte zum Korrigieren übernommen."));
   },
+  warmset: () => { readSetInputs(); ui.stype = "warm"; rerender("#saveset"); say(tx("Aufwärmsatz. Gewicht und Wiederholungen einstellen, dann speichern.")); },
+  dropset: () => { readSetInputs(); ui.stype = "drop"; rerender("#saveset"); say(tx("Drop-Satz. Gewicht und Wiederholungen einstellen, dann speichern.")); },
+  exfig: () => { const e = St.ex(D().active.queue[D().active.idx].exId); openDialog(`<h2 id="dlg-h">${esc(exName(e))}</h2>${exFigure(e)}<div class="dlg-actions"><button class="btn" data-act="close">${tx("Fertig")}</button></div>`, "#dlg-h"); },
   adddrop: () => { const a = D().active; ui.pin = a.idx; ui.addAfter = true; ui.stype = "drop"; rerender("#saveset"); say(tx("Drop-Satz anhängen. Gewicht und Wiederholungen einstellen, dann speichern.")); },
   extraless: () => { const a = D().active, it = a.queue[a.idx]; if (it.extra < 1 || St.workFor(a, a.idx).length >= St.targetSets(it)) return; it.extra--; persist(); rerender("#saveset"); say(tx("Extra-Satz entfernt. Jetzt {n} Sätze.", {n: St.targetSets(it)})); },
   extraset: () => { const a = D().active; a.queue[a.idx].extra++; persist(); rerender("#saveset"); say(tx("Extra-Satz hinzugefügt. Jetzt {n} Sätze.", {n: St.targetSets(a.queue[a.idx])})); },
