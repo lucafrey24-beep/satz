@@ -279,13 +279,15 @@ export const isCompound = e => e.custom ? (e.compound ?? e.primary.length + e.se
 // schwere Grundübung (bis 8 Wdh.) 180 s, andere Grundübung 120 s, Isolationsübung 90 s.
 export function defaultRest(e, maxReps) { return isMobility(e) ? 15 : e.unit === "s" ? 60 : isCompound(e) ? (maxReps <= 8 ? 180 : 120) : 90; }
 
-// Trainingsziele (ACSM Position Stand 2009, Ratamess et al.):
+// Trainingsziele: abgeglichen mit dem ACSM Position Stand 2026 (Krafttraining gesunder Erwachsener, Med Sci Sports Exerc;
+// Kraft ~80 % 1RM, 2–3 Sätze; Hypertrophie ~10 Sätze/Muskel/Woche; Power 30–70 % 1RM). Kraftausdauer-Pausen sind eine Praxisregel.
+// Früher: ACSM Position Stand 2009 (Ratamess et al.):
 // Kraft/Muskelaufbau: 6–12 Wdh., 2–3 min Pause. Kraftausdauer: 15–25 Wdh., Pausen unter 1 min.
 // Athletik (Schnellkraft): explosive Bewegungen, 3–6 Wdh. mit leichter bis mittlerer Last, 2–3 min Pause.
 export const GOALS = [
   {id: "kraft", l: "Kraft & Muskeln", d: "6–12 Wiederholungen, 2–3 Minuten Pause. Für Kraft und Muskelaufbau."},
   {id: "ausdauer", l: "Kraftausdauer", d: "15–25 Wiederholungen, kurze Pausen unter einer Minute. Für Ausdauer der Muskeln und Fitness."},
-  {id: "athletik", l: "Athletik", d: "Sprünge und explosive Übungen mit 3–6 Wiederholungen und langen Pausen, dazu Grundkraft. Für Schnellkraft und Sport."},
+  {id: "athletik", l: "Athletik", d: "Sprünge und explosive Übungen mit 3–6 Wiederholungen, leichter bis mittlerer Last (30–70 %) und schneller Bewegung, lange Pausen, dazu Grundkraft. Für Schnellkraft und Sport."},
   // Dehnungen 30–60 s pro Position (ACSM Guidelines 2021: 10–30 s, ältere Menschen 30–60 s, insgesamt 60 s pro Muskelgruppe)
   {id: "mobil", l: "Mobility", d: "Dehnen und Beweglichkeit, je 30–45 Sekunden pro Position. Gut an Ruhetagen oder nach dem Training."},
 ];
