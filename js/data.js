@@ -290,6 +290,8 @@ export const COMPOUND = new Set(["brustpresse", "schulterpresse", "rudermaschine
   "kh_rudern_beid", "kh_schulterdruecken", "arnold_press", "kh_rdl", "kh_rdl_einbeinig", "rueckw_ausfall", "chinups", "kniebeuge_kg", "split_squat",
   "liegestuetze_eng", "liegestuetze_erhoeht", "pike_liegestuetze", "bank_dips", "tischrudern", "bulgarian", "goblet", "step_ups", "kb_swing", "box_jump", "sprung_kb", "bankdruecken", "schraegbank", "kh_bank", "dips", "liegestuetze", "latziehen", "klimmzuege", "tbar", "lh_rudern",
   "enges_rudern", "kh_rudern", "schulterdruecken", "kniebeugen", "beinpresse", "ausfallschritte", "rdl", "kreuzheben", "hip_thrust"]);
+// Langhantel-Übungen für den Scheibenrechner: Stangengewicht (Olympia-Stange 20 kg, SZ-Stange 10 kg)
+export const BARBELL = {bankdruecken: 20, schraegbank: 20, lh_rudern: 20, schulterdruecken: 20, kniebeugen: 20, rdl: 20, kreuzheben: 20, hip_thrust: 20, frontkniebeuge: 20, sz_curls: 10, french_press: 10};
 export const isCompound = e => e.custom ? (e.compound ?? e.primary.length + e.secondary.length > 1) : COMPOUND.has(e.id);
 // Pausenstandard (Schoenfeld et al. 2016: 3 min > 1 min bei schweren Grundübungen; Grgic et al. 2018; Singer et al. 2024: ab ~90 s kaum Unterschied):
 // schwere Grundübung (bis 8 Wdh.) 180 s, andere Grundübung 120 s, Isolationsübung 90 s.

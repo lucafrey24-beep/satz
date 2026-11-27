@@ -1436,4 +1436,16 @@ export default {
   "Arme gestreckt, Schultern gerade nach oben zu den Ohren ziehen, kurz halten, nicht kreisen.": "Arms straight, pull your shoulders straight up to your ears, hold briefly, no rolling.",
   "Kurzhantel, Unterarm auf der Bank": "Dumbbell, forearm on the bench",
   "Unterarm liegt auf, nur das Handgelenk beugt und streckt.": "Forearm rests on the bench, only the wrist bends and extends.",
+
+  /* ---------- 0.11.6: Scheibenrechner, Supersätze ---------- */
+  "Supersatz mit {next}": "Superset with {next}",
+  "Supersatz": "Superset",
+  "Leichter als die Stange ({n} kg)": "Lighter than the bar ({n} kg)",
+  "Nur die Stange ({n} kg)": "Just the bar ({n} kg)",
+  "Pro Seite:": "Per side:",
+  "{n} kg nicht ladbar": "{n} kg can't be loaded",
+  "Danach direkt: {name}": "Then straight to: {name}",
+  "Supersatz, weiter mit {next}.": "Superset, continue with {next}.",
+  "{a} und {b} sind jetzt ein Supersatz: abwechselnd, Pause erst nach beiden.": "{a} and {b} are now a superset: alternate, rest only after both.",
+  "Supersatz aufgehoben.": "Superset removed.",
 };
