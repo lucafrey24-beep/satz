@@ -714,3 +714,41 @@ h2.sec .ibtn{font-size:1rem; text-transform:none}
 .morerow:active{background:var(--fill-2)}
 .dotbadge{flex:none; width:10px; height:10px; border-radius:50%; background:var(--red)}
 .dlg-actions > :only-child{grid-column:1 / -1}
+
+/* ---------- 0.11: Trainingsscreen kompakt, ein Tap pro Satz ---------- */
+.exhead{display:flex; align-items:center; gap:12px}
+.exhead h1{flex:1; min-width:0}
+.figthumb{flex:none; width:64px; height:64px; padding:4px; border:0; border-radius:var(--r); background:var(--card); cursor:pointer; overflow:hidden}
+.figthumb svg{width:100%; height:100%; display:block}
+.target{display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; background:var(--tint-soft); color:var(--label); border-radius:var(--r-lg); padding:10px 16px; margin:4px 0 6px}
+.target .tv{font-size:1.9rem; font-weight:700; letter-spacing:-.02em; line-height:1.15; font-variant-numeric:tabular-nums}
+.target .ts{font-size:.94rem; color:var(--label-2); font-weight:500}
+.hint2{font-size:.88rem; color:var(--label-2); margin:0 2px 8px; line-height:1.35}
+.recent{margin:0 0 8px; padding:0; background:var(--card); border-radius:var(--r)}
+.recent > summary{min-height:44px; padding:0 14px; font-size:.88rem; color:var(--label-2); display:flex; align-items:center; gap:10px; cursor:pointer}
+.recent > summary::-webkit-details-marker{display:none}
+.recent .rc-last{margin-left:auto; color:var(--label); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.recent ul{list-style:none; margin:0; padding:0 14px 8px}
+.recent li{display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-top:.5px solid var(--sep); font-size:.94rem}
+.recent li small{color:var(--label-2)}
+.restslot{position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:60px; padding:4px 8px 4px 14px; box-sizing:border-box; margin:0 0 10px; border-radius:var(--r); background:var(--fill-2); overflow:hidden}
+.restslot .rs-l{font-size:.94rem; color:var(--label-2); flex:1; min-width:0}
+.restslot.on{background:var(--card)}
+.restslot.on .rs-l{flex:none; color:var(--label); font-weight:600}
+.restslot .rs-n{flex:1; font-size:1.9rem; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-.02em; line-height:1}
+.restslot .btn.small{width:auto; flex:none; min-height:44px; padding-top:0; padding-bottom:0}
+.restslot .rs-bar{position:absolute; left:0; bottom:0; height:3px; background:var(--tint); width:100%; transition:width 1s linear}
+.modebar{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; background:var(--tint-soft); border-radius:var(--r); padding:4px 4px 4px 14px; margin:0 0 10px}
+.modebar .linkbtn{min-height:44px}
+.rirrow{display:flex; align-items:center; gap:10px; margin:0 0 4px}
+.rirrow .rirl{flex:none; font-size:.88rem; color:var(--label-2); font-weight:500}
+.rirrow .rir{flex:1}
+/* Größere Mindestschrift im Training (Licht, Schweiß, Armlänge) */
+main.modal .eyebrow{font-size:.85rem}
+main.modal .meta{font-size:.94rem}
+main.modal .stepper .u{font-size:.88rem}
+main.modal .setlist .srow{font-size:1.06rem}
+main.modal .setlist .c-st, main.modal .sethead{font-size:.82rem}
+main.modal .rir button{font-size:1.06rem}
+/* Hinweise im Training oben statt über den Bedienelementen */
+body:has(main.modal) .toast{bottom:auto; top:calc(60px + env(safe-area-inset-top))}
