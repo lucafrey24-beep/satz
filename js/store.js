@@ -85,6 +85,44 @@ function migrate() {
   // Nur ein ganz neuer Start (fresh, lang "") zeigt die Auswahl.
   if (S.settings.lang === undefined) S.settings.lang = "de";
 }
+/* ---------- Apple Health über einen iOS-Kurzbefehl (ab 0.10.3) ----------
+   Eine Web-App darf Health nicht lesen. Der Kurzbefehl „SATZ Health“ legt pro Messung eine Zeile in die Zwischenablage:
+   „2026-11-27T07:12:00+01:00;78,4“ (Datum im ISO-Format, Strichpunkt, Wert in kg). 27.11.2026 als Datum geht auch.
+   Mehrere Messungen an einem Tag: Die früheste zählt (morgens nüchtern, wie die App es empfiehlt).
+   Lucas Regel: Nichts geht verloren. Ein Health-Wert ersetzt nie einen Tag, den du selbst eingetragen hast,
+   sondern nur einen früheren Health-Wert desselben Tages. Health-Einträge tragen src: "health". */
+export function parseHealth(text, todayKey) {
+  const best = new Map(); let bad = 0;
+  const p2 = n => String(n).padStart(2, "0");
+  for (const line of String(text || "").split(/[\r\n]+/)) {
+    if (!line.trim()) continue;
+    let m = line.match(/(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?[^;]*;\s*(\d{1,3}(?:[.,]\d+)?)\s*(lbs?)?/i), date, time;
+    if (m) { date = `${m[1]}-${m[2]}-${m[3]}`; time = (m[4] || "99") + (m[5] || "99"); }
+    else if ((m = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,?\s*(\d{1,2}):(\d{2}))?[^;]*;\s*(\d{1,3}(?:[.,]\d+)?)\s*(lbs?)?/i))) {
+      date = `${m[3]}-${p2(m[2])}-${p2(m[1])}`; time = (m[4] ? p2(m[4]) : "99") + (m[5] || "99");
+    } else { bad++; continue; }
+    let kg = parseFloat(m[6].replace(",", "."));
+    if (m[7]) kg *= 0.45359237;
+    kg = Math.round(kg * 10) / 10;
+    if (!(kg >= 30 && kg <= 300) || isNaN(new Date(date + "T12:00:00")) || (todayKey && date > todayKey)) { bad++; continue; }
+    const cur = best.get(date);
+    if (!cur || time < cur.time) best.set(date, {date, kg, time});
+  }
+  return {items: [...best.values()].sort((a, b) => a.date.localeCompare(b.date)).map(({date, kg}) => ({date, kg})), bad};
+}
+export function importHealth(items) {
+  const r = {added: 0, updated: 0, kept: 0, same: 0};
+  for (const it of items) {
+    const cur = S.weights.find(x => x.date === it.date);
+    if (!cur) { S.weights.push({date: it.date, kg: it.kg, src: "health"}); r.added++; }
+    else if (cur.src !== "health") r.kept++;
+    else if (cur.kg !== it.kg) { cur.kg = it.kg; r.updated++; }
+    else r.same++;
+  }
+  S.weights.sort((a, b) => a.date.localeCompare(b.date));
+  S.settings.healthLast = new Date().toISOString();
+  return r;
+}
 export const currentWeight = () => S.weights.length ? S.weights[S.weights.length - 1].kg : 0;
 
 export function valid(d) {
