@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.10.2";
+export const APP_VERSION = "0.10.3";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -1123,14 +1123,15 @@ function openWeight(date) {
       <button type="button" data-act="wstep" data-d="1" aria-label="${tx("100 Gramm mehr")}">+</button></div>
     <label class="field">${tx("Datum")} <input id="wDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
     <div class="dlg-actions"><button class="btn" data-act="close">${tx("Abbrechen")}</button><button class="btn primary" data-act="wsave">${tx("Speichern")}</button></div>
-    ${w.length ? `<h3 class="meta" style="margin:16px 0 6px">${tx("Letzte Einträge")}</h3><ul class="logged">${w.slice(-7).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${fmt(x.kg)} kg <button type="button" class="linkbtn" data-act="wdel" data-d="${x.date}" aria-label="${esc(tx("Eintrag {day} löschen", {day: dayLabel(x.date)}))}">${tx("Löschen")}</button></span></li>`).join("")}</ul>` : ""}`, "#wIn");
+    ${D().settings.healthLast ? `<button class="btn" data-act="hrun" style="margin-top:8px">${tx("Aus Apple Health holen")}</button>` : ""}
+    ${w.length ? `<h3 class="meta" style="margin:16px 0 6px">${tx("Letzte Einträge")}</h3><ul class="logged">${w.slice(-7).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${fmt(x.kg)} kg${x.src === "health" ? ` <small class="meta">${tx("Health")}</small>` : ""} <button type="button" class="linkbtn" data-act="wdel" data-d="${x.date}" aria-label="${esc(tx("Eintrag {day} löschen", {day: dayLabel(x.date)}))}">${tx("Löschen")}</button></span></li>`).join("")}</ul>` : ""}`, "#wIn");
 }
 function saveWeight() {
   const v = Math.round(num($("#wIn").value) * 10) / 10, k = $("#wDate").value || dkey();
   if (!(v >= 30 && v <= 300)) return dlgError(tx("Bitte ein Gewicht zwischen 30 und 300 kg eintragen."));
   if (k > dkey()) return dlgError(tx("Das Datum liegt in der Zukunft."));
   const w = D().weights, cur = w.find(x => x.date === k);
-  if (cur) cur.kg = v; else w.push({date: k, kg: v});
+  if (cur) { cur.kg = v; delete cur.src; } else w.push({date: k, kg: v});   // selbst geändert: zählt ab jetzt als eigener Eintrag
   w.sort((a, b) => a.date.localeCompare(b.date));
   persist(); opener = null; closeDialog(); rerender(); say(tx("{kg} Kilo für {day} gespeichert.", {kg: fmt(v), day: dayLabel(k)}));
   const b = view.querySelector('[data-act="wopen"]'); if (b) b.focus();
@@ -1255,6 +1256,7 @@ const MORE_PAGES = [
   ["anzeige", "Darstellung", () => { const s = D().settings, a = ACCENTS.find(x => x[0] === s.accent); return [a ? tx(a[1]) : "", tx({auto: "Automatisch", light: "Hell", dark: "Dunkel"}[s.theme] || "")].filter(Boolean).join(" · "); }],
   ["training", "Training", () => { const s = D().settings; return [s.sound ? tx("Glocke an") : tx("Glocke aus"), s.rir ? tx("RIR an") : tx("RIR aus"), s.rest ? tx("Pause {n} s", {n: s.rest}) : tx("Pause automatisch")].join(" · "); }],
   ["erinnerung", "Erinnerung im Kalender", () => tx("Trainingstage als Termin")],
+  ["health", "Apple Health", () => { const s = D().settings; return s.healthLast ? tx("Gewicht zuletzt übernommen am {date}", {date: new Date(s.healthLast).toLocaleDateString(L())}) : tx("Gewicht per Kurzbefehl übernehmen"); }],
   ["daten", "Deine Daten", () => { const s = D().settings; return s.lastBackup ? txn(St.daysSince(s.lastBackup), "Letzte Sicherung vor {n} Tag", "Letzte Sicherung vor {n} Tagen") : tx("Noch keine Sicherung"); }],
   ["ueber", "Über SATZ", () => tx("Version {v} · Quellen", {v: APP_VERSION})],
 ]; // Titel stehen im Prüfskript unter DYNAMIC
@@ -1297,6 +1299,7 @@ function viewMore(sub) {
       ${[60, 90, 120, 180].map(r => `<option value="${r}" ${s.rest === r ? "selected" : ""}>${tx("{n} s für alle", {n: r})}</option>`).join("")}</select></label>
 `,
     erinnerung: () => dropH2(remindSection()),
+    health: () => healthPage(),
     daten: () => `
     ${recoveredNote()}
     <p>${tx("Alles bleibt auf diesem Gerät. Es gibt kein Konto und keinen Server. Sichere deine Daten ab und zu als Datei, besonders vor einem Handywechsel.")}</p>
@@ -1324,6 +1327,66 @@ function langPage() {
       <span>${esc(l.name)}${l.id !== cur && nameIn(l.id) ? `<small lang="${cur}">${esc(nameIn(l.id))}</small>` : ""}</span><svg class="chk" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></li>`).join("")}</ul>
     <p class="foot">${tx("Gilt für Menüs, Hinweise und die mitgelieferten Übungen. Namen, die du selbst vergeben hast, bleiben, wie du sie geschrieben hast.")}</p>`;
 }
+
+// Apple Health (ab 0.10.3): Eine Web-App darf Health nicht lesen. Ein Kurzbefehl auf dem iPhone holt das Gewicht
+// und legt es in die Zwischenablage, SATZ übernimmt es von dort (St.parseHealth/importHealth, eigene Einträge gehen vor).
+const HEALTH_SC = "SATZ Health", HEALTH_WAIT = "satz-health-wait";
+function healthPage() {
+  const s = D().settings, n = D().weights.filter(x => x.src === "health").length;
+  return `<p>${tx("SATZ darf als Web-App nicht direkt in Apple Health lesen. Ein Kurzbefehl auf deinem iPhone holt dein Gewicht aus Health und legt es in die Zwischenablage. SATZ übernimmt es von dort.")}</p>
+    <p class="meta">${s.healthLast ? txn(n, "Zuletzt am {date}, {n} Eintrag stammt aus Health.", "Zuletzt am {date}, {n} Einträge stammen aus Health.", {date: new Date(s.healthLast).toLocaleDateString(L())}) : tx("Noch nichts übernommen.")}</p>
+    <button class="btn primary" data-act="hrun">${tx("Kurzbefehl „{name}“ starten", {name: HEALTH_SC})}</button>
+    <button class="btn" data-act="hpaste">${tx("Aus der Zwischenablage übernehmen")}</button>
+    <p class="err" id="hErr" role="alert" hidden></p>
+    <details id="hManual"><summary>${tx("Einfügen klappt nicht?")}</summary>
+      <label class="field" style="margin-top:12px">${tx("Lange tippen, dann „Einfügen“")}<textarea id="hText" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
+      <button class="btn" data-act="htext" style="margin-bottom:16px">${tx("Übernehmen")}</button></details>
+    <p class="foot">${tx("Selbst eingetragene Werte gehen immer vor: Health ersetzt nie einen Tag, den du in SATZ eingetragen hast. Gibt es mehrere Messungen an einem Tag, zählt die früheste.")}</p>
+    ${iL(tx("Kurzbefehl einrichten"), `<ol>${[
+      tx("Öffne die App Kurzbefehle und tippe auf +."),
+      tx("Benenne den Kurzbefehl genau „{name}“.", {name: HEALTH_SC}),
+      tx("Aktion „Health-Messungen suchen“ (englisch „Find Health Samples“): Typ Gewicht, Startdatum in den letzten 30 Tagen."),
+      tx("Darunter die Aktion „Mit jedem wiederholen“."),
+      tx("Darin „Text“: Startdatum (Format ISO 8601), dann ein Strichpunkt, dann Wert. Also: Startdatum;Wert"),
+      tx("Nach „Ende der Wiederholung“: „Text kombinieren“ mit „Neue Zeile“, dann „In Zwischenablage kopieren“."),
+      tx("Einmal hier auf „Kurzbefehl starten“ tippen und Health den Zugriff erlauben. Danach zurück zu SATZ und „Aus der Zwischenablage übernehmen“."),
+    ].map(x => `<li>${x}</li>`).join("")}</ol>`)}`;
+}
+function healthRun() {
+  try { localStorage.setItem(HEALTH_WAIT, String(Date.now())); } catch (e) {}
+  location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(HEALTH_SC);
+}
+function healthErr(msg) {
+  const e = $("#hErr");
+  if (e) { e.textContent = msg; e.hidden = false; const d = $("#hManual"); if (d) d.open = true; }
+  else toast(msg);
+}
+// Muss direkt im Tipp-Ereignis laufen: iOS erlaubt das Lesen der Zwischenablage nur dann (es erscheint „Einfügen“ zum Bestätigen).
+function healthPaste() {
+  if (!(navigator.clipboard && navigator.clipboard.readText)) { if (dlg.open) closeDialog(); go("#/mehr/health"); return healthErr(tx("Dieses Gerät gibt die Zwischenablage nicht frei. Füge den Text unten ein.")); }
+  navigator.clipboard.readText().then(healthImport, () => { if (dlg.open) closeDialog(); go("#/mehr/health"); healthErr(tx("Die Zwischenablage war nicht lesbar. Füge den Text unten ein.")); });
+}
+function healthImport(text) {
+  const r = St.parseHealth(text, dkey());
+  if (!r.items.length) { if (dlg.open) closeDialog(); if (!location.hash.startsWith("#/mehr/health")) go("#/mehr/health"); return healthErr(tx("In der Zwischenablage stehen keine Gewichtswerte. Lief der Kurzbefehl bis zum Ende? Jede Zeile braucht Datum;Wert, zum Beispiel 2026-11-27;78,4.")); }
+  const snap = St.snapshot(), c = St.importHealth(r.items);
+  try { localStorage.removeItem(HEALTH_WAIT); } catch (e) {}
+  persist(); if (dlg.open) { opener = null; closeDialog(); } rerender();
+  const parts = [c.added && txn(c.added, "{n} neuer Tag", "{n} neue Tage"), c.updated && txn(c.updated, "{n} aktualisiert", "{n} aktualisiert"), c.kept && txn(c.kept, "{n} eigener Eintrag behalten", "{n} eigene Einträge behalten")].filter(Boolean);
+  const msg = parts.length ? tx("Aus Health: {list}.", {list: parts.join(", ")}) : tx("Aus Health: Alles war schon da.");
+  toast(msg, c.added || c.updated ? () => { St.restore(snap); rerender(); } : null); say(msg);
+}
+// Nach dem Kurzbefehl zurück in SATZ: einmal fragen, ob übernommen werden soll (der Tipp darauf darf die Zwischenablage lesen)
+function healthReturn() {
+  let t = 0; try { t = +localStorage.getItem(HEALTH_WAIT) || 0; } catch (e) {}
+  if (!t || document.visibilityState !== "visible" || D().active || dlg.open) return;
+  try { localStorage.removeItem(HEALTH_WAIT); } catch (e) {}
+  if (Date.now() - t > 10 * 60000) return;
+  openDialog(`<h2 id="dlg-h">${tx("Gewicht aus Health übernehmen?")}</h2>
+    <p class="meta" style="text-align:center;margin-top:-10px">${tx("Der Kurzbefehl hat deine Werte in die Zwischenablage gelegt. iOS fragt gleich einmal nach „Einfügen“.")}</p>
+    <div class="dlg-actions"><button class="btn" data-act="close">${tx("Später")}</button><button class="btn primary" data-act="hpaste">${tx("Übernehmen")}</button></div>`, '[data-act="hpaste"]');
+}
+document.addEventListener("visibilitychange", () => setTimeout(healthReturn, 300));
 
 // Erinnerung über den Kalender: SATZ erzeugt einen wiederkehrenden Termin (.ics). Kein Server, keine Push-Nachrichten nötig.
 function remindCfg() {
@@ -1550,6 +1613,9 @@ const A = {
   sessedit: t => openSessionEdit(t.dataset.id),
   sesssave: () => saveSessionEdit(),
   wopen: () => openWeight(),
+  hrun: () => healthRun(),
+  hpaste: () => healthPaste(),
+  htext: () => { const t = $("#hText"); healthImport(t ? t.value : ""); },
   bellpreview: () => BELL.preview(D().settings.voice !== false),
   wsave: () => saveWeight(),
   wstep: t => { const i = $("#wIn"), v = Math.round((num(i.value) + 0.1 * +t.dataset.d) * 10) / 10; i.value = fmt(Math.max(30, Math.min(300, v))); sayLater(tx("{kg} Kilo", {kg: fmt(v)})); },
@@ -2256,6 +2322,7 @@ if (navigator.storage && navigator.storage.persist) navigator.storage.persist().
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
 window.addEventListener("hashchange", route);
 route();
+setTimeout(healthReturn, 600);   // falls iOS SATZ nach dem Kurzbefehl neu geladen hat
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   // Neue Version übernommen: einmal neu laden, damit das Update sofort sichtbar ist (nicht mitten im Training).
   const hadController = !!navigator.serviceWorker.controller;
