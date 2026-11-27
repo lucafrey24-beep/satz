@@ -15,7 +15,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 ## Aufbau
 - `index.html` – Gerüst mit Navigation
 - `css/app.css` – iOS-Look nach Apple Human Interface Guidelines (Systemschrift mit Dynamic Type, gruppierte Listen, schwebende Tab-Bar), hell/dunkel/erhöhter Kontrast
-- `js/data.js` – Muskeln, 101 Übungen mit Gerät, Gerätefilter (Studio, zu Hause, Kurzhanteln, Band, ohne Gerät, Mobility) und Ausführungshinweis, 12 fertige Pläne (auch für zu Hause und Mobility) mit Trainingsziel (Kraft & Muskeln, Kraftausdauer, Athletik)
+- `js/data.js` – 16 Muskelgruppen (Schulter vorne/seitlich/hinten, Trapez, Unterarme, Adduktoren u. a.), 104 Übungen mit Gerät, Gerätefilter (Studio, zu Hause, Kurzhanteln, Band, ohne Gerät, Mobility) und Ausführungshinweis, 12 fertige Pläne (auch für zu Hause und Mobility) mit Trainingsziel (Kraft & Muskeln, Kraftausdauer, Athletik)
 - `js/store.js` – Speicherung, Volumen pro Muskel, doppelte Progression
 - `js/nutrition.js` – Energiebedarf (Mifflin-St Jeor × PAL), Makroziele mit Quellen, Open-Food-Facts-Abfragen
 - `js/vendor/zxing.min.js` – Barcode-Erkennung (ZXing 0.21.3, Apache-2.0, siehe `zxing-LICENSE`), wird nur geladen, wenn der Browser keinen eigenen BarcodeDetector hat
@@ -33,7 +33,7 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 
 ## Regeln hinter der App
 - Doppelte Progression pro Übung: Alle Sätze in der Spanne und der erste Satz am oberen Ende, dann Gewicht um den Steigerungsschritt erhöhen (ein verpatzter letzter Satz blockiert nicht). Ist der Schritt größer als 10 % der Last (leichte Übungen wie Seitheben), muss der erste Satz 2 Wdh. über die Spanne kommen. Prozentuale Schritte gibt es bewusst nicht: Kurzhanteln und Scheiben haben feste Abstufungen. Alle Sätze unter der Spanne: einen Schritt leichter. Über 14 Tage Pause: Start mit ca. 90 %.
-- Wochenvolumen pro Muskel: Hauptmuskel 1 Satz, mitarbeitender Muskel 0,5 Satz. Bereich 10–20 Sätze für große Muskelgruppen.
+- Wochenvolumen pro Muskel: Hauptmuskel 1 Satz, mitarbeitender Muskel 0,5 Satz. Bereich 10–20 Sätze für große Muskelgruppen, 6–20 für Schulter seitlich/hinten, Trapez, Waden und Bauch (Faustregel, keine eigene Studienlage). Unterarme, Adduktoren und unterer Rücken ohne Zielbereich. Seit 0.11.5 ist die Schulter dreigeteilt; die ID `schultern` heißt jetzt „Schulter vorne“, eigene Übungen damit zählen dort weiter. Gespeicherte Trainings enthalten keine Muskeln, nur Übungs-IDs: Die Aufteilung ändert keine Daten.
 - Pausen-Standard: schwere Grundübungen (bis 8 Wdh.) 180 s, andere Grundübungen 120 s, Isolationsübungen 90 s. Grundübungen sind fest markiert.
 - Plateau: dreimal in Folge kein Fortschritt (weder höheres Spitzengewicht noch mehr Wdh. mit dem gleichen Gewicht) → ein leichteres Training mit 90 %, danach neu steigern. Bewusst ohne geschätztes 1RM, weil Epley über etwa 10 Wdh. ungenau wird.
 - Aufwärmrampe: Bei Grundübungen ab 30 kg bietet SATZ vor dem ersten Satz etwa 50/70/85 % des Arbeitsgewichts mit 8/5/3 Wdh. an. Ein Tipp übernimmt sie, jedes Speichern trägt den nächsten Aufwärmsatz ein.

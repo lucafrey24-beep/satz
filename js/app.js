@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.11.4";
+export const APP_VERSION = "0.11.5";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -177,16 +177,16 @@ function dayBar(p, sel, act, label, add) {
     ${add ? `<button type="button" class="add" data-act="addday" aria-label="${tx("Tag hinzufügen")}"><span class="d" aria-hidden="true">+</span><span class="m">${tx("Tag")}</span></button>` : ""}
   </div>`;
 }
-const stLabel = {low: "unter 10", ok: "10–20", high: "über 20", "": ""}; // über tx() angezeigt
+const stLabel = (st, m) => st === "low" ? tx("unter {n}", {n: m.lo}) : st === "ok" ? `${m.lo}–${m.hi}` : st === "high" ? tx("über {n}", {n: m.hi}) : "";
 function volumeTable(v, caption, compare) {
   return `<div class="table-wrap"><table><caption class="sr">${esc(caption)}</caption>
     <thead><tr><th scope="col">${tx("Muskel")}</th>${compare ? `<th scope="col" class="n">${tx("Ist")}</th>` : ""}<th scope="col" class="n">${compare ? tx("Plan") : tx("Sätze/Wo.")}</th><th scope="col">${compare ? tx("Plan-Bereich") : tx("Bereich")}</th></tr></thead>
     <tbody>${MUSCLES.map(m => { const x = compare ? compare[m.id] : v[m.id], st = St.volStatus(m, x); return `<tr><th scope="row" style="font-size:.95rem;letter-spacing:0;text-transform:none;color:inherit">${tx(m.name)}</th>
       ${compare ? `<td class="n">${fmt(Math.round(v[m.id] * 10) / 10)}</td>` : ""}<td class="n">${fmt(Math.round(x * 10) / 10)}</td>
-      <td class="st-${st || "none"}">${st ? (st === "ok" ? "✓ " : "! ") + tx(stLabel[st]) : "–"}</td></tr>`; }).join("")}</tbody></table></div>
-    ${iL(tx("Wie SATZ Sätze zählt"), tx("Mitarbeitende Muskeln zählen als halber Satz. Für Muskelaufbau gelten etwa 10–20 harte Sätze pro Muskel und Woche als guter Bereich."))}`;
+      <td class="st-${st || "none"}">${st ? (st === "ok" ? "✓ " : "! ") + stLabel(st, m) : "–"}</td></tr>`; }).join("")}</tbody></table></div>
+    ${iL(tx("Wie SATZ Sätze zählt"), tx("Mitarbeitende Muskeln zählen als halber Satz. Für Muskelaufbau gelten etwa 10–20 harte Sätze pro Muskel und Woche als guter Bereich."))} ${iL(tx("Warum die Schulter dreigeteilt ist"), tx("Drücken trainiert vor allem die vordere Schulter. Seitliche und hintere Schulter brauchen eigene Übungen wie Seitheben und Face Pulls, sonst bleiben sie trotz vieler Schultersätze unterversorgt. Kleinere Muskeln haben einen Zielbereich von 6–20 Sätzen, weil sie bei Grundübungen viel mitarbeiten. Dieser Bereich ist eine Faustregel ohne eigene Studien. Unterarme, Adduktoren und unterer Rücken haben keinen Zielbereich."))}`;
 }
-function lowMuscles(v) { return MUSCLES.filter(m => St.volStatus(m, v[m.id]) === "low").map(m => tx(m.name)); }
+function lowMuscles(v) { return MUSCLES.filter(m => m.major && St.volStatus(m, v[m.id]) === "low").map(m => tx(m.name)); }
 function templateCard(t, compact) {
   return `<article class="card" aria-labelledby="t-${t.id}">
     <h3 id="t-${t.id}">${esc(tx(t.name))}</h3>
@@ -639,7 +639,7 @@ function exFigure(e, small) {
 
 /* ============ Körperkarte ============ */
 // Muskeln, die man von hinten sieht: beim Antippen in der Liste dreht sich die Figur um
-const BACKSIDE = new Set(["ruecken", "lrs", "trizeps", "hamstrings", "gluteus", "waden"]);
+const BACKSIDE = new Set(["ruecken", "lrs", "trizeps", "hamstrings", "gluteus", "waden", "delt_hinten", "trapez"]);
 let body3d = null;
 function dropBody() { if (body3d) { body3d.destroy(); body3d = null; } }
 function viewBody() {
