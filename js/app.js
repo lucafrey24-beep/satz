@@ -19,7 +19,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.10.1";
+export const APP_VERSION = "0.10.3";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -476,6 +476,7 @@ function viewEditor(id) {
         <div class="edtools">
           <button data-act="mv" data-i="${i}" data-d="-1" ${i === 0 ? "disabled" : ""} aria-label="${tx("{name} nach oben", {name: esc(exName(e))})}">↑</button>
           <button data-act="mv" data-i="${i}" data-d="1" ${i === d.slots.length - 1 ? "disabled" : ""} aria-label="${tx("{name} nach unten", {name: esc(exName(e))})}">↓</button>
+          <button data-act="swapslot" data-i="${i}" aria-label="${tx("Übung {name} tauschen", {name: esc(exName(e))})}">${tx("Tauschen")}</button>
           <button class="push" data-act="delslot" data-i="${i}" aria-label="${tx("{name} entfernen", {name: esc(exName(e))})}">${tx("Entfernen")}</button>
         </div></li>`; }).join("")}
     </ol>
@@ -494,6 +495,10 @@ const curPlan = () => St.plan(location.hash.split("/")[2]);
 const maxReps = e => e.unit === "s" ? 100 : 50;
 // Satzschema, wenn eine Übung neu in den Plan kommt: Halten und Mobility in Sekunden, sonst 3 × 8–12
 const slotDefault = e => isMobility(e) ? {sets: 2, min: 30, max: 45, rest: 15} : e.unit === "s" ? {sets: 3, min: 20, max: 45, rest: 60} : {sets: 3, min: 8, max: 12, rest: 0};
+// Satzschema nach einem Tausch: Sätze, Wdh. und Pause bleiben, solange beide Übungen gleich gezählt werden.
+// Wechselt die Einheit (Wdh. ↔ Sekunden) oder Kraft ↔ Mobility, passt das Schema nicht mehr: dann das Standardschema der neuen Übung.
+const sameScheme = (from, to) => (to.unit === "s") === (from.unit === "s") && isMobility(to) === isMobility(from);
+const swapScheme = (sl, from, to) => sameScheme(from, to) ? {sets: sl.sets, min: sl.min, max: sl.max, rest: sl.rest} : slotDefault(to);
 function openSlot() {
   const sl = ui.draft, e = St.ex(sl.exId);
   openDialog(`<h2 id="dlg-h">${ui.draftNew ? tx("Übung hinzufügen") : tx("Übung im Plan")}</h2>
@@ -743,7 +748,7 @@ function openExMore() {
   const b = (act, l, cls = "") => `<button class="btn ${cls}" data-act="exm" data-a="${act}">${l}</button>`;
   openDialog(`<h2 id="dlg-h">${esc(exName(e))}</h2>
     <div class="exmore">${done && !it.skipped ? b("adddrop", tx("+ Drop-Satz anhängen")) : ""}${b("extraset", "+ " + tx("Extra-Satz"))}${it.extra > 0 && logged.length < target ? b("extraless", "− " + tx("Extra-Satz")) : ""}
-    ${all.length ? b("undoset", tx("Letzten Satz löschen")) : ""}${done ? "" : b("skipex", tx("Übung auslassen"), "destructive")}</div>
+    ${done ? "" : b("swapex", tx("Übung tauschen (nur heute)"))}${all.length ? b("undoset", tx("Letzten Satz löschen")) : ""}${done ? "" : b("skipex", tx("Übung auslassen"), "destructive")}</div>
     <div class="dlg-actions"><button class="btn" data-act="close">${tx("Abbrechen")}</button></div>`, "#dlg-h");
 }
 // Satz-Tabelle: alle Sätze der Übung in einer Liste. Eingetragene (bearbeitbar), der aktuelle (hervorgehoben)
@@ -946,6 +951,25 @@ function saveSetEdit() {
   persist(); opener = null; closeDialog(); ui.pin = a.idx; ui.key = ""; rerender(); say(tx("Satz geändert: {kg} Kilo, {n} Wiederholungen.", {kg: fmt(x.kg), n: reps}));
   const b = view.querySelector(`[data-act="editset"][data-k="${ui.setEdit}"]`); if (b) b.focus();
 }
+function swapToday(a, i, exId) {
+  const it = a.queue[i], from = St.ex(it.exId), to = St.ex(exId), done = St.workFor(a, i).length, any = a.sets.some(x => x.q === i);
+  const sc = sameScheme(from, to) ? {sets: St.targetSets(it) - done, min: it.min, max: it.max, rest: it.rest}
+    : (s => ({sets: it.deload ? St.deloadSets(s.sets) : s.sets, min: s.min, max: s.max, rest: St.restFor({...s, exId})}))(slotDefault(to));
+  const orig = it.swapFrom || from.id, swapFrom = orig === exId ? undefined : orig;
+  if (!any) {
+    Object.assign(it, {exId, ...sc, sets: Math.max(1, sameScheme(from, to) ? it.sets : sc.sets), extra: sameScheme(from, to) ? it.extra : 0});
+    if (swapFrom) it.swapFrom = swapFrom; else delete it.swapFrom;
+  } else {
+    // Ab hier zählen die Satz-Nummern der späteren Übungen eins weiter. Nur die Zuordnung im laufenden Training ändert sich.
+    a.sets.forEach(x => { if (x.q > i) x.q++; });
+    it.sets = done; it.extra = 0;
+    a.queue.splice(i + 1, 0, {slotId: it.slotId, exId, ...sc, sets: Math.max(1, sc.sets), skipped: false, extra: 0, ...(it.deload ? {deload: true} : {}), ...(swapFrom ? {swapFrom} : {})});
+    a.idx = i + 1;
+  }
+  a.restEnd = 0; cancelBeep(); ui.pin = null; ui.key = ""; ui.summary = false; persist(); rerender(); view.scrollTop = 0;
+  say(tx("Heute {to} statt {from}.", {from: exName(from), to: exName(to)}));
+  toast(tx("Heute {to} statt {from}. Dein Plan bleibt, wie er ist.", {from: exName(from), to: exName(to)}));
+}
 function openOverview() {
   const a = D().active;
   openDialog(`<h2 id="dlg-h">${tx("Übersicht")}</h2><ol class="edlist">
@@ -964,6 +988,7 @@ function viewSummary() {
     const day = p && p.days.find(d => d.id === a.dayId), slot = day && day.slots.find(s => s.id === q.slotId);
     if (!slot) return;
     const name = exName(St.ex(q.exId));
+    if (q.swapFrom && St.ex(q.swapFrom)) { if (!q.skipped && slot.exId === q.swapFrom) devs.push({k, kind: "swap", label: tx("{from} im Plan dauerhaft durch {to} ersetzen", {from: exName(St.ex(q.swapFrom)), to: name})}); return; }
     if (q.skipped) devs.push({k, kind: "remove", label: tx("{name} aus dem Plan entfernen", {name})});
     else if (q.extra > 0) devs.push({k, kind: "sets", label: tx("{name}: dauerhaft {n} statt {m} Sätze", {name, n: q.sets + q.extra, m: q.sets})});
   });
@@ -1457,8 +1482,18 @@ const A = {
   slotsave: () => saveSlot(),
   addslot: () => openPicker(exId => { ui.draft = {id: St.uid(), exId, ...slotDefault(St.ex(exId))}; ui.draftNew = true; openSlot(); }),
   // Beim Tausch in eine andere Einheit (z. B. Wdh. → Sekunden) passt das Satzschema nicht mehr: dann das Standardschema der neuen Übung
-  swap: () => { const keep = ui.draft, from = St.ex(keep.exId); openPicker(exId => { const to = St.ex(exId);
-    ui.draft = (to.unit === "s") === (from.unit === "s") && isMobility(to) === isMobility(from) ? {...keep, exId} : {...keep, exId, ...slotDefault(to)}; openSlot(); }, keep.exId); },
+  swap: () => { const keep = ui.draft, from = St.ex(keep.exId); openPicker(exId => { ui.draft = {...keep, exId, ...swapScheme(keep, from, St.ex(exId))}; openSlot(); }, keep.exId); },
+  // Direkt aus der Liste im Plan-Editor tauschen (dauerhaft im Plan). Gespeicherte Trainings bleiben unberührt.
+  swapslot: t => { const d = curPlan().days[ui.eday], i = +t.dataset.i, sl = d.slots[i], from = St.ex(sl.exId);
+    openPicker(exId => { opener = null; closeDialog(); if (exId === sl.exId) return rerender(`[data-act="swapslot"][data-i="${i}"]`);
+      const snap = St.snapshot(), to = St.ex(exId);
+      d.slots[i] = {...sl, exId, ...swapScheme(sl, from, to)}; persist(); rerender(`[data-act="swapslot"][data-i="${i}"]`);
+      toast(tx("{from} durch {to} ersetzt.", {from: exName(from), to: exName(to)}) + (sameScheme(from, to) ? "" : " " + tx("Satzschema angepasst.")), () => { St.restore(snap); rerender(); });
+    }, sl.exId); },
+  // Im Training nur für heute tauschen. Schon eingetragene Sätze bleiben bei der alten Übung,
+  // die restlichen Sätze laufen als eigene Zeile mit der neuen Übung weiter.
+  swapex: () => { const a = D().active, i = a.idx, it = a.queue[i], from = St.ex(it.exId);
+    openPicker(exId => { opener = null; closeDialog(); if (exId !== it.exId) swapToday(a, i, exId); view.querySelector("h1").focus(); }, it.exId); },
   pick: t => { const cb = pickCb; pickCb = null; cb(t.dataset.id); },
   newex: () => { const cb = pickCb; openExForm(null, ui.pq.trim(), id => { pickCb = null; cb(id); }); },
   newexlist: () => openExForm(null, ""),
@@ -1528,7 +1563,8 @@ const A = {
     checked.forEach(dv => {
       const q = a.queue[dv.k], idx = day.slots.findIndex(s => s.id === q.slotId);
       if (idx < 0) return;
-      if (dv.kind === "remove") day.slots.splice(idx, 1); else day.slots[idx].sets = q.sets + q.extra;
+      if (dv.kind === "swap") { const sl = day.slots[idx]; day.slots[idx] = {...sl, exId: q.exId, ...swapScheme(sl, St.ex(sl.exId), St.ex(q.exId))}; }
+      else if (dv.kind === "remove") day.slots.splice(idx, 1); else day.slots[idx].sets = q.sets + q.extra;
     });
     const n = a.sets.length; St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
     go("#/heute"); toast(n ? tx("Training gespeichert: {n} Sätze.", {n}) + (checked.length ? " " + tx("Plan angepasst.") : "") : tx("Training beendet."));

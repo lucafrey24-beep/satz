@@ -209,10 +209,11 @@ input.switch:checked::after{transform:translateX(20px)}
 .edrow{display:flex; justify-content:space-between; align-items:center; gap:8px}
 .edrow .t{font-weight:400}
 .chip{min-height:44px; min-width:76px; border:0; border-radius:22px; background:var(--fill-2); color:var(--tint); font-weight:600; font-size:.88rem; padding:0 12px; font-variant-numeric:tabular-nums}
-.edtools{display:flex; gap:8px; margin-top:6px}
+.edtools{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
 .edtools button{min-height:44px; min-width:44px; border:0; border-radius:22px; background:var(--fill-2); color:var(--tint); font-weight:600; font-size:.88rem}
 .edtools button:disabled{opacity:.35; cursor:default}
 .edtools .push{margin-left:auto; padding:0 14px}
+.edtools [data-act="swapslot"]{padding:0 14px}
 .edtools .push[data-act="delslot"]{color:var(--red)}
 details{background:var(--card); border-radius:var(--r); margin:12px 0; padding:0 16px}
 summary{min-height:48px; display:flex; align-items:center; justify-content:space-between; font-weight:400; cursor:pointer; list-style:none}
