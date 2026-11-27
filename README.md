@@ -32,10 +32,10 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - `docs/aufbau.md` – Aufbau der App: Bildschirme, Navigation, Darstellung, Technik
 
 ## Regeln hinter der App
-- Doppelte Progression pro Übung: alle Sätze am oberen Ende der Spanne, dann Gewicht um den Steigerungsschritt erhöhen. Alle Sätze unter der Spanne: einen Schritt leichter. Über 14 Tage Pause: Start mit ca. 90 %.
+- Doppelte Progression pro Übung: Alle Sätze in der Spanne und der erste Satz am oberen Ende, dann Gewicht um den Steigerungsschritt erhöhen (ein verpatzter letzter Satz blockiert nicht). Ist der Schritt größer als 10 % der Last (leichte Übungen wie Seitheben), muss der erste Satz 2 Wdh. über die Spanne kommen. Prozentuale Schritte gibt es bewusst nicht: Kurzhanteln und Scheiben haben feste Abstufungen. Alle Sätze unter der Spanne: einen Schritt leichter. Über 14 Tage Pause: Start mit ca. 90 %.
 - Wochenvolumen pro Muskel: Hauptmuskel 1 Satz, mitarbeitender Muskel 0,5 Satz. Bereich 10–20 Sätze für große Muskelgruppen.
 - Pausen-Standard: schwere Grundübungen (bis 8 Wdh.) 180 s, andere Grundübungen 120 s, Isolationsübungen 90 s. Grundübungen sind fest markiert.
-- Plateau: dreimal in Folge kein neuer Bestwert beim geschätzten 1RM (Epley) → ein leichteres Training mit 90 %, danach neu steigern.
+- Plateau: dreimal in Folge kein Fortschritt (weder höheres Spitzengewicht noch mehr Wdh. mit dem gleichen Gewicht) → ein leichteres Training mit 90 %, danach neu steigern. Bewusst ohne geschätztes 1RM, weil Epley über etwa 10 Wdh. ungenau wird.
 - Aufwärmrampe: Bei Grundübungen ab 30 kg bietet SATZ vor dem ersten Satz etwa 50/70/85 % des Arbeitsgewichts mit 8/5/3 Wdh. an. Ein Tipp übernimmt sie, jedes Speichern trägt den nächsten Aufwärmsatz ein.
 - Geführte Gewichtsfindung bei neuen Übungen mit Gewicht: Testsätze (zählen als Aufwärmsätze) mit Angabe der Wdh. in Reserve. Aus Gewicht × (Wdh. + RIR) schätzt SATZ nach Epley das Gewicht für das obere Ende der Spanne mit etwa 3 in Reserve. „4+“ zählt als 6, ohne Angabe rechnet SATZ mit 1. Gefunden, wenn die Reserve 1–3 ist und das Gewicht höchstens einen Schritt abweicht; spätestens nach 4 Testsätzen. Kein Raten mehr am Übungsnamen.
 - Volumen zählt nur harte Sätze (Arbeits- und Drop-Sätze, nicht 4+ in Reserve, keine Aufwärmsätze).
