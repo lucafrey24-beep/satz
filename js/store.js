@@ -211,11 +211,38 @@ export function plateau(exId) {
 export function setCount(exId) {
   return S.sessions.reduce((a, s) => a + s.sets.filter(x => x.exId === exId).length, 0);
 }
-// Sinnvoller Startwert beim ersten Mal: Langhantel 20 kg, sonst ein leichtes Gewicht (danach direkt eintippen)
+// Vorbelegung für den ersten Testsatz einer neuen Übung. Bewusst leicht und ohne Raten am Namen:
+// Das echte Arbeitsgewicht ermittelt die geführte Gewichtsfindung (findNext).
 export function startWeight(e) {
   if (e.unit === "bw" || noLoad(e)) return 0;
-  if (/langhantel|bankdr|kniebeug|kreuzheb|rudern|schulterdr|sz/i.test(e.name) && !/kurzhantel/i.test(e.name)) return 20;
-  return isCompound(e) ? 20 : 10;
+  return isCompound(e) ? 20 : 5;
+}
+// Geführte Gewichtsfindung: aus dem letzten Testsatz (Gewicht, Wdh., Wdh. in Reserve) das Gewicht schätzen,
+// mit dem das obere Ende der Spanne mit etwa 3 Wdh. in Reserve klappt. Schätzung nach Epley mit Wdh. bis zum Versagen = Wdh. + RIR.
+// RIR-Schätzungen sind nahe am Versagen genauer als weit davon (Halperin et al. 2022), darum zählt „4+“ als 6 und Testsätze
+// sollen nicht zu leicht sein. Ohne RIR-Angabe rechnet SATZ vorsichtig mit 1.
+export const FIND_RIR = 3, FIND_MAX_TESTS = 4;
+export function findNext(e, slot, tests) {
+  const t = tests[tests.length - 1];
+  if (!t) return {kg: startWeight(e), reps: slot.max, found: false};
+  const rir = t.rir == null ? 1 : t.rir >= 4 ? 6 : t.rir;
+  const rtf = Math.min(20, t.reps + rir), best = t.kg * (1 + rtf / 30);
+  let kg = roundTo(best / (1 + (slot.max + FIND_RIR) / 30), e.step);
+  if (t.rir >= 4) kg = Math.max(kg, t.kg + e.step);
+  const ok = t.rir != null && t.rir >= 1 && t.rir <= 3 && t.reps >= slot.min && Math.abs(kg - t.kg) <= e.step;
+  const found = ok || tests.length >= FIND_MAX_TESTS;
+  return {kg: Math.max(0, ok ? t.kg : kg), reps: found ? slot.min : slot.max, found};
+}
+// Aufwärmrampe vor schweren Grundübungen: etwa 50/70/85 % des Arbeitsgewichts mit 8/5/3 Wdh.
+// Doppelte Gewichte fallen weg, leichter als 40 % des Ziels oder unter dem Steigerungsschritt auch.
+export function warmupRamp(e, kg) {
+  if (e.unit !== "kg" || !isCompound(e) || kg < 30) return [];
+  const out = [];
+  [[0.5, 8], [0.7, 5], [0.85, 3]].forEach(([f, reps]) => {
+    const w = roundTo(kg * f, e.step);
+    if (w >= e.step && w < kg && !out.some(x => x.kg === w)) out.push({kg: w, reps});
+  });
+  return out;
 }
 
 const roundTo = (x, step) => step ? Math.max(0, Math.round(x / step) * step) : x;
@@ -256,7 +283,7 @@ export function suggest(slot) {
     return {kind: "new", kg: startWeight(e), reps: slot.max,
       text: e.unit === "bw"
         ? tx("Erstes Mal. Ziel: {s} × {a}–{b} Wiederholungen.", {s: slot.sets, a: slot.min, b: slot.max})
-        : tx("Erstes Mal. Wähle ein Gewicht, mit dem du {n} saubere Wiederholungen schaffst.", {n: slot.max})};
+        : tx("Erstes Mal. SATZ hilft dir, das Gewicht zu finden: Testsatz mit {n} sauberen Wdh., dann angeben, wie viele noch gegangen wären.", {n: slot.max})};
   }
   const kg = Math.max(...last.sets.map(x => x.kg));
   const top = last.sets.filter(x => x.kg === kg);

@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.11.1";
+export const APP_VERSION = "0.11.2";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -692,12 +692,27 @@ function viewTraining() {
   if (ui.pin == null && (a.queue[a.idx].skipped || St.workFor(a, a.idx).length >= St.targetSets(a.queue[a.idx]))) a.idx = St.firstOpen(a, a.idx);
   const i = a.idx, it = a.queue[i], e = St.ex(it.exId), logged = St.workFor(a, i), target = St.targetSets(it);
   const all = a.sets.filter(x => x.q === i), done = logged.length >= target;
-  const sug = St.suggest(it), key = `${a.id}:${i}:${logged.length}`;
+  const sug = St.suggest(it), key = `${a.id}:${i}:${logged.length}:${all.length}`;
+  const warms = St.warmupsFor(a, i);
   if (ui.key !== key) {
-    if (!ui.key.startsWith(`${a.id}:${i}:`)) { ui.stype = "work"; ui.addAfter = false; }
+    const entering = !ui.key.startsWith(`${a.id}:${i}:`);
+    if (entering) {
+      ui.stype = "work"; ui.addAfter = false; ui.mode = null; ui.found = null;
+      // Neue Übung mit Gewicht: geführte Gewichtsfindung mit Testsätzen (zählen als Aufwärmsätze)
+      if (sug.kind === "new" && e.unit === "kg" && !all.length && !it.deload) { ui.mode = "find"; ui.stype = "warm"; }
+    }
     ui.key = key; ui.rir = null;
     const l = all[all.length - 1];
     if (l) { ui.kg = l.kg; ui.reps = l.reps; } else { ui.kg = sug.kg; ui.reps = sug.reps; }
+    if (ui.mode === "find") {
+      const f = St.findNext(e, it, warms);
+      if (f.found) { ui.mode = null; ui.stype = "work"; ui.found = f.kg; setTimeout(() => { say(tx("Arbeitsgewicht gefunden: {w}. Jetzt die Arbeitssätze.", {w: St.fmtW(e, f.kg)})); toast(tx("Arbeitsgewicht gefunden: {w}. Jetzt die Arbeitssätze.", {w: St.fmtW(e, f.kg)})); }, 50); }
+      ui.kg = f.kg; ui.reps = f.reps;
+    } else if (ui.mode === "ramp") {
+      const r = St.warmupRamp(e, ui.rampKg)[warms.length];
+      if (r) { ui.kg = r.kg; ui.reps = r.reps; } else { ui.mode = null; ui.stype = "work"; ui.kg = ui.rampKg; ui.reps = sug.reps; }
+    }
+    if (!logged.length && ui.stype === "work" && ui.found != null && sug.kind === "new") { ui.kg = ui.found; ui.reps = it.min; }
   }
   // Erledigte Übung: Formular nur, wenn bewusst ein Drop-Satz angehängt wird
   const form = !done || ui.addAfter;
@@ -711,13 +726,16 @@ function viewTraining() {
       <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>${tx("Nächste Übung")} <span aria-hidden="true">›</span></button></div>
     <p class="eyebrow">${tx("Übung {n} von {m}", {n: i + 1, m: a.queue.length})} · ${done ? tx("erledigt, {n} von {m} Sätzen", {n: logged.length, m: target}) : tx("Satz {n} von {m}", {n: logged.length + 1, m: target})}</p>
     <div class="exhead"><h1 class="big">${esc(exName(e))}</h1>${D().settings.showFig !== false ? `<button type="button" class="figthumb" data-act="exfig" aria-haspopup="dialog" aria-label="${tx("Ausführung ansehen")}">${AN.svgFor(exInfo(e).pat, e.primary, "")}</button>` : ""}</div>
-    ${done ? "" : targetChip(e, it, sug)}
-    ${done ? "" : `<p class="hint2">${esc(sug.text)}${lastNote && !note ? `<br><b>${tx("Notiz vom {date}:", {date: dateDe(lastNote.date)})}</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>${tx("Notiz:")}</b> ${esc(note)}` : ""}</p>`}
+    ${done ? "" : ui.mode === "find" ? findChip(e, it, warms) : targetChip(e, it, ui.found != null && sug.kind === "new" ? {...sug, kg: ui.found, reps: it.min} : sug)}
+    ${done || ui.mode === "find" ? "" : `<p class="hint2">${esc(ui.found != null && sug.kind === "new" ? tx("Arbeitsgewicht aus der Gewichtsfindung. Ziel: {s} × {a}–{b} Wdh., beim nächsten Mal steigert SATZ von hier.", {s: it.sets, a: it.min, b: it.max}) : sug.text)}${lastNote && !note ? `<br><b>${tx("Notiz vom {date}:", {date: dateDe(lastNote.date)})}</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>${tx("Notiz:")}</b> ${esc(note)}` : ""}</p>`}
     ${recentList(e)}
     ${restSlot(resting, form, st, it)}
     ${!form ? `<p class="note">${it.skipped ? tx("Diese Übung hast du ausgelassen.") : tx("Alle Sätze dieser Übung sind eingetragen.")} ${tx("Tippe unten auf einen Satz, um ihn zu korrigieren.")}</p>
     <div class="actionbar"><button class="btn primary" data-act="exgo" id="saveset">${St.firstOpen(a, 0) >= 0 ? tx("Weiter zur offenen Übung") : tx("Zur Zusammenfassung")}</button></div>` : `
-    ${st !== "work" ? `<div class="modebar" role="status"><b>${st === "warm" ? tx("Aufwärmsatz") : tx("Drop-Satz")}</b><button type="button" class="linkbtn" data-act="stype" data-v="work">${tx("Zurück zum Arbeitssatz")}</button></div>` : ""}
+    ${ui.mode === "find" ? `<div class="modebar" role="status"><b>${tx("Testsatz {n}", {n: warms.length + 1})}</b><button type="button" class="linkbtn" data-act="findskip">${tx("Gewicht steht, Arbeitssätze")}</button></div>`
+      : ui.mode === "ramp" ? `<div class="modebar" role="status"><b>${tx("Aufwärmen {n} von {m}", {n: warms.length + 1, m: St.warmupRamp(e, ui.rampKg).length})}</b><button type="button" class="linkbtn" data-act="rampskip">${tx("Überspringen")}</button></div>`
+      : st !== "work" ? `<div class="modebar" role="status"><b>${st === "warm" ? tx("Aufwärmsatz") : tx("Drop-Satz")}</b><button type="button" class="linkbtn" data-act="stype" data-v="work">${tx("Zurück zum Arbeitssatz")}</button></div>`
+      : rampOffer(e, it, sug, all)}
     ${noLoad(e) ? "" : `<div class="stepper" role="group" aria-labelledby="kg-l">
       <button data-act="kg" data-d="-1" aria-label="${tx("Gewicht um {n} Kilo verringern", {n: fmt(e.step)})}">−</button>
       <div class="val"><input id="kgIn" class="v num" data-on="kgin" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(ui.kg)}" aria-describedby="kg-l"><label id="kg-l" for="kgIn" class="u">${bw ? tx("kg zusätzlich") : "kg"}<span class="sr"> · ${tx("antippen zum Eintippen")}</span></label></div>
@@ -726,9 +744,9 @@ function viewTraining() {
       <button data-act="reps" data-d="-1" aria-label="${e.unit === "s" ? tx("5 Sekunden weniger") : tx("Eine Wiederholung weniger")}">−</button>
       <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">${St.repWord(e)}</label></div>
       <button data-act="reps" data-d="1" aria-label="${e.unit === "s" ? tx("5 Sekunden mehr") : tx("Eine Wiederholung mehr")}">+</button></div>
-    ${D().settings.rir && st !== "warm" && !isMobility(e) ? `<div class="rirrow" role="group" aria-label="${tx("Wie viele Wdh. wären noch gegangen?")} ${tx("(optional)")}"><span class="rirl" aria-hidden="true">${tx("Reserve")}</span>
+    ${(D().settings.rir && st !== "warm" && !isMobility(e)) || ui.mode === "find" ? `<div class="rirrow" role="group" aria-label="${tx("Wie viele Wdh. wären noch gegangen?")} ${tx("(optional)")}"><span class="rirl" aria-hidden="true">${tx("Reserve")}</span>
       <div class="rir">${[0, 1, 2, 3, 4].map(r => `<button type="button" data-act="rir" data-v="${r}" aria-pressed="${ui.rir === r}">${r === 4 ? "4+" : r}</button>`).join("")}</div></div>` : ""}
-    <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${st === "warm" ? tx("Aufwärmsatz speichern") : st === "drop" ? tx("Drop-Satz speichern") : tx("Satz {n} speichern", {n: logged.length + 1})}</button></div>`}
+    <div class="actionbar"><button class="btn primary" data-act="saveset" id="saveset">${ui.mode === "find" ? tx("Testsatz speichern") : st === "warm" ? tx("Aufwärmsatz speichern") : st === "drop" ? tx("Drop-Satz speichern") : tx("Satz {n} speichern", {n: logged.length + 1})}</button></div>`}
     ${setTable(a, i, it, e, all, logged, target, done, st, sug, form)}
     <div class="row-btns" style="margin-top:16px">${it.skipped ? `<button class="btn small" data-act="unskip" data-i="${i}">${tx("Wieder aufnehmen")}</button>` : ""}<button class="btn small" data-act="note" aria-haspopup="dialog">${note ? tx("Notiz ändern") : tx("Notiz")}</button><button class="btn small" data-act="exmore" aria-haspopup="dialog">${tx("Mehr …")}</button></div>
     <p class="meta" style="margin-top:12px">${next >= 0 ? tx("Danach: {name}", {name: esc(exName(St.ex(a.queue[next].exId)))}) : tx("Das ist die letzte offene Übung.")}</p>
@@ -741,6 +759,21 @@ function targetChip(e, it, sug) {
   const r = e.unit === "s" ? `${sug.reps} s` : `${sug.reps}`;
   const val = noLoad(e) ? `${r} ${e.unit === "s" ? "" : St.repShort(e)}` : e.unit === "bw" ? `${sug.kg ? "+" + fmt(sug.kg) + " kg" : tx("KG")} × ${r}` : `${fmt(sug.kg)} kg × ${r}`;
   return `<div class="target"><span class="tv num">${val.trim()}</span><span class="ts">${tx("Ziel")} ${it.min === it.max ? it.max : `${it.min}–${it.max}`} ${St.repShort(e)}</span></div>`;
+}
+// Gewichtsfindung: Testsatz-Ziel und Erklärung
+function findChip(e, it, warms) {
+  const t = warms[warms.length - 1];
+  const msg = !t ? tx("Nimm ein Gewicht, das sich leicht anfühlt, und mach {n} saubere Wdh. Danach angeben, wie viele noch gegangen wären. Daraus schätzt SATZ das Arbeitsgewicht für etwa 3 Wdh. in Reserve.", {n: it.max})
+    : t.rir == null ? tx("Ohne Angabe zur Reserve rechnet SATZ vorsichtig. Gib nach diesem Satz an, wie viele Wdh. noch gegangen wären.")
+    : tx("Letzter Testsatz: {w} × {r}, {rir} in Reserve. Nächster Versuch etwas angepasst.", {w: St.fmtW(e, t.kg), r: t.reps, rir: t.rir === 4 ? "4+" : t.rir});
+  return `<div class="target"><span class="tv num">${fmt(ui.kg)} kg × ${ui.reps}</span><span class="ts">${tx("Testsatz")}</span></div><p class="hint2">${esc(msg)}</p>`;
+}
+// Angebot für die Aufwärmrampe bei schweren Grundübungen, solange noch kein Satz eingetragen ist
+function rampOffer(e, it, sug, all) {
+  if (all.length || it.deload) return "";
+  const kg = sug.kind === "new" && ui.found != null ? ui.found : sug.kg, r = St.warmupRamp(e, kg);
+  if (!r.length) return "";
+  return `<div class="rampoffer"><span><b>${tx("Aufwärmen")}</b> <span class="num">${r.map(x => `${fmt(x.kg)}×${x.reps}`).join(" · ")}</span></span><button type="button" class="btn small" data-act="rampgo" data-kg="${kg}">${tx("Übernehmen")}</button></div>`;
 }
 // Die letzten Trainings dieser Übung auf einen Blick (nur Arbeitssätze)
 function recentList(e) {
@@ -755,7 +788,7 @@ function recentList(e) {
 function restSlot(resting, form, st, it) {
   if (resting) return `<div class="restslot on" role="group" aria-label="${tx("Pause")}"><span class="rs-l">${tx("Pause")}</span><span class="num rs-n" id="rt" aria-hidden="true">${restLeft()}</span>
     <button class="btn small" data-act="rest30">+30 s</button><button class="btn small" data-act="skiprest">${tx("Beenden")}</button><i class="rs-bar" id="rtbar" aria-hidden="true"></i></div>`;
-  const r = !form ? 0 : st === "warm" ? 60 : st === "drop" ? 0 : it.rest;
+  const r = !form ? 0 : st === "warm" ? (ui.mode === "find" ? 90 : 60) : st === "drop" ? 0 : it.rest;
   return `<div class="restslot"><span class="rs-l">${r ? tx("Danach {t} Pause", {t: fmtSec(r)}) : form ? tx("Danach keine Pause") : ""}</span></div>`;
 }
 // Selten gebrauchte Knöpfe im Training stecken in einem Blatt „Mehr …“
@@ -920,14 +953,14 @@ function syncCur() {
 function saveSet() {
   readSetInputs(); ui.pin = null;
   const a = D().active, i = a.idx, it = a.queue[i], e = St.ex(it.exId), type = ui.stype || "work";
-  a.sets.push({q: i, exId: it.exId, kg: ui.kg, reps: ui.reps, rir: type === "warm" ? null : ui.rir, t: Date.now(), ...(type !== "work" ? {type} : {})});
+  a.sets.push({q: i, exId: it.exId, kg: ui.kg, reps: ui.reps, rir: type === "warm" && ui.mode !== "find" ? null : ui.rir, t: Date.now(), ...(type !== "work" ? {type} : {})});
   const n = St.workFor(a, i).length, target = St.targetSets(it);
   let msg = `${tx("Gespeichert:")} ${type === "warm" ? tx("Aufwärmsatz") + ", " : type === "drop" ? tx("Drop-Satz") + ", " : ""}${noLoad(e) ? "" : St.fmtW(e, ui.kg) + ", "}${ui.reps} ${St.repWord(e)}.`;
   if (type === "work" && ui.reps < it.min) msg += " " + tx("Unter dem Ziel von {n}.", {n: it.min});
   if (type === "drop") { ui.stype = "work"; ui.addAfter = false; }
   const nextIdx = St.firstOpen(a, i);
   if (nextIdx < 0) { a.restEnd = 0; cancelBeep(); persist(); ui.summary = true; say(msg + " " + tx("Alle Übungen erledigt.")); rerender(); view.querySelector("h1").focus(); return; }
-  const rest = type === "warm" ? 60 : type === "drop" ? 0 : it.rest;
+  const rest = type === "warm" ? (ui.mode === "find" ? 90 : 60) : type === "drop" ? 0 : it.rest;
   a.restEnd = rest ? Date.now() + rest * 1000 : 0; a.restTotal = rest; lastRestState = !!rest; scheduleBeep(rest);
   if (n >= target) { a.idx = nextIdx; msg += " " + tx("{name} erledigt. Nächste Übung: {next}.", {name: exName(e), next: exName(St.ex(a.queue[nextIdx].exId))}); }
   if (rest) msg += " " + tx("Pause {n} Sekunden.", {n: rest});
@@ -1493,6 +1526,9 @@ const A = {
     const s = a.sets.splice(k, 1)[0]; a.restEnd = 0; persist();
     ui.key = `${a.id}:${i}:${St.workFor(a, i).length}`; ui.rir = s.rir; ui.kg = s.kg; ui.reps = s.reps; rerender("#saveset"); say(tx("Letzter Satz gelöscht. Werte zum Korrigieren übernommen."));
   },
+  rampgo: t => { readSetInputs(); ui.mode = "ramp"; ui.rampKg = +t.dataset.kg; ui.stype = "warm"; ui.key = ui.key.replace(/:\d+:\d+$/, ":x:x"); rerender("#saveset"); say(tx("Aufwärmrampe übernommen. Speichern trägt jeweils den nächsten Aufwärmsatz ein.")); },
+  rampskip: () => { const a = D().active; ui.mode = null; ui.stype = "work"; ui.kg = ui.rampKg; ui.reps = St.suggest(a.queue[a.idx]).reps; rerender("#saveset"); },
+  findskip: () => { readSetInputs(); ui.mode = null; ui.stype = "work"; ui.found = ui.kg; rerender("#saveset"); say(tx("Arbeitssätze mit {w}.", {w: St.fmtW(St.ex(D().active.queue[D().active.idx].exId), ui.kg)})); },
   warmset: () => { readSetInputs(); ui.stype = "warm"; rerender("#saveset"); say(tx("Aufwärmsatz. Gewicht und Wiederholungen einstellen, dann speichern.")); },
   dropset: () => { readSetInputs(); ui.stype = "drop"; rerender("#saveset"); say(tx("Drop-Satz. Gewicht und Wiederholungen einstellen, dann speichern.")); },
   exfig: () => { const e = St.ex(D().active.queue[D().active.idx].exId); openDialog(`<h2 id="dlg-h">${esc(exName(e))}</h2>${exFigure(e)}<div class="dlg-actions"><button class="btn" data-act="close">${tx("Fertig")}</button></div>`, "#dlg-h"); },

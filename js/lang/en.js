@@ -655,7 +655,6 @@ export default {
   "Ziel erreicht. Halte die {n} s sauber oder wähle eine schwerere Variante.": "Target reached. Hold the {n} s cleanly or choose a harder variation.",
   "Heute etwa 5 s länger. Ziel: {range}.": "About 5 s longer today. Target: {range}.",
   "Erstes Mal. Ziel: {s} × {a}–{b} Wiederholungen.": "First time. Target: {s} × {a}–{b} reps.",
-  "Erstes Mal. Wähle ein Gewicht, mit dem du {n} saubere Wiederholungen schaffst.": "First time. Choose a weight with which you can do {n} clean reps.",
   "Letztes Mal: {w}, {list} Wdh.": "Last time: {w}, {list} reps.",
   "Entlastungswoche: {n} Satz mit {w} und {r} Wdh., 3 oder mehr in Reserve. Nächste Woche geht es vom alten Stand weiter.": "Deload week: {n} set with {w} and {r} reps, 3 or more in reserve. Next week you continue from where you were.",
   "Entlastungswoche: {n} Sätze mit {w} und {r} Wdh., 3 oder mehr in Reserve. Nächste Woche geht es vom alten Stand weiter.": "Deload week: {n} sets with {w} and {r} reps, 3 or more in reserve. Next week you continue from where you were.",
@@ -1390,4 +1389,20 @@ export default {
   "Drop-Satz. Gewicht und Wiederholungen einstellen, dann speichern.": "Drop set. Set weight and reps, then save.",
   "Abgleich mit dem ACSM Position Stand 2026 zum Krafttraining (137 Übersichtsarbeiten): Kraft wächst am besten mit schweren Lasten um 80 % des 1RM und 2–3 Sätzen pro Übung, Muskelaufbau mit etwa 10 oder mehr Sätzen pro Muskel und Woche, Schnellkraft mit 30–70 % des 1RM und schneller Bewegung. Regelmäßigkeit zählt mehr als Training bis zum Versagen, Gerätewahl oder ausgefeilte Periodisierung. Darum fragt SATZ nach Wdh. in Reserve statt nach Versagen, und die Entlastungswoche ist eine Option, kein Muss.":
     "Checked against the 2026 ACSM position stand on resistance training (137 systematic reviews): strength grows best with heavy loads around 80 % of 1RM and 2–3 sets per exercise, muscle growth with about 10 or more sets per muscle per week, power with 30–70 % of 1RM moved fast. Consistency matters more than training to failure, equipment choice or elaborate periodisation. That is why SATZ asks for reps in reserve instead of failure, and the deload week is an option, not a must.",
+
+  /* ---------- 0.11.2: Aufwärmrampe, Gewichtsfindung ---------- */
+  "Arbeitsgewicht gefunden: {w}. Jetzt die Arbeitssätze.": "Working weight found: {w}. Now the working sets.",
+  "Arbeitsgewicht aus der Gewichtsfindung. Ziel: {s} × {a}–{b} Wdh., beim nächsten Mal steigert SATZ von hier.": "Working weight from the weight finder. Goal: {s} × {a}–{b} reps, next time SATZ progresses from here.",
+  "Testsatz {n}": "Test set {n}",
+  "Gewicht steht, Arbeitssätze": "Weight set, start working sets",
+  "Aufwärmen {n} von {m}": "Warm-up {n} of {m}",
+  "Überspringen": "Skip",
+  "Testsatz speichern": "Save test set",
+  "Nimm ein Gewicht, das sich leicht anfühlt, und mach {n} saubere Wdh. Danach angeben, wie viele noch gegangen wären. Daraus schätzt SATZ das Arbeitsgewicht für etwa 3 Wdh. in Reserve.": "Pick a weight that feels light and do {n} clean reps. Then say how many more you could have done. SATZ uses that to estimate a working weight with about 3 reps in reserve.",
+  "Ohne Angabe zur Reserve rechnet SATZ vorsichtig. Gib nach diesem Satz an, wie viele Wdh. noch gegangen wären.": "Without a reps-in-reserve answer SATZ estimates cautiously. After this set, say how many more reps you could have done.",
+  "Letzter Testsatz: {w} × {r}, {rir} in Reserve. Nächster Versuch etwas angepasst.": "Last test set: {w} × {r}, {rir} in reserve. Next attempt adjusted.",
+  "Testsatz": "Test set",
+  "Aufwärmrampe übernommen. Speichern trägt jeweils den nächsten Aufwärmsatz ein.": "Warm-up ramp added. Each save logs the next warm-up set.",
+  "Arbeitssätze mit {w}.": "Working sets with {w}.",
+  "Erstes Mal. SATZ hilft dir, das Gewicht zu finden: Testsatz mit {n} sauberen Wdh., dann angeben, wie viele noch gegangen wären.": "First time. SATZ helps you find the weight: a test set of {n} clean reps, then say how many more you could have done.",
 };
