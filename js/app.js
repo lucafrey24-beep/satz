@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.10.3";
+export const APP_VERSION = "0.10.4";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -137,6 +137,15 @@ function route() {
   const h = view.querySelector("h1");
   if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); }
   document.title = (h ? h.textContent.replace(/\s+/g, " ").trim() + " · " : "") + "SATZ";
+}
+// Schlaf (ab 0.10.4): nur sichtbar, wenn Health eingerichtet ist. Nach unter 6 Std. ein Hinweis, kein Eingriff in die Vorschläge.
+// Schlafmangel senkt die Kraftleistung vor allem bei mehreren Sätzen etwas (Knowles et al. 2018). Unter 6 Std. ist eine Faustregel.
+function sleepNote() {
+  if (!D().settings.healthLast) return "";
+  const n = St.sleepOn(dkey());
+  if (!n) return `<div class="bkline"><span>${tx("Schlaf letzte Nacht noch nicht übernommen.")}</span><button class="btn small" data-act="hrun">${tx("Holen")}</button></div>`;
+  const short = !n.bed && n.min < 360 && todayIsTraining();
+  return `<p class="${short ? "note" : "meta"}">${(tx("Schlaf letzte Nacht: {dur}", {dur: hm(n.min)}) + (n.bed ? " " + tx("(nur „Im Bett“)") : "")).replace(/([^.])$/, "$1.")}${short ? " " + tx("Kurze Nacht: Steigere heute nur, wenn sich die ersten Sätze gut anfühlen. Gewicht halten ist völlig in Ordnung.") : ""}</p>`;
 }
 // Heute ist Trainingstag laut Kalender und es gibt heute noch kein Training. Sonst heißt der Tag oben „Als Nächstes“.
 const todayIsTraining = () => { const k = dkey(); return St.planFor(k) === "train" && !(St.weekDays().find(x => x.key === k) || {n: 0}).n; };
@@ -384,6 +393,7 @@ function viewToday() {
     <h1 class="big">${di === St.nextDayIndex(p) ? (todayIsTraining() ? tx("Heute:") : tx("Als Nächstes:")) + "<br>" : ""}${esc(lib(d.name))}</h1>
     ${gap != null && gap > 14 ? `<p class="note">${tx("Willkommen zurück. Dein letztes Training ist {n} Tage her. Die Vorschläge starten heute etwas leichter.", {n: gap})}</p>` : ""}
     ${weekCard()}
+    ${sleepNote()}
     ${cycleNote(p)}
     ${backupDue() ? `<div class="bkline"><span>${D().settings.lastBackup ? txn(St.daysSince(D().settings.lastBackup), "Letzte Sicherung vor {n} Tag.", "Letzte Sicherung vor {n} Tagen.") : tx("Noch keine Sicherung.")} ${iB(tx("Warum sichern?"), tx("Deine Trainings liegen nur auf diesem Gerät. Eine Sicherungsdatei schützt sie bei Verlust oder Handywechsel. Speichere sie zum Beispiel in iCloud Drive."))}</span>
       <button class="btn small primary" data-act="export">${tx("Sichern")}</button><button class="btn small" data-act="snoozebackup" aria-label="${tx("Später erinnern")}">${tx("Später")}</button></div>` : ""}
@@ -1123,7 +1133,6 @@ function openWeight(date) {
       <button type="button" data-act="wstep" data-d="1" aria-label="${tx("100 Gramm mehr")}">+</button></div>
     <label class="field">${tx("Datum")} <input id="wDate" type="date" value="${k}" max="${dkey()}" min="2000-01-01"></label>
     <div class="dlg-actions"><button class="btn" data-act="close">${tx("Abbrechen")}</button><button class="btn primary" data-act="wsave">${tx("Speichern")}</button></div>
-    ${D().settings.healthLast ? `<button class="btn" data-act="hrun" style="margin-top:8px">${tx("Aus Apple Health holen")}</button>` : ""}
     ${w.length ? `<h3 class="meta" style="margin:16px 0 6px">${tx("Letzte Einträge")}</h3><ul class="logged">${w.slice(-7).reverse().map(x => `<li><span>${esc(dayLabel(x.date))}</span><span class="num">${fmt(x.kg)} kg${x.src === "health" ? ` <small class="meta">${tx("Health")}</small>` : ""} <button type="button" class="linkbtn" data-act="wdel" data-d="${x.date}" aria-label="${esc(tx("Eintrag {day} löschen", {day: dayLabel(x.date)}))}">${tx("Löschen")}</button></span></li>`).join("")}</ul>` : ""}`, "#wIn");
 }
 function saveWeight() {
@@ -1256,7 +1265,7 @@ const MORE_PAGES = [
   ["anzeige", "Darstellung", () => { const s = D().settings, a = ACCENTS.find(x => x[0] === s.accent); return [a ? tx(a[1]) : "", tx({auto: "Automatisch", light: "Hell", dark: "Dunkel"}[s.theme] || "")].filter(Boolean).join(" · "); }],
   ["training", "Training", () => { const s = D().settings; return [s.sound ? tx("Glocke an") : tx("Glocke aus"), s.rir ? tx("RIR an") : tx("RIR aus"), s.rest ? tx("Pause {n} s", {n: s.rest}) : tx("Pause automatisch")].join(" · "); }],
   ["erinnerung", "Erinnerung im Kalender", () => tx("Trainingstage als Termin")],
-  ["health", "Apple Health", () => { const s = D().settings; return s.healthLast ? tx("Gewicht zuletzt übernommen am {date}", {date: new Date(s.healthLast).toLocaleDateString(L())}) : tx("Gewicht per Kurzbefehl übernehmen"); }],
+  ["health", "Apple Health", () => { const s = D().settings; return s.healthLast ? tx("Zuletzt übernommen am {date}", {date: new Date(s.healthLast).toLocaleDateString(L())}) : tx("Schlaf und Training per Kurzbefehl"); }],
   ["daten", "Deine Daten", () => { const s = D().settings; return s.lastBackup ? txn(St.daysSince(s.lastBackup), "Letzte Sicherung vor {n} Tag", "Letzte Sicherung vor {n} Tagen") : tx("Noch keine Sicherung"); }],
   ["ueber", "Über SATZ", () => tx("Version {v} · Quellen", {v: APP_VERSION})],
 ]; // Titel stehen im Prüfskript unter DYNAMIC
@@ -1330,31 +1339,42 @@ function langPage() {
 
 // Apple Health (ab 0.10.3): Eine Web-App darf Health nicht lesen. Ein Kurzbefehl auf dem iPhone holt das Gewicht
 // und legt es in die Zwischenablage, SATZ übernimmt es von dort (St.parseHealth/importHealth, eigene Einträge gehen vor).
-const HEALTH_SC = "SATZ Health", HEALTH_WAIT = "satz-health-wait";
+const HEALTH_SC = "SATZ Health", HEALTH_WO = "SATZ Training", HEALTH_WAIT = "satz-health-wait";
+const hm = min => min >= 60 ? tx("{h} Std. {m} Min.", {h: Math.floor(min / 60), m: min % 60}) : tx("{n} Min.", {n: min});
 function healthPage() {
-  const s = D().settings, n = D().weights.filter(x => x.src === "health").length;
-  return `<p>${tx("SATZ darf als Web-App nicht direkt in Apple Health lesen. Ein Kurzbefehl auf deinem iPhone holt dein Gewicht aus Health und legt es in die Zwischenablage. SATZ übernimmt es von dort.")}</p>
-    <p class="meta">${s.healthLast ? txn(n, "Zuletzt am {date}, {n} Eintrag stammt aus Health.", "Zuletzt am {date}, {n} Einträge stammen aus Health.", {date: new Date(s.healthLast).toLocaleDateString(L())}) : tx("Noch nichts übernommen.")}</p>
-    <button class="btn primary" data-act="hrun">${tx("Kurzbefehl „{name}“ starten", {name: HEALTH_SC})}</button>
+  const s = D().settings, sl = D().sleep.at(-1), steps = list => `<ol>${list.map(x => `<li>${x}</li>`).join("")}</ol>`;
+  return `<p>${tx("SATZ darf als Web-App nicht direkt mit Apple Health sprechen. Zwei kleine Kurzbefehle auf deinem iPhone übernehmen das: einer holt deinen Schlaf, der andere trägt dein Training in Health ein.")}</p>
+    <h2 class="sec">${tx("Schlaf")}</h2>
+    <p class="meta">${sl ? tx("Zuletzt: {dur} in der Nacht zum {date}.", {dur: hm(sl.min), date: dmd(sl.date)}) : tx("Noch nichts übernommen.")}</p>
+    <button class="btn primary" data-act="hrun">${tx("Schlaf aus Health holen")}</button>
     <button class="btn" data-act="hpaste">${tx("Aus der Zwischenablage übernehmen")}</button>
     <p class="err" id="hErr" role="alert" hidden></p>
     <details id="hManual"><summary>${tx("Einfügen klappt nicht?")}</summary>
       <label class="field" style="margin-top:12px">${tx("Lange tippen, dann „Einfügen“")}<textarea id="hText" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label>
       <button class="btn" data-act="htext" style="margin-bottom:16px">${tx("Übernehmen")}</button></details>
-    <p class="foot">${tx("Selbst eingetragene Werte gehen immer vor: Health ersetzt nie einen Tag, den du in SATZ eingetragen hast. Gibt es mehrere Messungen an einem Tag, zählt die früheste.")}</p>
-    ${iL(tx("Kurzbefehl einrichten"), `<ol>${[
-      tx("Öffne die App Kurzbefehle und tippe auf +."),
-      tx("Benenne den Kurzbefehl genau „{name}“.", {name: HEALTH_SC}),
-      tx("Aktion „Health-Messungen suchen“ (englisch „Find Health Samples“): Typ Gewicht, Startdatum in den letzten 30 Tagen."),
-      tx("Darunter die Aktion „Mit jedem wiederholen“."),
-      tx("Darin „Text“: Startdatum (Format ISO 8601), dann ein Strichpunkt, dann Wert. Also: Startdatum;Wert"),
-      tx("Nach „Ende der Wiederholung“: „Text kombinieren“ mit „Neue Zeile“, dann „In Zwischenablage kopieren“."),
-      tx("Einmal hier auf „Kurzbefehl starten“ tippen und Health den Zugriff erlauben. Danach zurück zu SATZ und „Aus der Zwischenablage übernehmen“."),
-    ].map(x => `<li>${x}</li>`).join("")}</ol>`)}`;
+    ${iL(tx("Kurzbefehl „{name}“ einrichten", {name: HEALTH_SC}), steps([
+      tx("Öffne die App Kurzbefehle, tippe auf + und nenne den Kurzbefehl genau „{name}“.", {name: HEALTH_SC}),
+      tx("Aktion „Health-Messungen suchen“ (Find Health Samples): Typ Schlafanalyse, Filter Startdatum ist in den letzten 1 Tagen."),
+      tx("Darunter „Mit jedem wiederholen“ (Repeat with Each)."),
+      tx("Darin „Text“ mit: Wiederholungsobjekt → Startdatum, Strichpunkt, Wiederholungsobjekt → Enddatum, Strichpunkt, Wiederholungsobjekt → Wert. Beide Daten im Format ISO 8601."),
+      tx("Nach „Ende der Wiederholung“: „Text kombinieren“ mit „Neue Zeilen“, dann „In Zwischenablage kopieren“."),
+    ]))}
+    <h2 class="sec">${tx("Training nach Health")}</h2>
+    <div class="group"><label class="row" for="s-hwo"><span>${tx("Nach dem Speichern an Health senden")}<small class="meta" style="display:block">${tx("Öffnet kurz den Kurzbefehl „{name}“", {name: HEALTH_WO})}</small></span><input id="s-hwo" class="switch" type="checkbox" role="switch" data-on="hwo" ${s.healthWorkout ? "checked" : ""}></label></div>
+    ${iL(tx("Kurzbefehl „{name}“ einrichten", {name: HEALTH_WO}), steps([
+      tx("Neuer Kurzbefehl, genau „{name}“ genannt.", {name: HEALTH_WO}),
+      tx("Aktion „Wörterbuch abrufen“ (Get Dictionary from Input) mit der Kurzbefehl-Eingabe."),
+      tx("Aktion „Training protokollieren“ (Log Workout): Typ Krafttraining. Startdatum = Wörterbuchwert für start, Dauer = Wörterbuchwert für min (Minuten), Aktive Energie = Wörterbuchwert für kcal."),
+      tx("Zeichnest du Krafttraining schon mit der Apple Watch auf, lass den Schalter aus. Sonst steht jedes Training doppelt in Health."),
+    ]))}
+    <p class="foot">${tx("Die kcal sind eine grobe Schätzung aus Dauer und Körpergewicht (Krafttraining ca. 3,5 MET). Deine Trainings in SATZ bleiben dabei unverändert.")}</p>`;
 }
 function healthRun() {
   try { localStorage.setItem(HEALTH_WAIT, String(Date.now())); } catch (e) {}
   location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(HEALTH_SC);
+}
+function healthWorkout(session) {
+  location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(HEALTH_WO) + "&input=text&text=" + encodeURIComponent(JSON.stringify(St.workoutForHealth(session)));
 }
 function healthErr(msg) {
   const e = $("#hErr");
@@ -1368,13 +1388,14 @@ function healthPaste() {
 }
 function healthImport(text) {
   const r = St.parseHealth(text, dkey());
-  if (!r.items.length) { if (dlg.open) closeDialog(); if (!location.hash.startsWith("#/mehr/health")) go("#/mehr/health"); return healthErr(tx("In der Zwischenablage stehen keine Gewichtswerte. Lief der Kurzbefehl bis zum Ende? Jede Zeile braucht Datum;Wert, zum Beispiel 2026-11-27;78,4.")); }
-  const snap = St.snapshot(), c = St.importHealth(r.items);
+  if (!r.items.length && !r.sleep.length) { if (dlg.open) closeDialog(); if (!location.hash.startsWith("#/mehr/health")) go("#/mehr/health"); return healthErr(tx("In der Zwischenablage stehen keine Health-Daten. Lief der Kurzbefehl bis zum Ende? Jede Zeile braucht Startdatum;Enddatum;Wert im Format ISO 8601.")); }
+  const snap = St.snapshot(), c = r.items.length ? St.importHealth(r.items) : {added: 0, updated: 0, kept: 0}, z = St.importSleep(r.sleep), last = r.sleep.at(-1);
   try { localStorage.removeItem(HEALTH_WAIT); } catch (e) {}
   persist(); if (dlg.open) { opener = null; closeDialog(); } rerender();
   const parts = [c.added && txn(c.added, "{n} neuer Tag", "{n} neue Tage"), c.updated && txn(c.updated, "{n} aktualisiert", "{n} aktualisiert"), c.kept && txn(c.kept, "{n} eigener Eintrag behalten", "{n} eigene Einträge behalten")].filter(Boolean);
-  const msg = parts.length ? tx("Aus Health: {list}.", {list: parts.join(", ")}) : tx("Aus Health: Alles war schon da.");
-  toast(msg, c.added || c.updated ? () => { St.restore(snap); rerender(); } : null); say(msg);
+  if (last) parts.unshift((last.date === dkey() ? tx("Schlaf letzte Nacht: {dur}", {dur: hm(last.min)}) : tx("Schlaf {date}: {dur}", {date: dl(last.date), dur: hm(last.min)})) + (last.bed ? " " + tx("(nur „Im Bett“)") : ""));
+  const msg = parts.length ? tx("Aus Health: {list}.", {list: parts.join(", ")}).replace(/\.\.$/, ".") : tx("Aus Health: Alles war schon da.");
+  toast(msg, c.added || c.updated || z.added || z.updated ? () => { St.restore(snap); rerender(); } : null); say(msg);
 }
 // Nach dem Kurzbefehl zurück in SATZ: einmal fragen, ob übernommen werden soll (der Tipp darauf darf die Zwischenablage lesen)
 function healthReturn() {
@@ -1382,7 +1403,7 @@ function healthReturn() {
   if (!t || document.visibilityState !== "visible" || D().active || dlg.open) return;
   try { localStorage.removeItem(HEALTH_WAIT); } catch (e) {}
   if (Date.now() - t > 10 * 60000) return;
-  openDialog(`<h2 id="dlg-h">${tx("Gewicht aus Health übernehmen?")}</h2>
+  openDialog(`<h2 id="dlg-h">${tx("Daten aus Health übernehmen?")}</h2>
     <p class="meta" style="text-align:center;margin-top:-10px">${tx("Der Kurzbefehl hat deine Werte in die Zwischenablage gelegt. iOS fragt gleich einmal nach „Einfügen“.")}</p>
     <div class="dlg-actions"><button class="btn" data-act="close">${tx("Später")}</button><button class="btn primary" data-act="hpaste">${tx("Übernehmen")}</button></div>`, '[data-act="hpaste"]');
 }
@@ -1575,7 +1596,8 @@ const A = {
       if (dv.kind === "swap") { const sl = day.slots[idx]; day.slots[idx] = {...sl, exId: q.exId, ...swapScheme(sl, St.ex(sl.exId), St.ex(q.exId))}; }
       else if (dv.kind === "remove") day.slots.splice(idx, 1); else day.slots[idx].sets = q.sets + q.extra;
     });
-    const n = a.sets.length; St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
+    const n = a.sets.length, done = St.finishSession(); ui.summary = false; ui.key = ""; cancelBeep();
+    if (n && D().settings.healthWorkout) setTimeout(() => healthWorkout(done), 400);
     go("#/heute"); toast(n ? tx("Training gespeichert: {n} Sätze.", {n}) + (checked.length ? " " + tx("Plan angepasst.") : "") : tx("Training beendet."));
   },
   obpick: t => { const q = OB.QUESTIONS[ui.ob.step], o = q.opts.find(x => String(x[0]) === t.dataset.v); ui.ob.a[q.id] = o[0]; ui.ob.step++; rerender(); view.scrollTop = 0; const h = view.querySelector("h1"); if (h) h.focus(); },
@@ -1729,6 +1751,7 @@ document.addEventListener("change", ev => {
   if (k === "bgbell") { D().settings.bgBell = el.checked; persist(); }
   if (k === "voice") { D().settings.voice = el.checked; persist(); }
   if (k === "showfig") { D().settings.showFig = el.checked; persist(); }
+  if (k === "hwo") { D().settings.healthWorkout = el.checked; persist(); }
   if (el.id === "importFile" && el.files[0]) {
     const r = new FileReader();
     r.onload = () => {

@@ -75,6 +75,8 @@ function migrate() {
   S.pauses = S.pauses || [];
   // Ab 0.9.9: Tagesplan, nur Abweichungen vom Wochenmuster ({"YYYY-MM-DD": "train"|"rest"|"pause"})
   S.dayPlan = S.dayPlan && typeof S.dayPlan === "object" && !Array.isArray(S.dayPlan) ? S.dayPlan : {};
+  // Ab 0.10.4: Schlaf aus Apple Health, eine Zeile pro Nacht ({date: Aufwachtag, min: Minuten, bed: true wenn nur „Im Bett“ bekannt})
+  S.sleep = Array.isArray(S.sleep) ? S.sleep : [];
   S.plans.forEach(p => { if (!p.cycle) p.cycle = {weeks: DEFAULT_CYCLE, start: today()}; });
   // Ab 0.3.1 ist Grün der Standard (Lucas Wahl). Einmalig umstellen, danach gilt die eigene Auswahl.
   if (S.settings.sound == null) S.settings.sound = true;
@@ -91,11 +93,41 @@ function migrate() {
    Mehrere Messungen an einem Tag: Die früheste zählt (morgens nüchtern, wie die App es empfiehlt).
    Lucas Regel: Nichts geht verloren. Ein Health-Wert ersetzt nie einen Tag, den du selbst eingetragen hast,
    sondern nur einen früheren Health-Wert desselben Tages. Health-Einträge tragen src: "health". */
+// Ab 0.10.4 auch Schlaf: „Startdatum;Enddatum;Wert“ (Wert ist die Schlafphase, z. B. Kern, REM, Tief, Im Bett, Wach).
+const p2 = n => String(n).padStart(2, "0");
+const lkey = d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+function toDate(x) {
+  x = String(x).trim();
+  let m = x.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*(Z|[+-]\d{2}:?\d{2})?/);
+  if (m) { const tz = m[5] ? (m[5] === "Z" ? "Z" : m[5].replace(/^([+-]\d{2})(\d{2})$/, "$1:$2")) : ""; const d = new Date(`${m[1]}T${p2(m[2])}:${m[3]}:${m[4] || "00"}${tz}`); return isNaN(d) ? null : d; }
+  m = x.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4}),?\s+(\d{1,2}):(\d{2})/);
+  if (m) { const d = new Date(+m[3], m[2] - 1, +m[1], +m[4], +m[5]); return isNaN(d) ? null : d; }
+  return null;
+}
+const AWAKE = /bett|bed|wach|awake/i, INBED = /bett|bed/i;
+function sleepNights(samples) {
+  const nights = new Map();
+  for (const s of samples) {
+    const h = s.start.getHours();
+    if (!(s.end > s.start) || s.end - s.start > 16 * 36e5 || (h >= 11 && h < 18) || s.end.getHours() >= 15) continue;   // Nickerchen tagsüber zählen nicht
+    const k = lkey(s.end), n = nights.get(k) || {asleep: [], bed: []};
+    if (!AWAKE.test(s.v)) n.asleep.push([+s.start, +s.end]); else if (INBED.test(s.v)) n.bed.push([+s.start, +s.end]);
+    nights.set(k, n);
+  }
+  // Überlappungen (iPhone und Watch messen gleichzeitig) nur einmal zählen
+  const union = iv => { iv.sort((a, b) => a[0] - b[0]); let t = 0, cs = -1, ce = -1; for (const [a, b] of iv) { if (a > ce) { if (ce > cs) t += ce - cs; cs = a; ce = b; } else ce = Math.max(ce, b); } if (ce > cs) t += ce - cs; return Math.round(t / 6e4); };
+  return [...nights].map(([date, n]) => n.asleep.length ? {date, min: union(n.asleep)} : n.bed.length ? {date, min: union(n.bed), bed: true} : null)
+    .filter(x => x && x.min >= 30).sort((a, b) => a.date.localeCompare(b.date));
+}
 export function parseHealth(text, todayKey) {
-  const best = new Map(); let bad = 0;
-  const p2 = n => String(n).padStart(2, "0");
+  const best = new Map(), sleep = []; let bad = 0;
   for (const line of String(text || "").split(/[\r\n]+/)) {
     if (!line.trim()) continue;
+    const f = line.split(";");
+    if (f.length >= 3) {   // Schlaf: Start;Ende;Phase
+      const a = toDate(f[0]), b = toDate(f[1]);
+      if (a && b) { sleep.push({start: a, end: b, v: f.slice(2).join(";").trim()}); continue; }
+    }
     let m = line.match(/(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?[^;]*;\s*(\d{1,3}(?:[.,]\d+)?)\s*(lbs?)?/i), date, time;
     if (m) { date = `${m[1]}-${m[2]}-${m[3]}`; time = (m[4] || "99") + (m[5] || "99"); }
     else if ((m = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,?\s*(\d{1,2}):(\d{2}))?[^;]*;\s*(\d{1,3}(?:[.,]\d+)?)\s*(lbs?)?/i))) {
@@ -108,7 +140,29 @@ export function parseHealth(text, todayKey) {
     const cur = best.get(date);
     if (!cur || time < cur.time) best.set(date, {date, kg, time});
   }
-  return {items: [...best.values()].sort((a, b) => a.date.localeCompare(b.date)).map(({date, kg}) => ({date, kg})), bad};
+  const nights = sleepNights(sleep).filter(n => !todayKey || n.date <= todayKey);
+  return {items: [...best.values()].sort((a, b) => a.date.localeCompare(b.date)).map(({date, kg}) => ({date, kg})), sleep: nights, bad};
+}
+// Schlaf kommt nur aus Health, deshalb darf ein neuerer Import eine Nacht aktualisieren.
+export function importSleep(nights) {
+  const r = {added: 0, updated: 0};
+  for (const n of nights) {
+    const cur = S.sleep.find(x => x.date === n.date), row = {date: n.date, min: n.min, ...(n.bed ? {bed: true} : {})};
+    if (!cur) { S.sleep.push(row); r.added++; }
+    else if (cur.min !== n.min || !!cur.bed !== !!n.bed) { Object.assign(cur, row); if (!n.bed) delete cur.bed; r.updated++; }
+  }
+  S.sleep.sort((a, b) => a.date.localeCompare(b.date));
+  if (nights.length) S.settings.healthLast = new Date().toISOString();
+  return r;
+}
+export const sleepOn = k => S.sleep.find(x => x.date === k) || null;
+// Für den Kurzbefehl „SATZ Training“: Start mit Zeitzone, Dauer in Minuten, grob geschätzte kcal.
+// Krafttraining mit Pausen ca. 3,5 MET (Ainsworth et al. 2011, Compendium 02054); ohne Körpergewicht keine kcal.
+export function workoutForHealth(session) {
+  const st = new Date(session.date), en = new Date(session.end || session.date), min = Math.max(1, Math.round((en - st) / 6e4));
+  const off = -st.getTimezoneOffset(), tz = `${off >= 0 ? "+" : "-"}${p2(Math.floor(Math.abs(off) / 60))}:${p2(Math.abs(off) % 60)}`;
+  const start = `${lkey(st)}T${p2(st.getHours())}:${p2(st.getMinutes())}:00${tz}`, kg = currentWeight();
+  return {start, min, ...(kg ? {kcal: Math.round(3.5 * kg * min / 60)} : {})};
 }
 export function importHealth(items) {
   const r = {added: 0, updated: 0, kept: 0, same: 0};
