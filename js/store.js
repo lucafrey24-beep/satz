@@ -103,14 +103,30 @@ export function restore(snap) { S = JSON.parse(snap); migrate(); save(); }
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 // Entlastungsrhythmus: (weeks − 1) Aufbauwochen, dann 1 Entlastungswoche. 0 = aus.
 // Bell et al. (2023, Delphi-Konsens): Deloads meist alle 4–8 Wochen, vor allem weniger Volumen, Last etwas niedriger.
-export const DEFAULT_CYCLE = 6, CYCLES = [0, 4, 5, 6, 8];
+// Ab 0.11.4 für neue Pläne standardmäßig aus (feste Entlastung alle 6 Wochen ist für Einsteiger meist unnötig; Bell 2023 ist
+// ein Expertenkonsens, kein Wirksamkeitsbeleg). Stattdessen reaktiv: deloadAdvice() schlägt eine Entlastung bei Stillstand vor.
+// Bestehende Pläne behalten ihren Rhythmus. Einmalige Entlastungswoche: cycle.once = Montag der Woche.
+export const DEFAULT_CYCLE = 0, CYCLES = [0, 4, 5, 6, 8];
 export function cycleWeek(p, on = today()) {
   const c = p && p.cycle; if (!c || !c.weeks) return null;
   const d = Math.floor((new Date(on + "T12:00:00") - new Date(c.start + "T12:00:00")) / 864e5);
   const n = Math.max(0, Math.floor(d / 7)) % c.weeks;
   return {week: n + 1, weeks: c.weeks, deload: n === c.weeks - 1, inDays: (7 - (((d % 7) + 7) % 7))};
 }
-export const deloadNow = p => !!(cycleWeek(p) || {}).deload;
+export const onceDeload = p => !!(p && p.cycle && p.cycle.once && p.cycle.once === weekStart());
+export const deloadNow = p => !!(cycleWeek(p) || {}).deload || onceDeload(p);
+// Reaktive Entlastung: bei Stillstand in mindestens 2 Übungen des Plans oder wenn in 14 Tagen mindestens 60 % der Arbeitssätze
+// mit RIR-Angabe (mindestens 8) bei 0 in Reserve lagen. Nicht, wenn in den letzten 4 Wochen schon entlastet wurde.
+export function deloadAdvice(p) {
+  if (!p || deloadNow(p) || (p.cycle && p.cycle.skip === weekStart())) return null;
+  if (S.sessions.some(s => s.deload && daysSince(s.date) < 28)) return null;
+  const ids = [...new Set(p.days.flatMap(d => d.slots.map(sl => sl.exId)))];
+  const stuck = ids.filter(id => plateau(id) >= 3);
+  if (stuck.length >= 2) return {kind: "plateau", ids: stuck};
+  const recent = S.sessions.filter(s => daysSince(s.date) < 14).flatMap(s => s.sets.filter(x => isWork(x) && x.rir != null));
+  if (recent.length >= 8 && recent.filter(x => x.rir === 0).length / recent.length >= 0.6) return {kind: "rir0"};
+  return null;
+}
 export const deloadSets = n => Math.max(1, Math.ceil(n / 2));
 export function instantiate(t) {
   return {
@@ -541,7 +557,8 @@ export function sanitizeImport(d) {
     if (!exercises[k].primary.length) exercises[k].primary = ["brust"];
   }
   const plans = arr(d.plans, "Pläne").map(p => ({id: id(p.id, "Plan"), name: str(p.name, 80) || "Plan", perWeek: Math.round(optNum(p.perWeek, 1, 7, 3)), template: typeof p.template === "string" && ID.test(p.template) ? p.template : undefined, goal: ["kraft", "ausdauer", "athletik", "mobil"].includes(p.goal) ? p.goal : "kraft",
-    ...(p.cycle && typeof p.cycle === "object" ? {cycle: {weeks: CYCLES.includes(p.cycle.weeks) ? p.cycle.weeks : DEFAULT_CYCLE, start: day(p.cycle.start)}} : {}),
+    ...(p.cycle && typeof p.cycle === "object" ? {cycle: {weeks: CYCLES.includes(p.cycle.weeks) ? p.cycle.weeks : DEFAULT_CYCLE, start: day(p.cycle.start),
+      ...(/^\d{4}-\d{2}-\d{2}$/.test(p.cycle.once || "") ? {once: p.cycle.once} : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(p.cycle.skip || "") ? {skip: p.cycle.skip} : {})}} : {}),
     days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
       slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
         min: Math.round(num(s.min, 1, 100, "Wdh.")), max: Math.round(num(s.max, 1, 100, "Wdh.")), rest: Math.round(optNum(s.rest, 0, 900, 0))}))}))}));
