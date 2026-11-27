@@ -1,6 +1,6 @@
 import * as St from "./store.js";
 import * as OB from "./onboarding.js";
-import {MUSCLES, MUSCLE_NAME, TEMPLATES, EXERCISES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch, noLoad, isMobility} from "./data.js";
+import {BARBELL, MUSCLES, MUSCLE_NAME, TEMPLATES, EXERCISES, INFO, PATTERN_BY_MUSCLE, GOALS as TGOALS, MEASURES, KIT, KIT_LABEL, KIT_FILTERS, kitMatch, noLoad, isMobility} from "./data.js";
 import * as AN from "./anim.js";
 import * as BELL from "./bell.js";
 import * as N from "./nutrition.js";
@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.11.5";
+export const APP_VERSION = "0.11.6";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -475,13 +475,14 @@ function viewEditor(id) {
     <h2 class="sec" id="exh" style="margin-top:8px">${tx("Übungen an Tag {n}", {n: ui.eday + 1})}</h2>
     ${d.slots.length ? "" : `<p class="meta">${tx("Noch keine Übungen.")}</p>`}
     <ol class="edlist" aria-labelledby="exh">
-      ${d.slots.map((sl, i) => { const e = St.ex(sl.exId); return `<li>
+      ${d.slots.map((sl, i) => { const e = St.ex(sl.exId); return `<li class="${sl.ss && i < d.slots.length - 1 ? "ss-a" : ""} ${i > 0 && d.slots[i - 1].ss ? "ss-b" : ""}">
         <div class="edrow"><span class="t">${esc(exName(e))}${e.custom ? `<span class="badge">${tx("eigene")}</span>` : ""}</span>
           <button class="chip" data-act="slot" data-i="${i}" aria-label="${esc(exName(e))}: ${schemeSr(sl)}. ${tx("Ändern")}">${scheme(sl)}</button></div>
         <div class="edtools">
           <button data-act="mv" data-i="${i}" data-d="-1" ${i === 0 ? "disabled" : ""} aria-label="${tx("{name} nach oben", {name: esc(exName(e))})}">↑</button>
           <button data-act="mv" data-i="${i}" data-d="1" ${i === d.slots.length - 1 ? "disabled" : ""} aria-label="${tx("{name} nach unten", {name: esc(exName(e))})}">↓</button>
           <button data-act="swapslot" data-i="${i}" aria-label="${tx("Übung {name} tauschen", {name: esc(exName(e))})}">${tx("Tauschen")}</button>
+          ${i < d.slots.length - 1 ? `<button data-act="sstoggle" data-i="${i}" aria-pressed="${!!sl.ss}" aria-label="${tx("Supersatz mit {next}", {next: esc(exName(St.ex(d.slots[i + 1].exId)))})}">${sl.ss ? "⇅ " : ""}${tx("Supersatz")}</button>` : ""}
           <button class="push" data-act="delslot" data-i="${i}" aria-label="${tx("{name} entfernen", {name: esc(exName(e))})}">${tx("Entfernen")}</button>
         </div></li>`; }).join("")}
     </ol>
@@ -730,7 +731,7 @@ function viewTraining() {
     <div class="progress" aria-hidden="true">${a.queue.map((q, k) => `<span class="${q.skipped ? "skip" : k === i ? "now" : St.workFor(a, k).length >= St.targetSets(q) ? "done" : ""}"></span>`).join("")}</div>
     <div class="exnav"><button type="button" class="linkbtn" data-act="exprev" ${i === 0 ? "disabled" : ""}><span aria-hidden="true">‹</span> ${tx("Vorherige Übung")}</button>
       <button type="button" class="linkbtn" data-act="exnext" ${i >= a.queue.length - 1 ? "disabled" : ""}>${tx("Nächste Übung")} <span aria-hidden="true">›</span></button></div>
-    <p class="eyebrow">${tx("Übung {n} von {m}", {n: i + 1, m: a.queue.length})} · ${done ? tx("erledigt, {n} von {m} Sätzen", {n: logged.length, m: target}) : tx("Satz {n} von {m}", {n: logged.length + 1, m: target})}</p>
+    <p class="eyebrow">${St.ssGroup(a, i).length > 1 ? `<span class="badge ss">${tx("Supersatz")}</span> ` : ""}${tx("Übung {n} von {m}", {n: i + 1, m: a.queue.length})} · ${done ? tx("erledigt, {n} von {m} Sätzen", {n: logged.length, m: target}) : tx("Satz {n} von {m}", {n: logged.length + 1, m: target})}</p>
     <div class="exhead"><h1 class="big">${esc(exName(e))}</h1>${D().settings.showFig !== false ? `<button type="button" class="figthumb" data-act="exfig" aria-haspopup="dialog" aria-label="${tx("Ausführung ansehen")}">${AN.svgFor(exInfo(e).pat, e.primary, "")}</button>` : ""}</div>
     ${done ? "" : ui.mode === "find" ? findChip(e, it, warms) : targetChip(e, it, ui.found != null && sug.kind === "new" ? {...sug, kg: ui.found, reps: it.min} : sug)}
     ${done || ui.mode === "find" ? "" : `<p class="hint2">${esc(ui.found != null && sug.kind === "new" ? tx("Arbeitsgewicht aus der Gewichtsfindung. Ziel: {s} × {a}–{b} Wdh., beim nächsten Mal steigert SATZ von hier.", {s: it.sets, a: it.min, b: it.max}) : sug.text)}${lastNote && !note ? `<br><b>${tx("Notiz vom {date}:", {date: dateDe(lastNote.date)})}</b> ${esc(lastNote.notes[it.exId])}` : ""}${note ? `<br><b>${tx("Notiz:")}</b> ${esc(note)}` : ""}</p>`}
@@ -745,7 +746,7 @@ function viewTraining() {
     ${noLoad(e) ? "" : `<div class="stepper" role="group" aria-labelledby="kg-l">
       <button data-act="kg" data-d="-1" aria-label="${tx("Gewicht um {n} Kilo verringern", {n: fmt(e.step)})}">−</button>
       <div class="val"><input id="kgIn" class="v num" data-on="kgin" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="${fmt(ui.kg)}" aria-describedby="kg-l"><label id="kg-l" for="kgIn" class="u">${bw ? tx("kg zusätzlich") : "kg"}<span class="sr"> · ${tx("antippen zum Eintippen")}</span></label></div>
-      <button data-act="kg" data-d="1" aria-label="${tx("Gewicht um {n} Kilo erhöhen", {n: fmt(e.step)})}">+</button></div>`}
+      <button data-act="kg" data-d="1" aria-label="${tx("Gewicht um {n} Kilo erhöhen", {n: fmt(e.step)})}">+</button></div>${plateLine(e)}`}
     <div class="stepper" role="group" aria-labelledby="reps-l">
       <button data-act="reps" data-d="-1" aria-label="${e.unit === "s" ? tx("5 Sekunden weniger") : tx("Eine Wiederholung weniger")}">−</button>
       <div class="val"><input id="repsIn" class="v num" data-on="repsin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${ui.reps}"><label id="reps-l" for="repsIn" class="u">${St.repWord(e)}</label></div>
@@ -765,6 +766,17 @@ function targetChip(e, it, sug) {
   const r = e.unit === "s" ? `${sug.reps} s` : `${sug.reps}`;
   const val = noLoad(e) ? `${r} ${e.unit === "s" ? "" : St.repShort(e)}` : e.unit === "bw" ? `${sug.kg ? "+" + fmt(sug.kg) + " kg" : tx("KG")} × ${r}` : `${fmt(sug.kg)} kg × ${r}`;
   return `<div class="target"><span class="tv num">${val.trim()}</span><span class="ts">${tx("Ziel")} ${it.min === it.max ? it.max : `${it.min}–${it.max}`} ${St.repShort(e)}</span></div>`;
+}
+// Scheibenrechner unter dem Gewicht (nur Langhantel-Übungen der Bibliothek)
+function plateLine(e) {
+  const bar = !e.custom && BARBELL[e.id]; if (!bar) return "";
+  return `<p class="plates" id="plates" aria-live="polite">${plateText(ui.kg, bar)}</p>`;
+}
+function plateText(kg, bar) {
+  const r = St.platesFor(kg, bar);
+  if (!r) return tx("Leichter als die Stange ({n} kg)", {n: bar});
+  if (!r.plates.length) return tx("Nur die Stange ({n} kg)", {n: bar});
+  return `${tx("Pro Seite:")} <b class="num">${r.plates.map(fmt).join(" + ")}</b>${r.rest ? ` <span>(${tx("{n} kg nicht ladbar", {n: fmt(r.rest)})})</span>` : ""}`;
 }
 // Gewichtsfindung: Testsatz-Ziel und Erklärung
 function findChip(e, it, warms) {
@@ -794,6 +806,8 @@ function recentList(e) {
 function restSlot(resting, form, st, it) {
   if (resting) return `<div class="restslot on" role="group" aria-label="${tx("Pause")}"><span class="rs-l">${tx("Pause")}</span><span class="num rs-n" id="rt" aria-hidden="true">${restLeft()}</span>
     <button class="btn small" data-act="rest30">+30 s</button><button class="btn small" data-act="skiprest">${tx("Beenden")}</button><i class="rs-bar" id="rtbar" aria-hidden="true"></i></div>`;
+  const a = D().active, sn = form && st === "work" ? St.ssNext(a, a.idx) : null;
+  if (sn && !sn.wrap) return `<div class="restslot"><span class="rs-l">${tx("Danach direkt: {name}", {name: esc(exName(St.ex(a.queue[sn.idx].exId)))})}</span></div>`;
   const r = !form ? 0 : st === "warm" ? (ui.mode === "find" ? 90 : 60) : st === "drop" ? 0 : it.rest;
   return `<div class="restslot"><span class="rs-l">${r ? tx("Danach {t} Pause", {t: fmtSec(r)}) : form ? tx("Danach keine Pause") : ""}</span></div>`;
 }
@@ -955,6 +969,7 @@ function syncCur() {
   const e = St.ex(a.queue[a.idx].exId);
   if (k) k.textContent = kgCell(e, ui.kg);
   if (r) r.textContent = ui.reps;
+  const pl = $("#plates"); if (pl && !e.custom && BARBELL[e.id]) pl.innerHTML = plateText(ui.kg, BARBELL[e.id]);
 }
 function saveSet() {
   readSetInputs(); ui.pin = null;
@@ -966,12 +981,15 @@ function saveSet() {
   if (type === "drop") { ui.stype = "work"; ui.addAfter = false; }
   const nextIdx = St.firstOpen(a, i);
   if (nextIdx < 0) { a.restEnd = 0; cancelBeep(); persist(); ui.summary = true; say(msg + " " + tx("Alle Übungen erledigt.")); rerender(); view.querySelector("h1").focus(); return; }
-  const rest = type === "warm" ? (ui.mode === "find" ? 90 : 60) : type === "drop" ? 0 : it.rest;
+  const sn = type === "work" ? St.ssNext(a, i) : null;
+  // Supersatz: ohne Pause zur nächsten Übung der Gruppe; die Pause kommt erst, wenn es wieder zur ersten geht
+  const rest = sn && !sn.wrap ? 0 : type === "warm" ? (ui.mode === "find" ? 90 : 60) : type === "drop" ? 0 : it.rest;
   a.restEnd = rest ? Date.now() + rest * 1000 : 0; a.restTotal = rest; lastRestState = !!rest; scheduleBeep(rest);
-  if (n >= target) { a.idx = nextIdx; msg += " " + tx("{name} erledigt. Nächste Übung: {next}.", {name: exName(e), next: exName(St.ex(a.queue[nextIdx].exId))}); }
+  if (sn) { a.idx = sn.idx; msg += " " + tx("Supersatz, weiter mit {next}.", {next: exName(St.ex(a.queue[sn.idx].exId))}); }
+  else if (n >= target) { a.idx = nextIdx; msg += " " + tx("{name} erledigt. Nächste Übung: {next}.", {name: exName(e), next: exName(St.ex(a.queue[nextIdx].exId))}); }
   if (rest) msg += " " + tx("Pause {n} Sekunden.", {n: rest});
   persist(); say(msg); rerender(); view.scrollTop = 0;
-  (n >= target ? view.querySelector("h1") : $("#saveset")).focus();
+  (n >= target || sn ? view.querySelector("h1") : $("#saveset")).focus();
 }
 
 // Zwischen Übungen blättern, auch zu erledigten (zum Korrigieren)
@@ -1478,6 +1496,8 @@ const A = {
     (same && !same.disabled ? same : view.querySelector(`[data-act="mv"][data-i="${j}"]:not(:disabled)`)).focus();
     say(tx("{name}: Position {n} von {m}.", {name: exName(St.ex(d.slots[j].exId)), n: j + 1, m: d.slots.length}));
   },
+  sstoggle: t => { const d = curPlan().days[ui.eday], i = +t.dataset.i, sl = d.slots[i]; if (sl.ss) delete sl.ss; else sl.ss = true; persist(); rerender(`[data-act="sstoggle"][data-i="${i}"]`);
+    say(sl.ss ? tx("{a} und {b} sind jetzt ein Supersatz: abwechselnd, Pause erst nach beiden.", {a: exName(St.ex(sl.exId)), b: exName(St.ex(d.slots[i + 1].exId))}) : tx("Supersatz aufgehoben.")); },
   delslot: t => {
     const d = curPlan().days[ui.eday], snap = St.snapshot(), sl = d.slots.splice(+t.dataset.i, 1)[0];
     persist(); rerender("#addslot");

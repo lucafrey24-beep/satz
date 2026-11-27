@@ -499,7 +499,7 @@ export function startSession(p, dayIdx) {
   const d = p.days[dayIdx], dl = deloadNow(p);
   S.active = {
     id: uid(), start: new Date().toISOString(), planId: p.id, planName: p.name, dayId: d.id, dayName: d.name,
-    queue: d.slots.map(sl => ({slotId: sl.id, exId: sl.exId, sets: dl ? deloadSets(sl.sets) : sl.sets, min: sl.min, max: sl.max, rest: restFor(sl), skipped: false, extra: 0, ...(dl ? {deload: true} : {})})),
+    queue: d.slots.map((sl, k) => ({slotId: sl.id, exId: sl.exId, sets: dl ? deloadSets(sl.sets) : sl.sets, min: sl.min, max: sl.max, rest: restFor(sl), skipped: false, extra: 0, ...(dl ? {deload: true} : {}), ...(sl.ss && k < d.slots.length - 1 ? {ss: true} : {})})),
     ...(dl ? {deload: true} : {}),
     idx: 0, sets: [], restEnd: 0,
   };
@@ -510,6 +510,29 @@ export const loggedFor = (a, i) => a.sets.filter(x => x.q === i && x.type !== "w
 export const workFor = (a, i) => a.sets.filter(x => x.q === i && !x.type);
 export const warmupsFor = (a, i) => a.sets.filter(x => x.q === i && x.type === "warm");
 export const targetSets = item => item.sets + item.extra;
+// Supersatz: aufeinanderfolgende Übungen, bei denen die vordere ss trägt, bilden eine Gruppe. Liefert die Indizes der Gruppe von i.
+export function ssGroup(a, i) {
+  let s = i, e = i;
+  while (s > 0 && a.queue[s - 1].ss) s--;
+  while (e < a.queue.length - 1 && a.queue[e].ss) e++;
+  return Array.from({length: e - s + 1}, (_, k) => s + k);
+}
+// Nächste offene Übung im Supersatz nach i (reihum). wrap = zurück zum Anfang der Gruppe (dann kommt die Pause).
+export function ssNext(a, i) {
+  const g = ssGroup(a, i); if (g.length < 2) return null;
+  const open = k => !a.queue[k].skipped && workFor(a, k).length < targetSets(a.queue[k]);
+  const pos = g.indexOf(i);
+  for (let k = 1; k < g.length; k++) { const j = g[(pos + k) % g.length]; if (open(j)) return {idx: j, wrap: pos + k >= g.length}; }
+  return null;
+}
+// Scheibenrechner: Scheiben pro Seite (gierig, übliche Studio-Scheiben). rest > 0: nicht genau ladbar.
+export const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+export function platesFor(kg, bar) {
+  let side = (kg - bar) / 2; if (side < 0) return null;
+  const out = [];
+  for (const p of PLATES) while (side >= p - 1e-9) { out.push(p); side -= p; }
+  return {plates: out, rest: Math.round(side * 2 * 100) / 100};
+}
 export function firstOpen(a, from = 0) {
   for (let k = 0; k < a.queue.length; k++) {
     const i = (from + k) % a.queue.length, it = a.queue[i];
@@ -561,7 +584,7 @@ export function sanitizeImport(d) {
       ...(/^\d{4}-\d{2}-\d{2}$/.test(p.cycle.once || "") ? {once: p.cycle.once} : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(p.cycle.skip || "") ? {skip: p.cycle.skip} : {})}} : {}),
     days: arr(p.days, "Tage").map(dd => ({id: id(dd.id, "Tag"), name: str(dd.name, 80) || "Tag",
       slots: arr(dd.slots, "Übungen").map(s => ({id: id(s.id, "Slot"), exId: id(s.exId, "Übung"), sets: Math.round(num(s.sets, 1, 20, "Sätze")),
-        min: Math.round(num(s.min, 1, 100, "Wdh.")), max: Math.round(num(s.max, 1, 100, "Wdh.")), rest: Math.round(optNum(s.rest, 0, 900, 0))}))}))}));
+        min: Math.round(num(s.min, 1, 100, "Wdh.")), max: Math.round(num(s.max, 1, 100, "Wdh.")), rest: Math.round(optNum(s.rest, 0, 900, 0)), ...(s.ss === true ? {ss: true} : {})}))}))}));
   const sessions = arr(d.sessions, "Trainings").map(x => ({id: id(x.id, "Training"), date: iso(x.date, "Training"), ...(x.end ? {end: iso(x.end, "Training")} : {}),
     planId: optId(x.planId, "Training"), planName: str(x.planName, 80), dayId: optId(x.dayId, "Training"), dayName: str(x.dayName, 80),
     sets: arr(x.sets, "Sätze").map(y => ({exId: id(y.exId, "Satz"), kg: num(y.kg, 0, 1000, "Gewicht"), reps: Math.round(num(y.reps, 0, 100, "Wdh.")),
