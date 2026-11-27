@@ -752,3 +752,6 @@ main.modal .setlist .c-st, main.modal .sethead{font-size:.82rem}
 main.modal .rir button{font-size:1.06rem}
 /* Hinweise im Training oben statt über den Bedienelementen */
 body:has(main.modal) .toast{bottom:auto; top:calc(60px + env(safe-area-inset-top))}
+.rampoffer{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; background:var(--card); border-radius:var(--r); padding:6px 6px 6px 14px; margin:0 0 10px; font-size:.94rem}
+.rampoffer .btn.small{width:auto; min-height:44px}
+.rampoffer > span{flex:1; min-width:0}
