@@ -199,7 +199,7 @@ export default {
   "Kraftausdauer": "Muscular endurance",
   "15–25 Wiederholungen, kurze Pausen unter einer Minute. Für Ausdauer der Muskeln und Fitness.": "15–25 reps, short rests under one minute. For muscular endurance and fitness.",
   "Athletik": "Athletics",
-  "Sprünge und explosive Übungen mit 3–6 Wiederholungen und langen Pausen, dazu Grundkraft. Für Schnellkraft und Sport.": "Jumps and explosive exercises with 3–6 reps and long rests, plus basic strength. For power and sport.",
+  "Sprünge und explosive Übungen mit 3–6 Wiederholungen, leichter bis mittlerer Last (30–70 %) und schneller Bewegung, lange Pausen, dazu Grundkraft. Für Schnellkraft und Sport.": "Jumps and explosive exercises with 3–6 reps, light to moderate load (30–70 %) moved fast, long rests, plus basic strength. For power and sport.",
   "Mobility": "Mobility",
   "Dehnen und Beweglichkeit, je 30–45 Sekunden pro Position. Gut an Ruhetagen oder nach dem Training.": "Stretching and mobility, 30–45 seconds per position. Good on rest days or after training.",
   "Fortgeschritten": "Intermediate",
@@ -1388,4 +1388,6 @@ export default {
   "+ Drop-Satz eintragen": "+ Log a drop set",
   "Aufwärmsatz. Gewicht und Wiederholungen einstellen, dann speichern.": "Warm-up set. Set weight and reps, then save.",
   "Drop-Satz. Gewicht und Wiederholungen einstellen, dann speichern.": "Drop set. Set weight and reps, then save.",
+  "Abgleich mit dem ACSM Position Stand 2026 zum Krafttraining (137 Übersichtsarbeiten): Kraft wächst am besten mit schweren Lasten um 80 % des 1RM und 2–3 Sätzen pro Übung, Muskelaufbau mit etwa 10 oder mehr Sätzen pro Muskel und Woche, Schnellkraft mit 30–70 % des 1RM und schneller Bewegung. Regelmäßigkeit zählt mehr als Training bis zum Versagen, Gerätewahl oder ausgefeilte Periodisierung. Darum fragt SATZ nach Wdh. in Reserve statt nach Versagen, und die Entlastungswoche ist eine Option, kein Muss.":
+    "Checked against the 2026 ACSM position stand on resistance training (137 systematic reviews): strength grows best with heavy loads around 80 % of 1RM and 2–3 sets per exercise, muscle growth with about 10 or more sets per muscle per week, power with 30–70 % of 1RM moved fast. Consistency matters more than training to failure, equipment choice or elaborate periodisation. That is why SATZ asks for reps in reserve instead of failure, and the deload week is an option, not a must.",
 };

@@ -1,4 +1,4 @@
-# SATZ – Trainingsheft (Version 0.9.2)
+# SATZ – Trainingsheft
 
 Installierbare Web-App (PWA) fürs Krafttraining mit Ernährungstagebuch. Live: https://lucafrey24-beep.github.io/satz/ Läuft im Browser, offline, ohne Konto. Alle Daten bleiben auf dem Gerät (localStorage), Sicherung als JSON-Datei unter „Mehr“.
 
@@ -40,7 +40,11 @@ Die App muss über HTTPS erreichbar sein, z. B. über GitHub Pages. Danach im Br
 - Satzziel zählt nur Arbeitssätze. Aufwärm- und Drop-Sätze kommen zusätzlich dazu und stehen in der Satz-Tabelle vor bzw. unter ihrem Satz.
 - Verlauf hängt an festen Übungs-IDs: Umbenennen und Tauschen verändern alte Trainings nicht. Trainings speichern Plan- und Tagesnamen als Kopie.
 - Ernährung: Grundumsatz nach Mifflin-St Jeor, Aktivitätsfaktor nach FAO/WHO/UNU 2004, Ziel −0,5 % / 0 / +0,25 % Körpergewicht pro Woche, Protein 2,0 / 1,6 / 1,8 g/kg (Abnehmen / Halten / Aufbauen), Fett 25 % der Energie, Rest Kohlenhydrate. Quellen in der App unter Ernährung → Ziel.
-- Trainingsziele nach ACSM Position Stand 2009: Kraft & Muskeln 6–12 Wdh. und 2–3 min Pause, Kraftausdauer 15–25 Wdh. und unter 1 min Pause, Athletik explosive Übungen mit 3–6 Wdh. und langen Pausen. Übungen aus der Körperkarte starten mit dem Satzschema des Plan-Ziels.
+- Trainingsziele, abgeglichen mit dem ACSM Position Stand 2026 zum Krafttraining gesunder Erwachsener (Medicine & Science in Sports & Exercise, 137 Übersichtsarbeiten, ersetzt den Stand von 2009; Kernaussagen laut ACSM: https://acsm.org/resistance-training-guidelines-update-2026/). Kraft: schwere Lasten um 80 % 1RM, 2–3 Sätze pro Übung. Muskelaufbau: etwa 10 Sätze pro Muskel und Woche. Schnellkraft: 30–70 % 1RM, schnell bewegt. Regelmäßigkeit zählt mehr als Versagen, Geräteart oder Periodisierung.
+  - Kraft & Muskeln: 6–12 Wdh., 2–3 min Pause (passt zu beiden Zielen).
+  - Kraftausdauer: 15–25 Wdh., unter 1 min Pause. Die Pausenlänge ist eine Praxisregel; der Volltext des Position Stand wurde dafür nicht geprüft.
+  - Athletik: explosive Übungen mit 3–6 Wdh., 30–70 % Last, lange Pausen.
+  - Übungen aus der Körperkarte starten mit dem Satzschema des Plan-Ziels.
 - Datenschutz Ernährung: An Open Food Facts gehen nur Barcode oder Suchbegriff. Profil, Gewicht und Tagebuch bleiben auf dem Gerät.
 
 ## Sprachen

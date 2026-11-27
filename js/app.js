@@ -18,7 +18,7 @@ const iB = (title, html) => { INFOS[title] = html; return `<button type="button"
 const iL = (title, html) => { INFOS[title] = html; return `<button type="button" class="ilink" data-act="info" data-t="${esc(title)}" aria-haspopup="dialog">${ICO}<span>${esc(title)}</span></button>`; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 const D = () => St.S;
-export const APP_VERSION = "0.11.0";
+export const APP_VERSION = "0.11.1";
 const ui = {day: null, eday: 0, summary: false, key: "", kg: 0, reps: 8, rir: null, draft: null, draftNew: false, pq: "", pm: "", kit: "", exq: "", histEx: ""};
 const fmt = St.fmt;
 const scheme = sl => `${sl.sets}×${sl.min}–${sl.max}${St.ex(sl.exId).unit === "s" ? " s" : ""}`;
@@ -678,7 +678,7 @@ function pickMuscle(id, from3d) {
   if (tag) { tag.hidden = false; tag.innerHTML = `${tx(MUSCLE_NAME[id])} · ${txn(n, "{n} Übung", "{n} Übungen")} <span aria-hidden="true">↓</span>`; }
 }
 function setSide(v) { ui.bside = v; view.querySelectorAll('[data-act="bside"]').forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === v))); }
-// Standard-Satzschema nach Ziel des Plans (ACSM 2009)
+// Standard-Satzschema nach Ziel des Plans (abgeglichen mit dem ACSM Position Stand 2026, siehe README)
 const goalScheme = g => g === "ausdauer" ? [3, 15, 20, 45] : g === "athletik" ? [3, 4, 6, 150] : g === "mobil" ? [2, 30, 45, 15] : [3, 8, 12, 0];
 // Halte- und Mobility-Übungen behalten ihr Sekunden-Schema, egal welches Ziel der Plan hat
 const schemeFor = (e, g) => e.unit === "s" ? (({sets, min, max, rest}) => [sets, min, max, rest])(slotDefault(e)) : goalScheme(g);
@@ -1330,6 +1330,7 @@ function viewMore(sub) {
     <p class="meta">${tx("Ernährung: Grundumsatz nach Mifflin-St Jeor (Mifflin et al. 1990), Aktivitätsfaktoren nach FAO/WHO/UNU 2004, Protein 1,6–2,0 g/kg (Morton et al. 2018; Helms et al. 2014). Alle Schritte und Quellen siehst du unter Ernährung → Ziel. Barcode-Erkennung mit ZXing (Apache-2.0), Produktdaten von Open Food Facts (ODbL).")}</p>
     <p class="meta">${tx("3D-Körperkarte mit three.js (MIT). Figur und Bewegungsabläufe sind selbst gezeichnete Schemata: ähnliche Übungen teilen sich eine Bewegungsvorlage, eigene Übungen bekommen die Vorlage ihres Hauptmuskels.")}</p>
     <p class="meta">${tx("Die Regeln hinter der App: Doppelte Progression (Plotkin et al. 2022), etwa 10–20 Sätze pro Muskel und Woche (Schoenfeld et al. 2017; Pelland et al. 2026, mitarbeitende Muskeln als halber Satz), Pausen nach Übungsart: 180 s bei schweren Grundübungen bis 8 Wdh., sonst 120 s bzw. 90 s (Schoenfeld et al. 2016; Grgic et al. 2018; Singer et al. 2024), Entlastung bei Plateau (Bell et al. 2023), nach über 14 Tagen Pause 90 % als vorsichtige Faustregel (Bosquet et al. 2013), optionale RIR-Angabe (Zourdos et al. 2016). Keine Tagesserien, kein Zwang: gezählt werden Wochen mit erreichtem Wochenziel, Pausenwochen unterbrechen nichts. Gewohnheiten brauchen Zeit, ein verpasster Tag schadet nicht (Lally et al. 2010). Dehnen 30–45 s pro Position (ACSM 2021), zählt nicht zum Volumen.")}</p>
+    <p class="meta">${tx("Abgleich mit dem ACSM Position Stand 2026 zum Krafttraining (137 Übersichtsarbeiten): Kraft wächst am besten mit schweren Lasten um 80 % des 1RM und 2–3 Sätzen pro Übung, Muskelaufbau mit etwa 10 oder mehr Sätzen pro Muskel und Woche, Schnellkraft mit 30–70 % des 1RM und schneller Bewegung. Regelmäßigkeit zählt mehr als Training bis zum Versagen, Gerätewahl oder ausgefeilte Periodisierung. Darum fragt SATZ nach Wdh. in Reserve statt nach Versagen, und die Entlastungswoche ist eine Option, kein Muss.")}</p>
     <p class="meta">${tx("Version {v} · Daten-Version {d}", {v: APP_VERSION, d: St.VERSION})}</p>`,
   }[sub]();
   view.innerHTML = `<h1 class="big">${tx(page[1])}</h1>${body}<div style="height:24px"></div>`;
