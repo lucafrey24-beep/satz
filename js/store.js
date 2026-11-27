@@ -201,12 +201,16 @@ export function plateau(exId) {
   // Nach einer geplanten Entlastungswoche neu zählen
   const lastDl = S.sessions.map(s => !!s.deload).lastIndexOf(true);
   let hist = S.sessions.slice(lastDl + 1).map(s => s.sets.filter(x => x.exId === exId && isWork(x))).filter(x => x.length);
-  const top = sets => Math.max(...sets.map(x => x.kg)), best = sets => Math.max(...sets.map(x => e1rm(x.kg, x.reps)));
+  const top = sets => Math.max(...sets.map(x => x.kg));
   // Nach einer Entlastung (Training mit unter 95 % des vorherigen Gewichts) neu zählen
   for (let k = hist.length - 1; k > 0; k--) if (top(hist[k]) < top(hist[k - 1]) * 0.95) { hist = hist.slice(k + 1); break; }
   if (hist.length < 4) return 0;
-  const vals = hist.map(best), peak = Math.max(...vals.slice(0, -3));
-  return vals.slice(-3).every(v => v <= peak + 0.01) ? 3 : 0;
+  // Fortschritt = höheres Spitzengewicht oder mehr Wdh. mit dem gleichen Spitzengewicht. Kein geschätztes 1RM mehr:
+  // Epley wird über etwa 10 Wdh. ungenau und reagiert dann auf Rauschen.
+  const perf = sets => { const kg = top(sets); return {kg, reps: sets.filter(x => x.kg === kg).reduce((a, x) => a + x.reps, 0)}; };
+  const better = (a, b) => a.kg > b.kg || (a.kg === b.kg && a.reps > b.reps);
+  const ps = hist.map(perf), peak = ps.slice(0, -3).reduce((m, x) => better(x, m) ? x : m);
+  return ps.slice(-3).every(x => !better(x, peak)) ? 3 : 0;
 }
 export function setCount(exId) {
   return S.sessions.reduce((a, s) => a + s.sets.filter(x => x.exId === exId).length, 0);
@@ -305,11 +309,18 @@ export function suggest(slot) {
   }
   // RIR fließt ein: Ziel erreicht und alle Sätze mit 3+ Wdh. in Reserve → zwei Schritte; Ziel erreicht → ein Schritt.
   const rirs = top.map(x => x.rir).filter(r => r != null), easy = rirs.length === top.length && rirs.length && rirs.every(r => r >= 3);
-  if (top.length >= slot.sets && top.every(x => x.reps >= slot.max)) {
+  // Steigern, wenn alle Sätze in der Spanne liegen und der erste Satz das obere Ende erreicht. Ein verpatzter letzter Satz
+  // blockiert so nicht mehr. Ist der Gewichtsschritt groß im Verhältnis zur Last (über 10 %, z. B. 1 kg auf 8 kg beim Seitheben),
+  // muss der erste Satz zwei Wdh. über die Spanne kommen, damit der Sprung nicht zu groß wird.
+  const bigJump = kg > 0 && e.step / kg > 0.1, need = slot.max + (bigJump ? 2 : 0);
+  const inRange = top.length >= slot.sets && top.every(x => x.reps >= slot.min);
+  if (inRange && top[0].reps >= need) {
     const up = kg + e.step * (easy ? 2 : 1);
     return {kind: "up", kg: up, reps: slot.min,
       text: `${prev} ${easy ? tx("Ziel erreicht und es war noch viel Luft.") : tx("Ziel erreicht.")} ${tx("Heute {w} versuchen, Ziel ab {n} Wdh.", {w: fmtW(e, up), n: slot.min})}`};
   }
+  if (inRange && bigJump && top[0].reps >= slot.max) return {kind: "hold", kg, reps: need,
+    text: `${prev} ${tx("Der nächste Gewichtsschritt wäre über 10 %. Erst {n} Wdh. im ersten Satz schaffen, dann steigern.", {n: need})}`};
   // Plateau: dreimal in Folge kein Fortschritt beim geschätzten 1RM → kurz entlasten und neu aufbauen.
   // Eine Entlastung (Deload) ist eine kurze Phase mit weniger Last zur Erholung (Bell et al. 2023, Delphi-Konsens).
   if (pl && kg > 0) {

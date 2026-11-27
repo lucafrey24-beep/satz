@@ -1405,4 +1405,7 @@ export default {
   "Aufwärmrampe übernommen. Speichern trägt jeweils den nächsten Aufwärmsatz ein.": "Warm-up ramp added. Each save logs the next warm-up set.",
   "Arbeitssätze mit {w}.": "Working sets with {w}.",
   "Erstes Mal. SATZ hilft dir, das Gewicht zu finden: Testsatz mit {n} sauberen Wdh., dann angeben, wie viele noch gegangen wären.": "First time. SATZ helps you find the weight: a test set of {n} clean reps, then say how many more you could have done.",
+
+  /* ---------- 0.11.3: Steigerungsregel ---------- */
+  "Der nächste Gewichtsschritt wäre über 10 %. Erst {n} Wdh. im ersten Satz schaffen, dann steigern.": "The next weight jump would be over 10 %. First reach {n} reps in the first set, then go up.",
 };
