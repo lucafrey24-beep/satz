@@ -176,9 +176,9 @@ export function recentVolume(days = 7) {
   return v;
 }
 export function volStatus(m, x) {
-  if (!m.major) return "";
-  if (x < 10) return "low";
-  if (x <= 20) return "ok";
+  if (!m.lo) return "";
+  if (x < m.lo) return "low";
+  if (x <= m.hi) return "ok";
   return "high";
 }
 

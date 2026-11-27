@@ -45,7 +45,9 @@ export function mountBody(el, {onPick, selected = null, label = () => ""} = {}) 
   put(ell(0.085, [0.9, 1.45, 0.38]), "bauch", [0, 1.11, 0.068]);
   // Rücken: breiter Rückenmuskel beidseitig und oberer Rücken
   for (const s of [1, -1]) put(ell(0.09, [0.95, 1.55, 0.42]), "ruecken", [s * 0.075, 1.3, -0.082], [0, s * -0.2, s * 0.12]);
-  put(ell(0.08, [1.5, 0.55, 0.42]), "ruecken", [0, 1.45, -0.078]);
+  put(ell(0.08, [1.5, 0.55, 0.42]), "ruecken", [0, 1.42, -0.078]);
+  // Trapez: oberer Rücken und Nacken
+  put(ell(0.07, [1.5, 0.6, 0.45]), "trapez", [0, 1.49, -0.06]);
   // Unterer Rücken
   put(ell(0.07, [1.1, 1.0, 0.4]), "lrs", [0, 1.07, -0.065]);
   // Gesäß
@@ -53,18 +55,22 @@ export function mountBody(el, {onPick, selected = null, label = () => ""} = {}) 
 
   // Arme: Gruppe am Schultergelenk, 45° abgespreizt
   for (const s of [1, -1]) {
-    put(ell(0.072, [1.05, 1, 1]), "schultern", [s * 0.198, 1.43, 0]);
+    // Schulter dreigeteilt: vorne, seitlich, hinten
+    put(ell(0.05, [1, 1.15, 0.75]), "schultern", [s * 0.19, 1.43, 0.034]);
+    put(ell(0.05, [0.8, 1.15, 0.95]), "delt_seite", [s * 0.222, 1.43, 0]);
+    put(ell(0.05, [1, 1.15, 0.75]), "delt_hinten", [s * 0.19, 1.43, -0.034]);
     const arm = new THREE.Group(); arm.position.set(s * 0.205, 1.42, 0); arm.rotation.z = s * (Math.PI / 4); fig.add(arm);
     put(cap(0.042, 0.2), "neutral", [0, -0.16, 0], null, arm).userData.region = q => q.z > 0 ? "bizeps" : "trizeps";
     put(ell(0.042, [0.95, 2.1, 0.8]), "bizeps", [0, -0.15, 0.022], null, arm);
     put(ell(0.042, [0.95, 2.2, 0.8]), "trizeps", [0, -0.14, -0.022], null, arm);
-    put(cap(0.034, 0.2), "neutral", [0, -0.43, 0], null, arm);
+    put(cap(0.034, 0.2), "unterarme", [0, -0.43, 0], null, arm);
     put(ell(0.04, [0.75, 1.25, 0.5]), "neutral", [0, -0.6, 0], null, arm);
     // Beine
     const leg = new THREE.Group(); leg.position.set(s * 0.085, 0.86, 0); leg.rotation.z = s * 0.04; fig.add(leg);
     put(cap(0.068, 0.3), "neutral", [0, -0.22, 0], null, leg).userData.region = q => q.z > 0 ? "quads" : "hamstrings";
     put(ell(0.066, [1.0, 2.7, 0.72]), "quads", [0, -0.21, 0.03], null, leg);
     put(ell(0.064, [0.95, 2.6, 0.72]), "hamstrings", [0, -0.23, -0.03], null, leg);
+    put(ell(0.04, [0.7, 2.2, 0.8]), "adduktoren", [-s * 0.045, -0.17, 0], null, leg);
     put(cap(0.043, 0.32), "neutral", [0, -0.64, 0], null, leg).userData.region = q => q.z < 0 && q.y > -0.2 ? "waden" : null;
     put(ell(0.046, [0.95, 2.3, 0.85]), "waden", [0, -0.58, -0.026], null, leg);
     put(new THREE.BoxGeometry(0.075, 0.045, 0.18, 2, 1, 2), "neutral", [0, -0.855, 0.045], null, leg);

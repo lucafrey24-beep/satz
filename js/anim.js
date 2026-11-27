@@ -41,8 +41,8 @@ const dot = (p, r, cls) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1
 // Körper mit Volumen: jedes Glied hat eine eigene Dicke (Klassen w-…), aktive Muskeln in Akzentfarbe
 const hi = (on, ...ms) => ms.some(m => on.includes(m)) ? " hi" : "";
 function drawSide(J, on) {
-  const torso = hi(on, "brust", "ruecken", "bauch", "lrs"), ua = hi(on, "bizeps", "trizeps", "schultern"), fa = "";
-  const th = hi(on, "quads", "hamstrings"), shin = hi(on, "waden");
+  const torso = hi(on, "brust", "ruecken", "bauch", "lrs", "trapez"), ua = hi(on, "bizeps", "trizeps", "schultern", "delt_seite", "delt_hinten"), fa = hi(on, "unterarme");
+  const th = hi(on, "quads", "hamstrings", "adduktoren"), shin = hi(on, "waden");
   // Rumpf als Brustkorb + Becken: Mitte etwas zur Brust hin verdickt
   const mid = lerpP(J.hip, J.sho, 0.62);
   let s = "";
@@ -66,7 +66,7 @@ function frontJoints(p) {
   return J;
 }
 function drawFront(J, on) {
-  const torso = hi(on, "brust", "ruecken", "bauch"), sh = hi(on, "schultern"), leg = hi(on, "quads", "hamstrings", "gluteus");
+  const torso = hi(on, "brust", "ruecken", "bauch", "trapez"), sh = hi(on, "schultern", "delt_seite", "delt_hinten"), leg = hi(on, "quads", "hamstrings", "gluteus", "adduktoren");
   const chest = [J.pel[0], J.pel[1] - 16];
   return ln(J.pel, J.neck, "b w-tr" + torso) + ln(chest, J.neck, "b w-chf" + torso) + ln(J.shoL, J.shoR, "b w-ua" + torso) + ln(J.hipL, J.hipR, "b w-th") + dot(J.head, 6.2, "hd")
     + ln(J.shoR, J.elbR, "b w-ua" + sh) + ln(J.elbR, J.handR, "b w-fa") + ln(J.shoL, J.elbL, "b w-ua" + sh) + ln(J.elbL, J.handL, "b w-fa")
